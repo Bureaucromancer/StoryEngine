@@ -103,7 +103,7 @@ export type ImportPreviewObject =
  * ***A World's file, looked at before anything lands*** —
  * [16 §5.1](../../../docs/design/16-publish.md),
  * [10 §5](../../../docs/design/10-ui-surfaces.md),
- * [P16.3f](../../../docs/design/workplan/35-p16-world.md).
+ * [P16.3f](../../../docs/design/workplan/34-p16-world.md).
  *
  * **The one root this preview reads rather than calling a folder in a file.**
  * Every other archive is a sweep, and a look at one would be a dry run of it;

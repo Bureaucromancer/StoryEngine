@@ -13,8 +13,8 @@ import { WORDS } from './words.js';
 /**
  * ***What opening the file needs, and what it leaves behind*** —
  * [16 §5](../../../../../docs/design/16-publish.md),
- * [P16 §1.1](../../../../../docs/design/workplan/35-p16-world.md),
- * [P16.3g](../../../../../docs/design/workplan/35-p16-world.md).
+ * [P16 §1.1](../../../../../docs/design/workplan/34-p16-world.md),
+ * [P16.3g](../../../../../docs/design/workplan/34-p16-world.md).
  *
  * - **The modes it needs**, from the Setups and sessions it carries, with this
  *   install's version of each — or the plain fact that this install does not

@@ -104,7 +104,7 @@ export interface SimpleKind {
   hooks?: true;
   /**
    * Whether this page authors the World's `contents` itself —
-   * [P16.1](../../../../docs/design/workplan/35-p16-world.md),
+   * [P16.1](../../../../docs/design/workplan/34-p16-world.md),
    * [15 §3.1](../../../../docs/design/15-world.md).
    *
    * ***The second exception, which is what `hooks` above said would come.***

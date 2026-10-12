@@ -4,7 +4,7 @@
 import { channelKey, splitChannelKey } from '../../sessions/channels.js';
 
 /**
- * ***References follow a re-mint*** — [P16.3e](../../../../../docs/design/workplan/35-p16-world.md),
+ * ***References follow a re-mint*** — [P16.3e](../../../../../docs/design/workplan/34-p16-world.md),
  * [04 §9](../../../../../docs/design/04-schemas.md), [16 §5.1](../../../../../docs/design/16-publish.md).
  *
  * **What it is for.** A World file arriving on an account that cannot hold an

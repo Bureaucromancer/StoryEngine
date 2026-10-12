@@ -114,11 +114,11 @@ export const ASSISTANT_CONTEXT: ChannelDefinition = {
    * name goes as written. `null`, which the panel writes where nothing is
    * open, renders nothing (`renderChannelValue`).
    *
-   * ***(2026-10-10, [P16.0](../../../../docs/design/workplan/35-p16-world.md))***
+   * ***(2026-10-10, [P16.0](../../../../docs/design/workplan/34-p16-world.md))***
    * ~~`packages` → *the package*~~ — the kind is a World now, its folder
    * `worlds` and the page's word *world*, so a World open in the library is
    * *the world*. **`packages` stays as a second name for it**, and that is
-   * [P16 §1.1](../../../../docs/design/workplan/35-p16-world.md)'s *read both,
+   * [P16 §1.1](../../../../docs/design/workplan/34-p16-world.md)'s *read both,
    * write the new one* rather than tidiness left undone: the panel writes this
    * channel only when what it sees changes, and a session reopened on a page
    * with nothing open writes nothing at all (`useDisclosedContext` in the

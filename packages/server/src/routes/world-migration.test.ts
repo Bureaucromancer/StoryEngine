@@ -17,7 +17,7 @@ import { makeTestServer, ownObjects, setUpAdmin, type TestServer } from '../test
 
 /**
  * ***Package becomes World, on an install that had Packages*** —
- * [P16.0](../../../../docs/design/workplan/35-p16-world.md), §1.1.
+ * [P16.0](../../../../docs/design/workplan/34-p16-world.md), §1.1.
  *
  * The stage ends when *a data directory holding a Package made before the stage
  * opened shows it in the Worlds panel with its members; editing it moves the

@@ -9,7 +9,7 @@ import { writtenByPlay } from './panels.js';
 
 /**
  * ***A selection on the shelves*** — [10 §5](../../../../docs/design/10-ui-surfaces.md)'s
- * *bulk select*, built at [P16.3g](../../../../docs/design/workplan/35-p16-world.md)
+ * *bulk select*, built at [P16.3g](../../../../docs/design/workplan/34-p16-world.md)
  * for the second of [16 §6](../../../../docs/design/16-publish.md)'s three
  * doors: *a selection in a library panel*.
  *

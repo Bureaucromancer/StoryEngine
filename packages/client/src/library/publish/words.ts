@@ -4,7 +4,7 @@
 import { labels } from '../../i18n/catalogue.js';
 
 /**
- * ***The review's words*** — [P16.3g](../../../../../docs/design/workplan/35-p16-world.md),
+ * ***The review's words*** — [P16.3g](../../../../../docs/design/workplan/34-p16-world.md),
  * [16 §5](../../../../../docs/design/16-publish.md).
  *
  * **Whole phrases with the values substituted in**, the client's rule ([20
@@ -206,7 +206,7 @@ export const WORDS = labels('publish.review', {
 });
 
 /**
- * ***What changed since the last file*** — [P16.3h](../../../../../docs/design/workplan/35-p16-world.md),
+ * ***What changed since the last file*** — [P16.3h](../../../../../docs/design/workplan/34-p16-world.md),
  * [16 §5](../../../../../docs/design/16-publish.md)'s *re-publishing opens on
  * the diff*.
  *

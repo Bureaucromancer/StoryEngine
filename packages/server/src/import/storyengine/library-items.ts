@@ -17,7 +17,7 @@ import type { FileSource } from '../source.js';
 
 /**
  * ***A tree of library folders, read as objects*** — extracted from
- * `BackupReader.items()` at [P16.3e](../../../../../docs/design/workplan/35-p16-world.md),
+ * `BackupReader.items()` at [P16.3e](../../../../../docs/design/workplan/34-p16-world.md),
  * so the two readers of our own folders parse them once.
  *
  * **Why one parser, and why now.** [P16.3]'s plan, §3: *"the layout mirrors

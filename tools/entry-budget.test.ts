@@ -246,7 +246,7 @@ const DIST = join(HERE, '..', 'packages', 'client', 'dist');
  */
 /*
  * ***Raised to 312 on 2026-10-10, at [P16.2]*** — the World,
- * [P16](../docs/design/workplan/35-p16-world.md). Found by this file failing, as
+ * [P16](../docs/design/workplan/34-p16-world.md). Found by this file failing, as
  * it is meant to be: the stage's own checks were targeted and built no client,
  * and the isolated full run of `c511641` measured **304.77**. Measured stage by
  * stage from P16's base (alpha 6, `ad47e39`), **299.63**: **299.85** after P16.0
@@ -461,7 +461,7 @@ describe('what a first load pays for', () => {
 
   /**
    * ***The publish review is not on the entry, and this is the check that says
-   * so*** — [P16.3g](../docs/design/workplan/35-p16-world.md),
+   * so*** — [P16.3g](../docs/design/workplan/34-p16-world.md),
    * [21 §7](../docs/design/21-client-loading.md), 2026-10-11.
    *
    * The changelog's argument, a fourth time, and for its reason: **the

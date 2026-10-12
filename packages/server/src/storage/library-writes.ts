@@ -5,7 +5,7 @@ import { KeyedQueue } from './keyed-queue.js';
 
 /**
  * ***The library's write queue, in one place*** — `library.ts`'s, moved here
- * 2026-10-10 at [P16.0](../../../../docs/design/workplan/35-p16-world.md) so that
+ * 2026-10-10 at [P16.0](../../../../docs/design/workplan/34-p16-world.md) so that
  * the one writer outside `library.ts` that claims a folder in a kind can take
  * the same turn.
  *

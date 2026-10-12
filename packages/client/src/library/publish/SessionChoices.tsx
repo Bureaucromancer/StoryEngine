@@ -15,7 +15,7 @@ import { countPhrase, WORDS } from './words.js';
 /**
  * ***A checkbox per session, each off*** — [16 §5](../../../../../docs/design/16-publish.md):
  * *"sending somebody your transcripts is a thing to choose rather than a
- * thing to discover you did."* [P16.3g](../../../../../docs/design/workplan/35-p16-world.md).
+ * thing to discover you did."* [P16.3g](../../../../../docs/design/workplan/34-p16-world.md).
  *
  * **What a session row says is what would leave with it**, so the tick is made
  * knowing it:

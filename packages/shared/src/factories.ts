@@ -102,7 +102,7 @@ export function newLorebook(name: string): Lorebook {
      * ***Linked to nobody — the narrowest value in the union*** —
      * [26 §B15](../../../docs/design/26-open-questions.md), recommended answer,
      * owner deferred (overrule it there), built at
-     * [P16.2](../../../docs/design/workplan/35-p16-world.md), 2026-10-10.
+     * [P16.2](../../../docs/design/workplan/34-p16-world.md), 2026-10-10.
      *
      * ~~The widest value in the union, and that is an open question rather
      * than a considered default~~ — this was `{ kind: 'global' }` until P16.2.

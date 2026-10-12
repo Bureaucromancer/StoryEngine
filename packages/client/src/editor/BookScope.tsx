@@ -26,8 +26,8 @@ import {
 
 /**
  * ***A book's scope, written rather than only stored*** —
- * [P16.2](../../../../docs/design/workplan/35-p16-world.md),
- * [P16 §1.3](../../../../docs/design/workplan/35-p16-world.md),
+ * [P16.2](../../../../docs/design/workplan/34-p16-world.md),
+ * [P16 §1.3](../../../../docs/design/workplan/34-p16-world.md),
  * [15 §5.3](../../../../docs/design/15-world.md),
  * [26 B16](../../../../docs/design/26-open-questions.md).
  *

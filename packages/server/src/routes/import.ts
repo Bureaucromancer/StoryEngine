@@ -1625,7 +1625,7 @@ async function importOneFile(
   /**
    * ***A `.sepack.json` — the frozen World file before the zip*** —
    * [16 §5.1](../../../../docs/design/16-publish.md),
-   * [P16.3e](../../../../docs/design/workplan/35-p16-world.md). P11.10's
+   * [P16.3e](../../../../docs/design/workplan/34-p16-world.md). P11.10's
    * export, which alpha 5 and alpha 6 shipped: one JSON document holding a
    * World's manifest and its objects. It is a **root**, not an item — a World
    * and what it names — so it is swept, as the profile envelope below is, over

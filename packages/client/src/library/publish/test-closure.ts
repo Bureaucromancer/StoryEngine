@@ -14,7 +14,7 @@ import type {
 } from '@storyengine/shared';
 
 /**
- * ***A closure, by hand, for the review's tests*** — [P16.3g](../../../../../docs/design/workplan/35-p16-world.md).
+ * ***A closure, by hand, for the review's tests*** — [P16.3g](../../../../../docs/design/workplan/34-p16-world.md).
  *
  * `shared/src/publish.test.ts`'s builder, in the client's terms: nodes and
  * edges as the walker writes them, with the derived parts — `parent`, `depth`,

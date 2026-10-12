@@ -208,7 +208,7 @@ they still have to exist before code does.
   *Setting*).
 - **World** — a durable named set of library objects and sessions, stored as
   references and published as copies ([15](15-world.md), [04 §9](04-schemas.md)).
-  *Called **Package** until [P16.0](workplan/35-p16-world.md) renamed the kind
+  *Called **Package** until [P16.0](workplan/34-p16-world.md) renamed the kind
   (2026-10-10) — then a shareable bundle of actors, treatments, lorebooks, presets
   and mode config, the "full game setup" export. Not to be confused with a
   first-party namespace such as `storyengine.lore`, which the code also calls a

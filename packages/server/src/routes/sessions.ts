@@ -480,7 +480,7 @@ const CreateBody = Type.Object(
      */
     setup: Type.Optional(Type.Union([Type.String({ maxLength: 200 }), Type.Null()])),
     /**
-     * ***A World to start in*** — [P16 §1.3](../../../../docs/design/workplan/35-p16-world.md),
+     * ***A World to start in*** — [P16 §1.3](../../../../docs/design/workplan/34-p16-world.md),
      * [P16.2], [15 §3.2](../../../../docs/design/15-world.md).
      *
      * **What it contributes is copied once, here, and is a default every other
@@ -495,7 +495,7 @@ const CreateBody = Type.Object(
      * ([00 §3.1]).
      *
      * ***This is not P5.7 again***, and the difference is the whole of
-     * [P16 §1.3](../../../../docs/design/workplan/35-p16-world.md): a World is a
+     * [P16 §1.3](../../../../docs/design/workplan/34-p16-world.md): a World is a
      * subset somebody named, and its books land in `session.lore` — on disk,
      * editable, the one list the retriever reads — rather than being admitted by
      * a query that re-decides each turn. Nothing reaches the prompt that is not
@@ -1626,7 +1626,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
 
       /**
        * ***The session joins the World it was started in*** — [P16.2],
-       * [P16 §1.2](../../../../docs/design/workplan/35-p16-world.md): the same
+       * [P16 §1.2](../../../../docs/design/workplan/34-p16-world.md): the same
        * write *Add to a World* makes, on the World and nowhere else, since the
        * session carries no World of its own.
        *

@@ -99,7 +99,7 @@ const SETUPS: SimpleKind = {
 
 /**
  * ***The kind that was `PACKAGES` until [P16.0]***
- * ([P16 §1.1](../../../../docs/design/workplan/35-p16-world.md)): the same
+ * ([P16 §1.1](../../../../docs/design/workplan/34-p16-world.md)): the same
  * fields, the same editor, a new name and a new folder. Every sentence below
  * said *package* until 2026-10-10.
  *
@@ -126,7 +126,7 @@ const SETUPS: SimpleKind = {
  * ***Rewritten at [P16.2], and now it names all three.*** A World's page
  * starts a session in it, and the session form offers it as a choice — its
  * books and its treatment filled in for the person to change, the session
- * added to the World ([P16 §1.3](../../../../docs/design/workplan/35-p16-world.md)).
+ * added to the World ([P16 §1.3](../../../../docs/design/workplan/34-p16-world.md)).
  * The struck paragraphs' rule did not change — the line says only what a
  * World can be used for today — and today includes this.
  *

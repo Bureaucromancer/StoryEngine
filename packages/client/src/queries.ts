@@ -306,7 +306,7 @@ export function useCreateObject(): UseMutationResult<
 
 /**
  * ***Add to a World*** from a session's page or the session list —
- * [P16.1](../../../docs/design/workplan/35-p16-world.md), `api.addWorldMembers`.
+ * [P16.1](../../../docs/design/workplan/34-p16-world.md), `api.addWorldMembers`.
  *
  * **Two invalidations, for `useSaveObject`'s two reasons.** `['library']`
  * because the Worlds list is what *In these worlds* and the control's own

@@ -8,7 +8,7 @@ import { rewriteIds } from './rewrite.js';
 
 /**
  * ***References follow a re-mint, and nothing else moves*** —
- * [P16.3e](../../../../../docs/design/workplan/35-p16-world.md).
+ * [P16.3e](../../../../../docs/design/workplan/34-p16-world.md).
  *
  * The plan's risk 1 is that an exact-match rewrite renames a string that was
  * not a reference; the fact check's finding is that a value-only rewrite

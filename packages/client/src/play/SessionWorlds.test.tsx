@@ -9,8 +9,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * ***A session's Worlds, from the session's side*** —
- * [P16.1](../../../../docs/design/workplan/35-p16-world.md),
- * [P16 §1.2](../../../../docs/design/workplan/35-p16-world.md).
+ * [P16.1](../../../../docs/design/workplan/34-p16-world.md),
+ * [P16 §1.2](../../../../docs/design/workplan/34-p16-world.md).
  *
  * **Two claims, and both are about where membership is written.** *Add to a
  * world* must post the session's envelope to the World — `{ schema:

@@ -140,7 +140,7 @@ describe('the dates', () => {
 
 /**
  * ***Each row names its kind in a word, and a Package deleted before the rename
- * is named a world*** — [P16 §1.1](../../../../docs/design/workplan/35-p16-world.md),
+ * is named a world*** — [P16 §1.1](../../../../docs/design/workplan/34-p16-world.md),
  * 2026-10-10.
  *
  * The server keeps `packages/` as a legacy trash kind so such an entry is

@@ -178,7 +178,7 @@ describe('addressing one object, one copy of it, and one entry inside it', () =>
 });
 
 /**
- * ***Where a publish starts*** — [P16.3g](../../../docs/design/workplan/35-p16-world.md).
+ * ***Where a publish starts*** — [P16.3g](../../../docs/design/workplan/34-p16-world.md).
  * The three doors are one link to one page, and the address carries only the
  * start: `?from=` a comma list, or `?world=` one World, which wins over a list
  * because a World is never part of a selection ([P16.3]'s plan, R8).

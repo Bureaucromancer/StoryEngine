@@ -12,7 +12,7 @@ import { graph, previewOf, worldOf } from './test-closure.js';
 
 /**
  * ***The review*** — [16 §5](../../../../../docs/design/16-publish.md),
- * [P16.3g](../../../../../docs/design/workplan/35-p16-world.md): its tests, as
+ * [P16.3g](../../../../../docs/design/workplan/34-p16-world.md): its tests, as
  * the plan lists them, and the facts the fact check owed to the session row.
  *
  * **The preview is the route's shape, built by hand** (`test-closure.ts`), and

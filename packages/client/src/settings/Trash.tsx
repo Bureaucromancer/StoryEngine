@@ -110,7 +110,7 @@ export function Trash(props: {
 
 /**
  * ***Folders a kind used to live in, as the kind they hold now*** —
- * [P16 §1.1](../../../../docs/design/workplan/35-p16-world.md).
+ * [P16 §1.1](../../../../docs/design/workplan/34-p16-world.md).
  *
  * A trash entry's `kind` is the folder it was deleted from, and a Package
  * deleted before [P16.0] was deleted from `packages/`. `storage/trash.ts` keeps

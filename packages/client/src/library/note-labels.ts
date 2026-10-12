@@ -145,7 +145,7 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
 
   /**
    * ***A World arriving*** —
-   * [P16.3e](../../../../docs/design/workplan/35-p16-world.md),
+   * [P16.3e](../../../../docs/design/workplan/34-p16-world.md),
    * [16 §5.1](../../../../docs/design/16-publish.md).
    *
    * **Said in the World's terms, never in ids.** A World file is somebody's
@@ -218,7 +218,7 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
 
   /**
    * ***What a World file says it does not carry*** —
-   * [P16.3g](../../../../docs/design/workplan/35-p16-world.md), the sentences
+   * [P16.3g](../../../../docs/design/workplan/34-p16-world.md), the sentences
    * [P16.3c] and [P16.3d] left owed: `publish.file.*` is the writer's own
    * vocabulary (`packaging/world-file.ts`, and `routes/publish.ts`' one count).
    *

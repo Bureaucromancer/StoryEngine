@@ -584,8 +584,8 @@ describe('adding a session to a world from the list', () => {
 });
 
 /**
- * ***Starting a session in a World*** — [P16.2](../../../../docs/design/workplan/35-p16-world.md),
- * [P16 §1.3](../../../../docs/design/workplan/35-p16-world.md).
+ * ***Starting a session in a World*** — [P16.2](../../../../docs/design/workplan/34-p16-world.md),
+ * [P16 §1.3](../../../../docs/design/workplan/34-p16-world.md).
  *
  * **The rule under test is §1.3's *prefill, never binding*, as a form.** The
  * route fills an absent `lore` with the World's books and an absent

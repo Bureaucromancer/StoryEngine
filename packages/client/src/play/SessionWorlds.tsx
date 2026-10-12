@@ -19,8 +19,8 @@ import { sessionLabel } from './session-label.js';
 
 /**
  * ***A session's Worlds, from the session's side*** —
- * [P16.1](../../../../docs/design/workplan/35-p16-world.md),
- * [P16 §1.2](../../../../docs/design/workplan/35-p16-world.md),
+ * [P16.1](../../../../docs/design/workplan/34-p16-world.md),
+ * [P16 §1.2](../../../../docs/design/workplan/34-p16-world.md),
  * [15 §3.2](../../../../docs/design/15-world.md).
  *
  * **Membership is written in one place, and it is not here.** A session

@@ -35,7 +35,7 @@ import { countPhrase, WORDS } from './words.js';
 
 /**
  * ***Every level, and every reason as text*** — [16 §5](../../../../../docs/design/16-publish.md),
- * [P16.3g](../../../../../docs/design/workplan/35-p16-world.md).
+ * [P16.3g](../../../../../docs/design/workplan/34-p16-world.md).
  *
  * **One column of rows, never a table** ([P16.3]'s plan; P12A.8, AA14): a
  * row's reasons are sentences, there can be several, and a table cell holding

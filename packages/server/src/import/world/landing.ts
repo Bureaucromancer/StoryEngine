@@ -26,7 +26,7 @@ import type { Arrival } from './plan.js';
 /**
  * ***A World lands naming what landed*** —
  * [16 §5.1](../../../../../docs/design/16-publish.md),
- * [P16.3e](../../../../../docs/design/workplan/35-p16-world.md).
+ * [P16.3e](../../../../../docs/design/workplan/34-p16-world.md).
  *
  * **Last, and from what is here, not from what the file says.** The World is
  * the one object in a World file whose meaning is the others: a set somebody

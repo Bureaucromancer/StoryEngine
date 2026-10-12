@@ -17,7 +17,7 @@ import { LibraryError, type LibraryContext, list, read, update } from '../librar
 
 /**
  * ***Membership, written in one place*** —
- * [P16 §1.2](../../../../docs/design/workplan/35-p16-world.md),
+ * [P16 §1.2](../../../../docs/design/workplan/34-p16-world.md),
  * [15 §3.2](../../../../docs/design/15-world.md).
  *
  * **A World's `contents` is the only place membership is written**, and that
@@ -155,7 +155,7 @@ export async function addMembers(
 
 /**
  * ***What a World contributes to a session started in it*** —
- * [P16 §1.3](../../../../docs/design/workplan/35-p16-world.md), [P16.2].
+ * [P16 §1.3](../../../../docs/design/workplan/34-p16-world.md), [P16.2].
  *
  * **Read once, at creation, and copied** — never a query that re-decides each
  * turn, which is what separates this from [P5.7]'s reversed scope rule: a World

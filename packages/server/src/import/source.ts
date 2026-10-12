@@ -142,7 +142,7 @@ export interface FileSource {
 
   /**
    * ***The names the root holds more than once*** —
-   * [P16.3e](../../../../docs/design/workplan/35-p16-world.md), the review of
+   * [P16.3e](../../../../docs/design/workplan/34-p16-world.md), the review of
    * 2026-10-11.
    *
    * A zip may name two members alike, and the archive sources answer for a
@@ -196,7 +196,7 @@ export type ImportSourceKind =
   | 'aventuras'
   /**
    * ***A World file*** — [16 §5.2](../../../../docs/design/16-publish.md),
-   * [P16.3e](../../../../docs/design/workplan/35-p16-world.md).
+   * [P16.3e](../../../../docs/design/workplan/34-p16-world.md).
    *
    * The second arm that is ours, and the first whose objects may not keep
    * their ids: a backup restores an account's own objects, while a World file
@@ -294,7 +294,7 @@ export interface ImportCandidate {
   notes?: readonly ImportNote[];
   /**
    * ***The object's version history, carried*** —
-   * [P16.3e](../../../../docs/design/workplan/35-p16-world.md),
+   * [P16.3e](../../../../docs/design/workplan/34-p16-world.md),
    * [03 §11.6](../../../../docs/design/03-data-model.md).
    *
    * Member paths of `history/index.jsonl` and `history/v/<sha256>.json`, keyed

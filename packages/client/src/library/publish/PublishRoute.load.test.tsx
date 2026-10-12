@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * ***The review's chunk failing to arrive, through the real factory*** —
- * [P16.3g](../../../../../docs/design/workplan/35-p16-world.md),
+ * [P16.3g](../../../../../docs/design/workplan/34-p16-world.md),
  * [21 §7.2](../../../../../docs/design/21-client-loading.md).
  *
  * `PublishRoute.test.tsx` holds the boundary's two sentences apart by throwing

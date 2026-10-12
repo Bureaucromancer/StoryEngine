@@ -26,7 +26,7 @@ import { countPhrase, DIFF_WORDS } from './words.js';
  * against what 1.2 actually is."* [16 §3](../../../../../docs/design/16-publish.md)
  * is why there is a last file to compare with — a World re-resolves, so the
  * file is the frozen image and the World is not — and
- * [P16.3h](../../../../../docs/design/workplan/35-p16-world.md) builds it.
+ * [P16.3h](../../../../../docs/design/workplan/34-p16-world.md) builds it.
  *
  * **Drawn first, and only for a World start that has been published before**
  * (`PublishPage` decides both): the preview's `previous` is the ledger's newest

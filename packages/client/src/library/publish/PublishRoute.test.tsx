@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * ***The review's route: the address read, and the two states of a lazy chunk***
- * — [P16.3g](../../../../../docs/design/workplan/35-p16-world.md),
+ * — [P16.3g](../../../../../docs/design/workplan/34-p16-world.md),
  * [21 §7.2](../../../../../docs/design/21-client-loading.md).
  *
  * §7.2 says why the component tests cannot be the guardrail that the review is

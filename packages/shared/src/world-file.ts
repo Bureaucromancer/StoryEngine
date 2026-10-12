@@ -9,7 +9,7 @@ import type { World } from './schema/world.js';
  * ***The World file*** — [16 §5.2](../../../docs/design/16-publish.md),
  * [04 §9](../../../docs/design/04-schemas.md),
  * [03 §5.2.3](../../../docs/design/03-data-model.md),
- * [P16.3c](../../../docs/design/workplan/35-p16-world.md).
+ * [P16.3c](../../../docs/design/workplan/34-p16-world.md).
  *
  * **What it is, decided by the owner on 2026-10-10**: *a stored zip of the
  * members' stored folders* (16 §5.2). An actor travels as its card, portrait

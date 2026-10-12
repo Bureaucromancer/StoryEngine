@@ -16,7 +16,7 @@ import { Note } from '../../ui/Text.js';
 
 /**
  * ***The review's route, and the only half of it the entry carries*** —
- * [P16.3g](../../../../../docs/design/workplan/35-p16-world.md),
+ * [P16.3g](../../../../../docs/design/workplan/34-p16-world.md),
  * [21 §7](../../../../../docs/design/21-client-loading.md).
  *
  * **Lazy because it had to be, and named so before it was built.**

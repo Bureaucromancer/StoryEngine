@@ -448,7 +448,7 @@ function TakeItWithYou(props: {
         this world*, a plain anchor to `GET /api/library/worlds/:id/export`,
         with a line under it saying the file was still the Package's
         `.sepack.json`.~~ ***Removed 2026-10-11, at
-        [P16.3g](../../../../docs/design/workplan/35-p16-world.md)***, with the
+        [P16.3g](../../../../docs/design/workplan/34-p16-world.md)***, with the
         route and the writer behind it. [16 §6](../../../../docs/design/16-publish.md)
         names this page as one of Publish's three doors *"where it replaces
         today's Export this package link"*, and that line said, when it was

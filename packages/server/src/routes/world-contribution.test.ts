@@ -28,7 +28,7 @@ import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
 
 /**
  * ***Contribution copies, and P5.7 stays reversed*** —
- * [P16 §1.3](../../../../docs/design/workplan/35-p16-world.md), [P16.2].
+ * [P16 §1.3](../../../../docs/design/workplan/34-p16-world.md), [P16.2].
  *
  * **What went wrong at [P5.7]** is the thing this file exists to keep from
  * coming back from the other direction: a book's own `scope` was briefly allowed

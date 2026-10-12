@@ -245,11 +245,13 @@ P7, P7B, P8, P9, P10, P11, P12, P13, P14 and P15 — which is more than at any
 earlier update. The paragraphs above still apply: the split is sorting the
 pile, and it is not draining it.
 
-***Later the same day, AA arrived*** — [P16](35-p16-world.md)'s critical list,
+***Later the same day, AA arrived*** — [P16](34-p16-world.md)'s critical list,
 registered before the phase opens as T was — so the count is **twenty-seven**,
 AA the first sitting past Z (§4 says how the letters run on), and the results are
 still forty-nine. *P16 is not a twelfth phase held open here*, because it has not
-opened; it joins that count the day it does.
+opened; it joins that count the day it does. *(2026-10-12: it opened on
+2026-10-10 and merged on 2026-10-12, at the owner's word, with AA1–AA4 unwalked —
+so it is held open here now, one more than the count above.)*
 
 The walk so far has produced six findings in [playable log](21-playable-log.md) and eleven
 graded refinements in [refinements](22-walkthrough-refinements.md), and its sharpest
@@ -373,13 +375,15 @@ in a weekend and leave O exactly where it is. *The list is what to walk next; O
 is what to **get** next*, and the errand is one endpoint.
 
 *Not on it either, and for a plainer reason* — added 2026-10-04: **T and AA**,
-the critical lists of [P12A](34-p12a-the-look.md) and [P16](35-p16-world.md),
+the critical lists of [P12A](35-p12a-the-look.md) and [P16](34-p16-world.md),
 registered before either phase opened. Their rows are known and their code is
-not written, so there is nothing to walk. *AA0's errand is the exception*, and it
+not written, so there is nothing to walk. *(2026-10-12: still true of T, and no
+longer of AA — P16 is built and merged, and AA1–AA4 are walkable now, on the
+notes beside AA's steps.)* *AA0's errand is the exception*, and it
 belongs on whatever day P16 opens rather than on this list: a data directory and
 an archive from before the rename, ~~which cannot be made afterwards~~ *made on a
 build from before it — which can still be done late (corrected 2026-10-11, the
-[P16](35-p16-world.md) final audit): an alpha 6 build stays obtainable, and
+[P16](34-p16-world.md) final audit): an alpha 6 build stays obtainable, and
 [AA](#aa--p16s-critical-list--an-install-that-had-packages-a-second-account-and-one-turn-the-second-that-unblocks-r4)'s
 notes beside its steps say how*.
 
@@ -1176,7 +1180,7 @@ corpus against the build; **R4 must not start before R5 is written down**,
 because the gate's own row 13 says *what must not happen is row 12 being walked
 by somebody who does not know the question was open.* *(2026-10-04: and not
 before T and AA either —
-[P12A §0.1](34-p12a-the-look.md) and [P16 §0.1](35-p16-world.md) each put
+[P12A §0.1](35-p12a-the-look.md) and [P16 §0.1](34-p16-world.md) each put
 commitments into the 1.0 corpus that R4 reads, so R4 waits on both phases
 landing; R1, R2, R3, R5 and R6 do not. Written here because this is the
 paragraph a walker of R4 reads, and R4's own row is not edited.)*
@@ -1256,7 +1260,7 @@ standing list below rather than gating the phase.
 ### T — P12A's critical list — *an afternoon and a phone; the one that unblocks R4*
 
 **Registered 2026-09-22, before a line of the phase is built**, which is a first
-here and is deliberate: [P12A](34-p12a-the-look.md) exists because
+here and is deliberate: [P12A](35-p12a-the-look.md) exists because
 [10 §1.3](../10-ui-surfaces.md) added commitments to the 1.0 corpus that the
 build does not meet, and **R4 reads that corpus**. So this sitting is what stands
 between the two — not because P12A is more important than the beta gate, but
@@ -1267,15 +1271,15 @@ from the week before.
 matters: sitting **O** cannot start because a *thing* is missing
 ([R10](#3-standing-prerequisites)); **T** cannot start because the code is not
 written. **Nothing here is blocked on a prerequisite** — that is
-[P12A §1.2](34-p12a-the-look.md)'s doing, which built a choose-your-own-backdrop
+[P12A §1.2](35-p12a-the-look.md)'s doing, which built a choose-your-own-backdrop
 path precisely so this list does not queue behind R10 with O.
 
 | # | Do | Clears | Result |
 |---|---|---|---|
-| **T0** | **The install.** One account, a session with a cast of three and a few branches, an actor with a portrait and one without, and an image on disk to use as a backdrop. **No image endpoint** — [P12A §1.2](34-p12a-the-look.md) is why. | — | |
+| **T0** | **The install.** One account, a session with a cast of three and a few branches, an actor with a portrait and one without, and an image on disk to use as a backdrop. **No image endpoint** — [P12A §1.2](35-p12a-the-look.md) is why. | — | |
 | **T1** | ***The prose over the worst backdrop you can find.* Only a person can walk it.** A bright, busy image; a long turn; then the backdrop off, and no empty frame where it was. | P12A.2; [10 §2.3](../10-ui-surfaces.md) | |
 | **T2** | ***A face that is wrong, corrected from where it is shown.*** Make the engine's attribution stale, then fix it from the face. [00 §3.6](../00-stance.md)'s test, applied to what this phase added. | P12A.3, P12A.4 | |
-| **T3** | ***Play a session after the panels moved.* Only a person can walk it.** Mid-scene: change the lore selection, check a hook, read the goal, correct a channel. Does [P12A §1.3](34-p12a-the-look.md)'s defence survive contact, or is this the disclosure reflex [10 §1.1](../10-ui-surfaces.md) rejects? | P12A.5 | |
+| **T3** | ***Play a session after the panels moved.* Only a person can walk it.** Mid-scene: change the lore selection, check a hook, read the goal, correct a channel. Does [P12A §1.3](35-p12a-the-look.md)'s defence survive contact, or is this the disclosure reflex [10 §1.1](../10-ui-surfaces.md) rejects? | P12A.5 | |
 | **T4** | **A phone, one session, twenty minutes.** Send, read, use a per-turn control, open the workbench, correct a channel — **every essential action reachable without a hover**. | P12A.8, P12A.5 | |
 | **T5** | **Desk work: reduced motion.** Set the OS preference, walk the five motions. Each *absent*, not merely fast. | P12A.0, P12A.6 | |
 
@@ -1294,7 +1298,7 @@ is not exercised there, and the wire test's endpoint is a fake.
 
 ***Lettered T when it was added, and re-lettered U on 2026-10-02.*** It was
 registered on `main` by a branch that could not see
-[P12A](34-p12a-the-look.md)'s T, registered five days earlier on a local `main`
+[P12A](35-p12a-the-look.md)'s T, registered five days earlier on a local `main`
 that had not been pushed; the two met at the merge, and the later registration
 took the next letter. Its rows, their order and their wording are unchanged
 apart from the letter, and nothing outside this file had cited it. *(2026-10-03:
@@ -1323,7 +1327,7 @@ button is for.
 
 ***Lettered T when it was written, and re-lettered V on 2026-10-03.*** It was
 registered on a branch, cut on 2026-09-26 from the pushed `main`, that could not
-see [P12A](34-p12a-the-look.md)'s T (registered 2026-09-22 on a local `main`
+see [P12A](35-p12a-the-look.md)'s T (registered 2026-09-22 on a local `main`
 that met the pushed one only on 2026-10-02) or the pictures-on-a-move sitting
 (registered as T on 2026-09-27, after the branch was cut, and re-lettered U on
 2026-10-02). They met at the merge, and the later registration took the next
@@ -1358,7 +1362,7 @@ from, and whether the person still playing was spoiled.
 ***Lettered T when it was written, and re-lettered W on 2026-10-03*** — and the
 phase it belongs to was P13 then and is P15 now. It was registered on a branch
 cut on 2026-09-26 from the pushed `main`, which could not see
-[P12A](34-p12a-the-look.md)'s T (registered 2026-09-22 on a local `main`), the
+[P12A](35-p12a-the-look.md)'s T (registered 2026-09-22 on a local `main`), the
 pictures-on-a-move sitting (registered as T on 2026-09-27 and re-lettered U),
 or the connection sitting (written as T on a branch of the same day and
 re-lettered V earlier the same day). They met at the merges, and the latest
@@ -1379,7 +1383,7 @@ mode that would otherwise open on greetings — which is the opening W1 reads.
 here travelling in a package to a second account and starting there with its
 facts; the no-summary-slot warning on a preset that really has none; and a kept
 fact activating on its key in play rather than in a scripted prompt.
-*(2026-10-11, the [P16](35-p16-world.md) final audit: **the first of these can be
+*(2026-10-11, the [P16](34-p16-world.md) final audit: **the first of these can be
 walked now, and could not before.** A package is a World file since P16.3, sent
 with **Publish…** on the setup's page — and until the audit's fixes P16's publish
 held any object stamped as written by a session at home, so a setup made here,
@@ -1639,7 +1643,7 @@ sentence that confuses. It extends the standing list.
 ### AA — P16's critical list — *an install that had Packages, a second account, and one turn; the second that unblocks R4*
 
 **The thirteenth critical list under [§0](#the-two-tier-gate)'s model**, from
-[P16 §3.1](35-p16-world.md) and not edited here. **Registered 2026-10-04, before a
+[P16 §3.1](34-p16-world.md) and not edited here. **Registered 2026-10-04, before a
 line of the phase is built** — the second list registered that early, after
 [T](#t--p12as-critical-list--an-afternoon-and-a-phone-the-one-that-unblocks-r4),
 and for T's reason: [15](../15-world.md) was rewritten the same day and put
@@ -1666,9 +1670,9 @@ because the code is not written. **AA0 has one errand that ~~cannot be done
 later~~ is best done first**: the data directory and the archive AA1 reads have
 to come from before P16.0, so they are copied the day the phase opens ~~or
 never~~ *or, later, on an alpha 6 build (corrected 2026-10-11, the
-[P16](35-p16-world.md) final audit — the notes after the table say how)*.
+[P16](34-p16-world.md) final audit — the notes after the table say how)*.
 
-*Derived, not chosen*: [P16 §3.1](35-p16-world.md) applies the criterion row by
+*Derived, not chosen*: [P16 §3.1](34-p16-world.md) applies the criterion row by
 row in a table of its own, the three clauses beside each check, and it is not
 repeated here. Rows 1 and 4 are the two only a person can walk; row 2 is there for
 clause (ii) — membership that behaved as ownership would shape every later feature
@@ -1676,25 +1680,25 @@ over Worlds, and a cascade destroys data — and row 5 is desk work, R5's shape.
 
 | # | Do | Clears | Result |
 |---|---|---|---|
-| **AA0** | **The install, and the errand.** *Before P16.0 lands*, on a build from before it. **Make a Package in the app, then fill its contents by hand**, because no build before P16.1 has a surface for membership ([P16 §0.2](35-p16-world.md)'s second fact): with the server stopped, add three `{ "schema", "id", "name" }` envelopes naming an existing lorebook, treatment and actor to the `contents` of its `library/packages/<slug>/package.json`, copying each `schema` and `id` from that object's own file. Start the server: the Package's page lists the three under its contents, and *Export this package* carries them. Edit its description twice so it has history, and check the page still lists the three; export it once as a `.sepack.json`. **Make a second Package and delete it**, so the trash holds one. **Create one more lorebook and leave it out of everything** — before P16.2 a new book is `global`, the factory default, and AA3 needs one; check *As stored* says so. Then take a backup archive of the account, and copy the whole data directory aside. Then upgrade. A second account on the same install; a [R2](#3-standing-prerequisites) connection bound to `prose` for AA3. | — | |
-| **AA1** | ***The rename, on an install that had Packages.* Only a person can walk it.** Open the copied data directory with a P16 build: the Package is in the **Worlds** panel with its three members. **Before editing it, make a new World with the same name**, so the folder name the legacy one would move to is taken. Then edit the legacy one's description: the edit succeeds, its folder is now under `library/worlds/` beside the new World's under a different folder name, its history shows the two earlier versions, and both Worlds open as themselves. **Open the trash**: the Package AA0 deleted is listed, as a World; restore it, and it opens from the Worlds panel. Import AA0's archive into the second account: its Package arrives as a World. Then import AA0's `.sepack.json` there too, once P16.3 is built: it arrives as a World naming what landed. | [P16.0](35-p16-world.md), [P16.3](35-p16-world.md) | |
-| **AA2** | ***Membership is not ownership.*** Make a World of a lorebook and two actors and start a session in it. Delete one actor: the delete is not refused and asks nothing about the World, and the World's page shows the actor missing, named, without blocking anything. Then delete the World: the lorebook, the other actor and the session are all still there, and the session's page no longer lists the World. **Does the World's page say what happened in words a person would use?** | [P16.1](35-p16-world.md); [15 §3.1](../15-world.md) | |
-| **AA3** | ***Contribution copies, and P5.7 stays reversed.*** **Have a `global` lorebook that is in no World** — the one AA0 created before the upgrade, or a native `storyengine.lorebook` `.json` carrying `"scope": { "kind": "global" }` brought in through the import panel; after P16.2 neither a new book nor a SillyTavern import is one, which is the next check. Import a standalone SillyTavern lorebook: *As stored* gives its scope as `linked` with no actors, not `global`. Make a World of a treatment and one other lorebook. Start a session in the World: the treatment is chosen, `session.lore` on disk names the World's book and not the `global` one, and after one turn the workbench shows nothing retrieved from the `global` book. Add a second book to the World: the session already started does not change. Remove the World's book from the session's lore: it stops contributing. *If the `world` arm has landed*, scope the `global` book to the World, start a second session, and it is in that session's lore beside the member. | [P16.2](35-p16-world.md); [15 §5.3](../15-world.md) | |
-| **AA4** | ***A World published, and arriving.* Only a person can walk it.** Publish AA3's World with one session ticked. Read the review: every level shown, the session unticked until you ticked it, the pictures that stay behind named, the sentence about which builds can read the file. Import the file on the second account: the import says what is inside before it writes anything, and on commit a World arrives naming the objects and the one session, which opens. Back on the first account, edit one member and publish again: the review opens on what changed. | [P16.3](35-p16-world.md); [16 §5](../16-publish.md) | |
-| **AA5** | **Desk work: the release check, recorded.** Write [P16 §1.6](35-p16-world.md)'s test output — four schema artefacts unchanged, the lorebook's changed inside `LoreScope` alone or not at all, and the World's artefact in the package one's place, with no frozen copy kept ([P16 §1.1](35-p16-world.md)) — into [P16 §3.3](35-p16-world.md) and [work plan §0.2](01-work-plan.md). *Write the result there, never into P16's five rows* — [§0](#the-two-tier-gate) forbids that. | P16 5 | |
+| **AA0** | **The install, and the errand.** *Before P16.0 lands*, on a build from before it. **Make a Package in the app, then fill its contents by hand**, because no build before P16.1 has a surface for membership ([P16 §0.2](34-p16-world.md)'s second fact): with the server stopped, add three `{ "schema", "id", "name" }` envelopes naming an existing lorebook, treatment and actor to the `contents` of its `library/packages/<slug>/package.json`, copying each `schema` and `id` from that object's own file. Start the server: the Package's page lists the three under its contents, and *Export this package* carries them. Edit its description twice so it has history, and check the page still lists the three; export it once as a `.sepack.json`. **Make a second Package and delete it**, so the trash holds one. **Create one more lorebook and leave it out of everything** — before P16.2 a new book is `global`, the factory default, and AA3 needs one; check *As stored* says so. Then take a backup archive of the account, and copy the whole data directory aside. Then upgrade. A second account on the same install; a [R2](#3-standing-prerequisites) connection bound to `prose` for AA3. | — | |
+| **AA1** | ***The rename, on an install that had Packages.* Only a person can walk it.** Open the copied data directory with a P16 build: the Package is in the **Worlds** panel with its three members. **Before editing it, make a new World with the same name**, so the folder name the legacy one would move to is taken. Then edit the legacy one's description: the edit succeeds, its folder is now under `library/worlds/` beside the new World's under a different folder name, its history shows the two earlier versions, and both Worlds open as themselves. **Open the trash**: the Package AA0 deleted is listed, as a World; restore it, and it opens from the Worlds panel. Import AA0's archive into the second account: its Package arrives as a World. Then import AA0's `.sepack.json` there too, once P16.3 is built: it arrives as a World naming what landed. | [P16.0](34-p16-world.md), [P16.3](34-p16-world.md) | |
+| **AA2** | ***Membership is not ownership.*** Make a World of a lorebook and two actors and start a session in it. Delete one actor: the delete is not refused and asks nothing about the World, and the World's page shows the actor missing, named, without blocking anything. Then delete the World: the lorebook, the other actor and the session are all still there, and the session's page no longer lists the World. **Does the World's page say what happened in words a person would use?** | [P16.1](34-p16-world.md); [15 §3.1](../15-world.md) | |
+| **AA3** | ***Contribution copies, and P5.7 stays reversed.*** **Have a `global` lorebook that is in no World** — the one AA0 created before the upgrade, or a native `storyengine.lorebook` `.json` carrying `"scope": { "kind": "global" }` brought in through the import panel; after P16.2 neither a new book nor a SillyTavern import is one, which is the next check. Import a standalone SillyTavern lorebook: *As stored* gives its scope as `linked` with no actors, not `global`. Make a World of a treatment and one other lorebook. Start a session in the World: the treatment is chosen, `session.lore` on disk names the World's book and not the `global` one, and after one turn the workbench shows nothing retrieved from the `global` book. Add a second book to the World: the session already started does not change. Remove the World's book from the session's lore: it stops contributing. *If the `world` arm has landed*, scope the `global` book to the World, start a second session, and it is in that session's lore beside the member. | [P16.2](34-p16-world.md); [15 §5.3](../15-world.md) | |
+| **AA4** | ***A World published, and arriving.* Only a person can walk it.** Publish AA3's World with one session ticked. Read the review: every level shown, the session unticked until you ticked it, the pictures that stay behind named, the sentence about which builds can read the file. Import the file on the second account: the import says what is inside before it writes anything, and on commit a World arrives naming the objects and the one session, which opens. Back on the first account, edit one member and publish again: the review opens on what changed. | [P16.3](34-p16-world.md); [16 §5](../16-publish.md) | |
+| **AA5** | **Desk work: the release check, recorded.** Write [P16 §1.6](34-p16-world.md)'s test output — four schema artefacts unchanged, the lorebook's changed inside `LoreScope` alone or not at all, and the World's artefact in the package one's place, with no frozen copy kept ([P16 §1.1](34-p16-world.md)) — into [P16 §3.3](34-p16-world.md) and [work plan §0.2](01-work-plan.md). *Write the result there, never into P16's five rows* — [§0](#the-two-tier-gate) forbids that. | P16 5 | |
 
 ***How to walk AA0 to AA2 with the build P16 ends on — notes dated 2026-10-11,
-beside the steps and never in them.*** The [P16](35-p16-world.md) final audit
+beside the steps and never in them.*** The [P16](34-p16-world.md) final audit
 found that three of these steps meet this build differently from how they read,
 and one that the build now meets as written. [§0](#the-two-tier-gate)'s rule
 holds: the steps above are not edited, and whoever walks them records what was
-walked in [P16 §3.3](35-p16-world.md)'s table of what was answered.
+walked in [P16 §3.3](34-p16-world.md)'s table of what was answered.
 
 - **AA0, late.** Nothing on record says whether AA0 was done before P16.0 landed.
   If it was not, it still can be: on an **alpha 6 build** — the
   `v1.0.0-alpha.6` image tag, which never moves ([deploy](../../deploy.md)), or a
   checkout of `ad47e39` run under `pnpm dev`, as
-  [P16.3g](35-p16-world.md) ran one at the desk. AA0's steps hold on it as
+  [P16.3g](34-p16-world.md) ran one at the desk. AA0's steps hold on it as
   written, and *then upgrade* means opening the copy with a P16 build.
 - **AA0 and AA1, the trash clock.** The Package AA0 deletes **expires 30 days
   after AA0 deleted it**, at any P16 start: the date is in the trash folder's own
@@ -1720,17 +1724,17 @@ walked in [P16 §3.3](35-p16-world.md)'s table of what was answered.
   *Missing*. The step can be walked as written.
 
 **AA's remainder, which extends the standing list and holds nothing open** —
-[P16 §3.2](35-p16-world.md)'s five, in its order, with somewhere to record a
+[P16 §3.2](34-p16-world.md)'s five, in its order, with somewhere to record a
 result. Not walkable before the stage each names, for the reason the critical
 rows are not.
 
 | # | Do | Clears | Result |
 |---|---|---|---|
-| **AA10** | **The Worlds panel's columns and empty state**, read by somebody who never saw Packages: do the columns say what a World holds, and does the empty panel say what a World is for and how to make one? | [P16 §3.2](35-p16-world.md) | |
-| **AA11** | **The picker at the scale of a real library**: add members to a World from a library of hundreds of objects, and judge whether finding the one you want is quick. *Wants [R1](#3-standing-prerequisites).* | [P16 §3.2](35-p16-world.md) | |
-| **AA12** | **The backlinks from each member kind**: open one actor, lorebook, treatment, setup and preset that a World holds, and a session in it — each names the World, *Used by* on the five and *In these Worlds* on the session. | [P16 §3.2](35-p16-world.md) | |
-| **AA13** | **A World holding only sessions, published without ticking any**: read what the review says and what comes out. [16](../16-publish.md) gives this case no rule of its own, so the row asks whether what happens is what a person would expect, with what was expected written before what was seen ([§8](#8-where-a-finding-goes)). | [P16 §3.2](35-p16-world.md) | |
-| **AA14** | **The review and the picker on a phone**, under [P12A](34-p12a-the-look.md)'s rules, which govern by the time this phase is built: both usable at phone width, no sideways scroll, every control reachable. | [P16 §3.2](35-p16-world.md) | |
+| **AA10** | **The Worlds panel's columns and empty state**, read by somebody who never saw Packages: do the columns say what a World holds, and does the empty panel say what a World is for and how to make one? | [P16 §3.2](34-p16-world.md) | |
+| **AA11** | **The picker at the scale of a real library**: add members to a World from a library of hundreds of objects, and judge whether finding the one you want is quick. *Wants [R1](#3-standing-prerequisites).* | [P16 §3.2](34-p16-world.md) | |
+| **AA12** | **The backlinks from each member kind**: open one actor, lorebook, treatment, setup and preset that a World holds, and a session in it — each names the World, *Used by* on the five and *In these Worlds* on the session. | [P16 §3.2](34-p16-world.md) | |
+| **AA13** | **A World holding only sessions, published without ticking any**: read what the review says and what comes out. [16](../16-publish.md) gives this case no rule of its own, so the row asks whether what happens is what a person would expect, with what was expected written before what was seen ([§8](#8-where-a-finding-goes)). | [P16 §3.2](34-p16-world.md) | |
+| **AA14** | **The review and the picker on a phone**, under [P12A](35-p12a-the-look.md)'s rules, which govern by the time this phase is built: both usable at phone width, no sideways scroll, every control reachable. | [P16 §3.2](34-p16-world.md) | |
 
 ***What this list cannot reach*** is whether anybody wants a World at all, and the
 gate does not ask. [15 §8](../15-world.md) and [16 §8](../16-publish.md) hold the
@@ -1808,8 +1812,8 @@ a claim nobody made.*
 | **P13** | 8 + 10 | **none of the eighteen**, which are all *by hand*. The stages underneath are tested — `import/aventuras/*.test.ts` and the four `routes/import-aventuras*.test.ts` — over a fixture database built from hand-written DDL (`import/fixtures/test-aventuras-db.ts`) | **merged 2026-09-29 at `7565265`, and with Part 2 built at `6f55e6e` on 2026-09-30, and open; both lists are unwalked — sitting X, registered 2026-10-04** | **The eleventh gate to split under [§0](#the-two-tier-gate), and the first in two parts**: [P13 §3.1](30-p13-aventuras-import.md)'s four rows and §3.3's four, which X walks as two halves on one install. The phase derived its own lists. Applying the criterion again here found one thing the document assumed: **the Aventuras install every row wants had no row in [§3](#3-standing-prerequisites), and is R13 now.** X8 also wants a turn Aventuras illustrated, which needs R10's kind of endpoint inside Aventuras: it is blocked rather than deferred, as P9's C1 and C2 are, and the phase's close waits on it. *What the suite cannot reach is the other program*: a live database read beside the app that holds it, a portrait looked at, a story read beside the original. The ten remainder rows are X10–X19. *Registered five days after the merge*, because P13's status said both lists were unwalked and nothing here did |
 | **P14** | 5 + 4 | **none of the nine as written**, because every row is a person's judgement or a real folder. Underneath, by stage: `turns/speakers.test.ts`, `turns/smart-speakers.test.ts`, `turns/runner-dispatch.test.ts`, `sessions/swipes.test.ts`, the Scene package's `tracking`, `plot`, `edit` and `echo` tests, `import/chat/build-property.test.ts`, `import/chat-sync.test.ts`, and the `fixture-pair` project's `import/fixture-pair-chats.test.ts` with `import/chat-size.test.ts` ([P14.12](31-p14-scene-and-session-import.md)) | **merged 2026-09-30 at `8878851`, and open; the list is unwalked — sitting Y, registered 2026-10-04** | **The twelfth gate to split under [§0](#the-two-tier-gate).** Five criticals: two plays of Part A's Scene (Y1, Y2), two real imports (Y3, Y4), and the agents judged (Y5). ***Y3 and Y4 are read as walkable without R1*** — recommended answer, owner deferred, 2026-10-04: a folder the walker makes answers the structural claim, provided its group is on a reply order other than SillyTavern's default, though not R1's question. *Two rows carry a judgement*, smart's worth and the agents' worth, and a *no* there is a refinement rather than a `FAIL`. The four remainder rows are Y7–Y10. *Registered with P13's, and as late* |
 | **P15** | 3 + 3 | **most of both halves** — `sessions/opening.test.ts`, `sessions/setup-from-turn.test.ts` (the no-hidden-content property), `sessions/summary-chain-property.test.ts` (a golden no-root key), `routes/setup-from-turn.test.ts` (the round trip), `play/SetupFromTurn.test.tsx`, `play/SessionsPage.test.tsx` | **built 2026-09-26 on `claude/nice-davinci-xjdpf6`, ~~not merged~~ *merged through `p15` 2026-10-03, and open*; the list is unwalked — sitting ~~T~~ W** | **The ~~ninth~~ tenth gate to split under [§0](#the-two-tier-gate)**, and one feature like P12. *What the suite cannot reach is prose*: whether a real model's story so far is one a session can continue from (W1), and whether a spoiler reached the person still playing through a model's words rather than a payload (W2). ***The round trip is automated rather than owed*** — emit at a turn, start from the Setup, play a turn — and was run against two mutations before it was trusted. **The gate's three rows were not edited**; the three remainder rows are [P15 §3.2](33-p15-setup-from-a-turn.md)'s. *Written as P13 with sitting T, on a branch that could not see `main`'s P13 and P14 or P12A's T; renamed, re-lettered and counted again at the merge, 2026-10-03 — [P15](33-p15-setup-from-a-turn.md)'s status says how* |
-| **P12A** | 9 stages | ~~none yet~~ **P12A.1's face pairing** — `theme.test.ts`'s *the two faces*, from [polish §17](06-polish.md) | **T, registered 2026-09-22; ~~nothing built~~** *P12A.1, and P12A.0's typeface token, were built on `main` on 2026-10-01 at [polish §17](06-polish.md) (`04e45a5`), before the phase opened. What is left of P12A.1 is its measure check ([P12A](34-p12a-the-look.md)). No row of T is about the face, and each wants a stage that is still unbuilt, so T is still unwalkable.* | **The ninth gate to split under [§0](#the-two-tier-gate), and the first registered before its phase opens.** Six rows, five of them a person and one desk work, and **none of them blocked on a prerequisite** — [P12A §1.2](34-p12a-the-look.md) spends a stage decision on keeping it that way. *Why a phase exists here at all*: [10 §1.3](../10-ui-surfaces.md) was written on 2026-09-22 and put commitments into the 1.0 corpus that the build does not meet, and [releases §0](04-repo-and-releases.md) makes beta a completeness gate against that corpus — so **R4 waits on T**, and R1, R2, R3 and R5 do not. *What the list deliberately cannot reach*: whether a generated backdrop reads well, which is [sitting O](#o--p9s-critical-list--two-rows-and-the-first-sitting-that-cannot-start)'s errand and travels with R10 rather than holding this phase open |
-| **P16** | 4 stages | ~~none yet~~ — ~~nothing is built~~ *P16.0 is built on branch `p16`, 2026-10-10* *(2026-10-11: the stages underneath, by row — `routes/world-membership.test.ts` (AA2), `routes/world-contribution.test.ts` and `play/world-start.test.ts` (AA3), `routes/world-round-trip.test.ts`, `routes/publish-diff.test.ts` and `import/world/legacy.test.ts` (AA1's `.sepack.json` half, AA4) — and AA5 answered three times by `world-release-check.test.ts`, in [P16 §3.3](35-p16-world.md))* | **AA, registered 2026-10-04; ~~nothing built~~ ~~P16.0 built 2026-10-10, unwalked~~** *every stage built on `p16` by 2026-10-11, and the final audit's fixes at `6dfb9f0`; AA5 answered, AA0 not recorded, AA1–AA4 unwalked (corrected 2026-10-11)* | **The thirteenth gate to split under [§0](#the-two-tier-gate), and the second registered before its phase opens**, after T and for T's reason: [15](../15-world.md) was rewritten on 2026-10-04 and put membership, contribution and transport into the 1.0 corpus, so **R4 waits on AA as it waits on T**, and R1, R2, R3, R5 and R6 do not. Five rows: the rename on a real install that had Packages (AA1), membership that is not ownership (AA2), contribution that copies with P5.7 still reversed (AA3), a World published and arriving on a second account (AA4), and the release check recorded (AA5). *One errand cannot wait*: AA1 reads a data directory and an archive from before P16.0, so AA0 copies them the day the phase opens ~~or never~~ *— or later on an alpha 6 build, as AA's notes say (corrected 2026-10-11)*. ***What the list deliberately cannot reach*** is accrual and the story bible, which this phase does not build ([P16 §4](35-p16-world.md)), and whether anybody wants a World at all, which [15 §8](../15-world.md)'s tests answer through use |
+| **P12A** | 9 stages | ~~none yet~~ **P12A.1's face pairing** — `theme.test.ts`'s *the two faces*, from [polish §17](06-polish.md) | **T, registered 2026-09-22; ~~nothing built~~** *P12A.1, and P12A.0's typeface token, were built on `main` on 2026-10-01 at [polish §17](06-polish.md) (`04e45a5`), before the phase opened. What is left of P12A.1 is its measure check ([P12A](35-p12a-the-look.md)). No row of T is about the face, and each wants a stage that is still unbuilt, so T is still unwalkable.* | **The ninth gate to split under [§0](#the-two-tier-gate), and the first registered before its phase opens.** Six rows, five of them a person and one desk work, and **none of them blocked on a prerequisite** — [P12A §1.2](35-p12a-the-look.md) spends a stage decision on keeping it that way. *Why a phase exists here at all*: [10 §1.3](../10-ui-surfaces.md) was written on 2026-09-22 and put commitments into the 1.0 corpus that the build does not meet, and [releases §0](04-repo-and-releases.md) makes beta a completeness gate against that corpus — so **R4 waits on T**, and R1, R2, R3 and R5 do not. *What the list deliberately cannot reach*: whether a generated backdrop reads well, which is [sitting O](#o--p9s-critical-list--two-rows-and-the-first-sitting-that-cannot-start)'s errand and travels with R10 rather than holding this phase open |
+| **P16** | 4 stages | ~~none yet~~ — ~~nothing is built~~ *P16.0 is built on branch `p16`, 2026-10-10* *(2026-10-11: the stages underneath, by row — `routes/world-membership.test.ts` (AA2), `routes/world-contribution.test.ts` and `play/world-start.test.ts` (AA3), `routes/world-round-trip.test.ts`, `routes/publish-diff.test.ts` and `import/world/legacy.test.ts` (AA1's `.sepack.json` half, AA4) — and AA5 answered three times by `world-release-check.test.ts`, in [P16 §3.3](34-p16-world.md))* | **AA, registered 2026-10-04; ~~nothing built~~ ~~P16.0 built 2026-10-10, unwalked~~** *every stage built on `p16` by 2026-10-11, and the final audit's fixes at `6dfb9f0`; AA5 answered, AA0 not recorded, AA1–AA4 unwalked (corrected 2026-10-11)*; ***merged to `main` 2026-10-12, at the owner's word, with AA1–AA4 still unwalked — held open*** | **The thirteenth gate to split under [§0](#the-two-tier-gate), and the second registered before its phase opens**, after T and for T's reason: [15](../15-world.md) was rewritten on 2026-10-04 and put membership, contribution and transport into the 1.0 corpus, so **R4 waits on AA as it waits on T**, and R1, R2, R3, R5 and R6 do not. Five rows: the rename on a real install that had Packages (AA1), membership that is not ownership (AA2), contribution that copies with P5.7 still reversed (AA3), a World published and arriving on a second account (AA4), and the release check recorded (AA5). *One errand cannot wait*: AA1 reads a data directory and an archive from before P16.0, so AA0 copies them the day the phase opens ~~or never~~ *— or later on an alpha 6 build, as AA's notes say (corrected 2026-10-11)*. ***What the list deliberately cannot reach*** is accrual and the story bible, which this phase does not build ([P16 §4](34-p16-world.md)), and whether anybody wants a World at all, which [15 §8](../15-world.md)'s tests answer through use |
 
 **Two things this table makes plain and no single document did.** Every gate
 from P3 onward is unwalked — and until this table existed, each phase document

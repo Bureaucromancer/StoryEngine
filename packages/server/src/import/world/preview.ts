@@ -25,7 +25,7 @@ import { worldSessionOrigin } from './session.js';
 /**
  * ***The look before commit*** — [16 §5.1](../../../../../docs/design/16-publish.md),
  * [10 §5](../../../../../docs/design/10-ui-surfaces.md),
- * [P16.3f](../../../../../docs/design/workplan/35-p16-world.md).
+ * [P16.3f](../../../../../docs/design/workplan/34-p16-world.md).
  *
  * **A hand-picked file reports first and commits on a word** ([16 §5.1]): what
  * is inside, by kind and name, what already exists here, and what dangles. A

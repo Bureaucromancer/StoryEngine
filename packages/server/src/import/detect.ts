@@ -94,7 +94,7 @@ const PROBES: readonly Probe[] = [
   { kind: 'aventuras', requires: ['aventura.db'] },
   /**
    * ***A World file*** — [16 §5.1](../../../../docs/design/16-publish.md),
-   * [P16.3e](../../../../docs/design/workplan/35-p16-world.md). Its writer
+   * [P16.3e](../../../../docs/design/workplan/34-p16-world.md). Its writer
    * puts `storyengine-world.json` first, always, so a client can read the
    * manifest from the head of the file (P16.3f).
    *

@@ -31,7 +31,7 @@ import { control, fieldLabel } from './classes.js';
  * chip's remove button and does not press it*** (2026-10-10, [P16.2]'s review
  * of the hook editor's id pickers — the paragraph *The hook editor's two
  * pickers take the same fix* in
- * [P16](../../../../docs/design/workplan/35-p16-world.md)). The removal above is
+ * [P16](../../../../docs/design/workplan/34-p16-world.md)). The removal above is
  * safe for a tag because a tag removed by accident can be typed straight back.
  * A strict field's value may be one the field will never offer again — an id
  * that resolves to nothing, kept on purpose and marked *Missing*, or a ref an

@@ -96,8 +96,8 @@ describe('downloading a library object', () => {
 
 /**
  * ***A World's old export, at neither address*** —
- * [P16 §1.1](../../../../docs/design/workplan/35-p16-world.md),
- * [P16.3g](../../../../docs/design/workplan/35-p16-world.md).
+ * [P16 §1.1](../../../../docs/design/workplan/34-p16-world.md),
+ * [P16.3g](../../../../docs/design/workplan/34-p16-world.md).
  *
  * ~~*A World, exported, at the kind's new address and only there*~~ — P16.0
  * moved `GET /library/packages/:id/export` to `/library/worlds/:id/export` and

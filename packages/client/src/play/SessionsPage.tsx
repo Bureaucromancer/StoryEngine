@@ -298,8 +298,8 @@ const SETUP_WORDS = labels('sessions.setup', {
 
 /**
  * ***What the form says about the World a session starts in*** —
- * [P16.2](../../../../docs/design/workplan/35-p16-world.md),
- * [P16 §1.3](../../../../docs/design/workplan/35-p16-world.md).
+ * [P16.2](../../../../docs/design/workplan/34-p16-world.md),
+ * [P16 §1.3](../../../../docs/design/workplan/34-p16-world.md).
  *
  * `oneTreatment` says what the form did with a World's only treatment. The
  * route uses it when the caller sent none — and ~~*none* has no spelling on the
@@ -1193,7 +1193,7 @@ export function SessionsPage(): React.JSX.Element {
           <div className="mt-3 flex flex-col gap-3">
             {/*
               ***A World to start in*** — [P16.2],
-              [P16 §1.3](../../../../docs/design/workplan/35-p16-world.md). **First,
+              [P16 §1.3](../../../../docs/design/workplan/34-p16-world.md). **First,
               and above the Setup**, because it is the wider of the two: a
               Setup is how to begin, a World is the set the story belongs to,
               and either may be chosen with the other.

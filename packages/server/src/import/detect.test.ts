@@ -271,7 +271,7 @@ describe('a Marinara manifest the pre-flight cannot read', () => {
 
 /**
  * ***A World file is its manifest*** —
- * [P16.3e](../../../../docs/design/workplan/35-p16-world.md),
+ * [P16.3e](../../../../docs/design/workplan/34-p16-world.md),
  * [16 §5.1](../../../../docs/design/16-publish.md).
  *
  * The writer puts `storyengine-world.json` first, always, so a client can read

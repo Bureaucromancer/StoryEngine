@@ -30,7 +30,7 @@ import { Folders, packageExportRoot, readPackageExport } from './legacy.js';
 
 /**
  * ***A `.sepack.json` written before P16.3 imports as a World*** —
- * [P16.3e](../../../../../docs/design/workplan/35-p16-world.md),
+ * [P16.3e](../../../../../docs/design/workplan/34-p16-world.md),
  * [16 §5.1](../../../../../docs/design/16-publish.md): P16.3's second end
  * clause.
  *

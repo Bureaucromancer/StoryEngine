@@ -9,7 +9,7 @@ import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
 
 /**
  * ***Membership is not ownership*** —
- * [P16 §1.2](../../../../docs/design/workplan/35-p16-world.md), [P16.1].
+ * [P16 §1.2](../../../../docs/design/workplan/34-p16-world.md), [P16.1].
  *
  * **A World never blocks a delete, and deleting a World deletes no member.**
  * The first is [26 B2] one level up and was already true of the stored form; the

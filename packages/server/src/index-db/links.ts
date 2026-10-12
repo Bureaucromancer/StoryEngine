@@ -33,7 +33,7 @@ import { edgesOf, type OutboundRef } from '../library/references.js';
  * use should be told, and then allowed to do it.
  *
  * ***And a third reader, which is why the deciding moved out of this file*** —
- * [P16.3b](../../../../docs/design/workplan/35-p16-world.md), 2026-10-10.
+ * [P16.3b](../../../../docs/design/workplan/34-p16-world.md), 2026-10-10.
  * [10 §5.2] counts the package closure ([04 §9.1](../../../../docs/design/04-schemas.md))
  * as this query's third consumer, and for five phases it was a consumer in name
  * only: nothing walked the closure, so nothing could disagree with this file

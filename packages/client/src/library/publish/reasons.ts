@@ -9,7 +9,7 @@ import { labels } from '../../i18n/catalogue.js';
  * ***Why each thing is in the file, one sentence per rule*** —
  * [16 §5](../../../../../docs/design/16-publish.md)'s *every level is shown*,
  * [04 §9.1](../../../../../docs/design/04-schemas.md)'s table read as prose,
- * [P16.3g](../../../../../docs/design/workplan/35-p16-world.md).
+ * [P16.3g](../../../../../docs/design/workplan/34-p16-world.md).
  *
  * **Typed `Record<ClosureRule, string>`, so a rule with no sentence does not
  * compile.** `shared/src/publish.ts` says this is what its union is shaped for:

@@ -7,7 +7,7 @@ selection of them, or a World; the closure is computed and shown; you adjust it;
 a file comes out — and when you started from a selection of two or more, a World
 is kept. One object, however far its closure reaches, keeps nothing.
 
-**Scheduled for 1.0, at [P16.3](workplan/35-p16-world.md).** It reads directly
+**Scheduled for 1.0, at [P16.3](workplan/34-p16-world.md).** It reads directly
 after [15](15-world.md), whose kind it fills, and beside
 [10 §5](10-ui-surfaces.md), whose import review it mirrors, and
 [10 §5.0a](10-ui-surfaces.md), whose two doors for a single object it leaves
@@ -128,7 +128,7 @@ edited in place, so the published file is the frozen image and the World is not.
 *That is already what `packaging/export.ts` does* — it reads every named object
 from the library at the moment of export — so the lean has been the shipped
 behaviour since [P11.10](workplan/28-p11-implementation.md), and this note makes
-it the design. *(2026-10-11: `packaging/export.ts` is removed at [P16.3g](workplan/35-p16-world.md), with its route; the walker replaced it at P16.3a and the World file at P16.3c.)* *Show the diff* was the right instinct and belongs to §5:
+it the design. *(2026-10-11: `packaging/export.ts` is removed at [P16.3g](workplan/34-p16-world.md), with its route; the walker replaced it at P16.3a and the World file at P16.3c.)* *Show the diff* was the right instinct and belongs to §5:
 publishing a World you have published before opens on what changed.
 
 **One case stays a snapshot, and says so.** Publishing a selection you do not
@@ -169,7 +169,7 @@ added with this note for the kinds [15](15-world.md) admits:
   six stories* are different things to send and one must not silently become the
   other.
 
-*(2026-10-11, the [P16](workplan/35-p16-world.md) final audit — the summary above
+*(2026-10-11, the [P16](workplan/34-p16-world.md) final audit — the summary above
 went stale exactly as this section warns a copy would; the table is right, and
 this is a pointer to it rather than a second copy. **Since 2026-10-10 it has
 thirteen rows, and one of them is a query**, by the owner's answers at P16.3's
@@ -192,9 +192,9 @@ itself says these and a walker is where they would be lost:
   as the table's.
 - **Every level, not the first.** `packaging/export.ts` resolves exactly one
   level — the contents a ~~Package~~ World already declares (renamed at
-  [P16.0](workplan/35-p16-world.md), 2026-10-10) — which is why the omission of
+  [P16.0](workplan/34-p16-world.md), 2026-10-10) — which is why the omission of
   the hook rows cost nothing for three phases: *the walker does not exist either*.
-  [P16.3](workplan/35-p16-world.md) builds it, and against the table as it stands
+  [P16.3](workplan/34-p16-world.md) builds it, and against the table as it stands
   rather than as anybody remembers it. *(Built at P16.3a, 2026-10-10; the
   one-level writer was removed at P16.3g.)*
 - **A reference that resolves to nothing is reported, never dropped and never
@@ -240,7 +240,7 @@ answerable before the file exists rather than after.
 - **Re-publishing opens on the diff.** §3's consequence: what changed since the
   last file, so *send them 1.2* is a decision made against what 1.2 actually is.
   [polish §3.1](workplan/06-polish.md) already wanted this and had nowhere to put
-  it. *(Built at [P16.3h](workplan/35-p16-world.md), 2026-10-11, against the
+  it. *(Built at [P16.3h](workplan/34-p16-world.md), 2026-10-11, against the
   account's ledger ([22 §9](22-internal-contracts.md)): first under the page's
   title, the World's own changes — renamed, re-versioned, re-described — then
   each object added, changed, renamed or no longer in the file and why (gone,
@@ -262,7 +262,7 @@ an object while looking at it, which is the honest failure rather than a
 prevented one. **The one write is the World**, kept on confirm when the starting
 point was a selection of two or more and the snapshot choice was not taken,
 because that is what publishing a selection means (§3). Starting from one object
-writes nothing (§2). *(2026-10-10, [P16.3d](workplan/35-p16-world.md): **one
+writes nothing (§2). *(2026-10-10, [P16.3d](workplan/34-p16-world.md): **one
 library write.** "Re-publishing opens on the diff" needs a record of what left
 last time, which this paragraph read literally would forbid; so a delivered file
 is also a line in the account's own ledger, `publishes.jsonl`, written when the
@@ -279,33 +279,33 @@ manifest exists so that *do I want these in my library* can be answered before
 anything is written — what already exists here, and what dangles. On commit, the
 objects land as library objects, each ticked session lands through the session
 reader P11.10 built as a new session, and **a World lands naming what landed** —
-*of its members (glossed 2026-10-11, the [P16](workplan/35-p16-world.md) final
+*of its members (glossed 2026-10-11, the [P16](workplan/34-p16-world.md) final
 audit): what the walk brought beside them, a treatment's books or a hook's actors,
 lands loose in the library, and the World names only what the sender's World
 named.*
 
-**It reads both formats.** [P16.3](workplan/35-p16-world.md) writes the World's
+**It reads both formats.** [P16.3](workplan/34-p16-world.md) writes the World's
 own format and reads the frozen `storyengine.package-export/1` beside it, so a
 `.sepack.json` written before the rename imports as a World. ~~Nothing reads one
 today, so nothing anyone holds is stranded by the rename;~~ *Read since
-[P16.3e](workplan/35-p16-world.md), as a World, through the World file's own
-path (corrected 2026-10-11, the [P16](workplan/35-p16-world.md) final audit; the
+[P16.3e](workplan/34-p16-world.md), as a World, through the World file's own
+path (corrected 2026-10-11, the [P16](workplan/34-p16-world.md) final audit; the
 export that wrote one is removed at P16.3g), so nothing anyone holds is stranded
 by the rename;* the legacy read is for
 the files dev installs have written since P11.10, and it is kept. *(2026-10-10:
 two corrections of scope, neither of the design. **"Before the rename" means
-before P16.3**: [P16.0](workplan/35-p16-world.md) renamed the kind and left the
-export writing this envelope unchanged, as [P16 §1.1](workplan/35-p16-world.md)
+before P16.3**: [P16.0](workplan/34-p16-world.md) renamed the kind and left the
+export writing this envelope unchanged, as [P16 §1.1](workplan/34-p16-world.md)
 decided, so a P16.0 build writes it too. **And not only dev installs**: alpha 5
 and alpha 6, tagged after this was written, shipped the export, so the frozen
 format is in files a release handed out.)*
 
 ### 5.2 ~~[OPEN]~~ Whether the World's file is JSON or a zip — **a zip, decided 2026-10-10**
 
-***Decided by the owner, 2026-10-10, at [P16](workplan/35-p16-world.md)'s
+***Decided by the owner, 2026-10-10, at [P16](workplan/34-p16-world.md)'s
 revisit: the zip of the members' stored folders, the lean below.*** An actor
 travels as its card, portrait and expressions included, and a lorebook with its
-`assets/`; sessions ride inside as their session exports. [P16.3](workplan/35-p16-world.md)
+`assets/`; sessions ride inside as their session exports. [P16.3](workplan/34-p16-world.md)
 writes it, and reads the frozen `storyengine.package-export/1` JSON beside it. The
 question is kept as it was asked, for the reasoning. *(Later the same day, at
 P16.3's plan, the owner answered the question the decision left: **a session's
@@ -314,8 +314,8 @@ session export, which stays the JSON P11.10 writes. A stored zip has no base64 t
 refuse, and the session reader already lands pixels and attachments it is
 handed; a picture missing on disk is named, never fatal.)*
 
-***As built, 2026-10-10 ([P16.3c](workplan/35-p16-world.md) writes it,
-[P16.3e](workplan/35-p16-world.md) reads it).*** The file is
+***As built, 2026-10-10 ([P16.3c](workplan/34-p16-world.md) writes it,
+[P16.3e](workplan/34-p16-world.md) reads it).*** The file is
 `storyengine.world-file/1`, a stored zip named `.seworld` whose manifest
 ([04 §9.3](04-schemas.md)) is the integrity check, and it is read through the
 import review beside the frozen `.sepack.json`. What the reader decides:
@@ -327,7 +327,7 @@ import review beside the frozen `.sepack.json`. What the reader decides:
   exact match, in values and in the keys of maps keyed by id — *and, in a
   session, inside the composite strings that carry an actor's id: a channel's
   scope, a Scene lock's field path, a draw's purpose (moved here from the Sessions
-  bullet, 2026-10-11, the [P16](workplan/35-p16-world.md) final audit)*; a re-mint is never
+  bullet, 2026-10-11, the [P16](workplan/34-p16-world.md) final audit)*; a re-mint is never
   reported object by object, since that would tell one account which ids another
   holds. Your own file read back is *unchanged*.
 - **Keep both** makes copies, and whatever names a copy is copied too, so a copy's
@@ -348,13 +348,13 @@ import review beside the frozen `.sepack.json`. What the reader decides:
   pictures or requirements, and reading it must not erase them.
 - The manifest's notes are taken only in the writer's own vocabulary, so a file
   cannot put words of its own into the import review.
-- ***Sessions*** ([P16.3f](workplan/35-p16-world.md)). A session lands as a session
+- ***Sessions*** ([P16.3f](workplan/34-p16-world.md)). A session lands as a session
   of the importer's own, its turns keeping their ids unless another account on the
   install holds them — then they are re-keyed, deterministically per account, and
   every turn id inside the session follows, in values ~~, in map keys and inside
   composite strings (a channel's scope, a Scene lock's field path, a draw's
   purpose)~~ *and in map keys (corrected 2026-10-11, the
-  [P16](workplan/35-p16-world.md) final audit: those three strings carry
+  [P16](workplan/34-p16-world.md) final audit: those three strings carry
   **actor** ids, which follow an object re-mint — the Identity bullet — and no
   turn id is inside one)*, so opening it records no hand edit. **A session already here is asked
   how it is keyed on disk**, never only the index, and takes what is new — turns
@@ -369,7 +369,7 @@ import review beside the frozen `.sepack.json`. What the reader decides:
   *new*, *here* or *built-in* for this account alone: an id only another account
   holds is *new*, so the preview cannot be used to ask what somebody else has.
 
-*(2026-10-11, the [P16](workplan/35-p16-world.md) final audit — **what the writer
+*(2026-10-11, the [P16](workplan/34-p16-world.md) final audit — **what the writer
 names**, which the list above, being the reader's, does not say. **Current
 names**: each member's folder in the file is the slug of its current name, not the
 folder on disk, whose slug is fixed when the object is made; the manifest's
@@ -384,7 +384,7 @@ stay home**: a ticked session's recorded prompt blocks that the budget dropped �
 memory, unticked books' entries — travel as their rows with empty text, because
 the session never sent them.)*
 
-**The question the pictures bullet defers**, and [P16](workplan/35-p16-world.md)'s
+**The question the pictures bullet defers**, and [P16](workplan/34-p16-world.md)'s
 revisit decides it before P16.3 writes a format, because that format is frozen
 the first time a release writes it.
 
@@ -421,11 +421,11 @@ exists when a set of modes wants a layout the others cannot give them
 **It is reachable from three places, and all three are the same flow**: an
 object's detail page, a selection in a library panel, and a World's own page —
 where it replaces today's *Export this package* link — *Export this world*
-since [P16.0](workplan/35-p16-world.md) renamed the kind (2026-10-10), still
-writing the same `.sepack.json`. *(2026-10-11, [P16.3g](workplan/35-p16-world.md):
+since [P16.0](workplan/34-p16-world.md) renamed the kind (2026-10-10), still
+writing the same `.sepack.json`. *(2026-10-11, [P16.3g](workplan/34-p16-world.md):
 built — **Publish…** beside **Download** on every object's page *but a shadowed
 copy's and a lorebook play wrote (qualified 2026-10-11, the
-[P16](workplan/35-p16-world.md) final audit; a World's page has* Publish this
+[P16](workplan/34-p16-world.md) final audit; a World's page has* Publish this
 world… *instead)*, a selection on the
 shelves, and **Publish this world…** where *Export this world* was, which is gone
 with its `.sepack.json`. The review is the library page's own column, its own
@@ -462,7 +462,7 @@ publishing is neither.
 
 ## 8. How we would know this was wrong
 
-**Runnable once [P16.3](workplan/35-p16-world.md) ships**, and watched by whoever
+**Runnable once [P16.3](workplan/34-p16-world.md) ships**, and watched by whoever
 publishes, on their own install: *(the counts are in each account's ledger,
 `publishes.jsonl` — [22 §9](22-internal-contracts.md), since P16.3d — one line per
 delivered file, with what was offered, what was unticked against the defaults,

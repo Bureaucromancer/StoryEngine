@@ -3,7 +3,7 @@
 
 /**
  * ***A World's file, sliced to its manifest*** —
- * [P16.3f](../../../../docs/design/workplan/35-p16-world.md),
+ * [P16.3f](../../../../docs/design/workplan/34-p16-world.md),
  * [16 §5.1](../../../../docs/design/16-publish.md), the plan's R4.
  *
  * **The one archive this panel does send for a look — and only its head.** A

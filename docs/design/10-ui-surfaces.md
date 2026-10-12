@@ -368,13 +368,13 @@ design note without an owner is precisely the defect
 
 The split is therefore explicit, and it is the last thing this section does:
 
-- **1.0, owned by [P12A](workplan/34-p12a-the-look.md)** — faces, the editable
+- **1.0, owned by [P12A](workplan/35-p12a-the-look.md)** — faces, the editable
   channel HUD, the backdrop's legibility mechanism, the motion vocabulary, the
   section jumps, ~~the story face,~~ and the phone rules below. Each discharges a
   commitment this corpus already made; P12A is where each is sized. *The story
   face left this list on 2026-10-02, at the merge that brought it in: `main`
   had built it the day before ([polish §17](workplan/06-polish.md)), and what
-  [P12A](workplan/34-p12a-the-look.md) keeps of it is the measure check.*
+  [P12A](workplan/35-p12a-the-look.md) keeps of it is the measure check.*
 - **Not 1.0, and not commitments** — the gallery view and per-step setup
   explanation. They are on the feature list ([25](25-roadmap.md))'s priorities,
   and if P12A reaches them they ship early rather than late.
@@ -1187,7 +1187,7 @@ Where it should differ:
   the steps would be empty, the only decisions being *keep it or not* and, on a
   re-import, *replace or keep both*.
 
-  *(2026-10-10, [P16.3f](workplan/35-p16-world.md): **a World file previews from
+  *(2026-10-10, [P16.3f](workplan/34-p16-world.md): **a World file previews from
   its manifest**, under the same posture — nothing staged, the commit a second
   upload. For a large file the client sends only the manifest's own entry, found
   through the archive's directory, so *what is in this, and what of it do I
@@ -1215,7 +1215,7 @@ specified import at length and export not at all, and the surface matched: the
 object detail page carried a comment saying *there is no export path*, and it was
 accurate — nothing in the build downloaded a library object except a `.sepack`.
 
-*(2026-10-11, [P16.3g](workplan/35-p16-world.md): **a third door, Publish…**,
+*(2026-10-11, [P16.3g](workplan/34-p16-world.md): **a third door, Publish…**,
 sits beside Download on every object's page and is reached from a selection on
 the shelves and from a World's own page — [16](16-publish.md)'s closure, reviewed.
 Download stays the object as stored; Publish is what it names, every level, as a
@@ -1224,7 +1224,7 @@ checkbox on each row and *Select all shown*, and a bar says how many are chosen,
 announced as it changes; a World, a shadowed copy and a book play wrote cannot be
 chosen, each saying why to a screen reader. The selection survives a kind switch
 and nothing that changes who is signed in.)* *(Qualified 2026-10-11, the
-[P16](workplan/35-p16-world.md) final audit: ~~on every object's page~~ — on every
+[P16](workplan/34-p16-world.md) final audit: ~~on every object's page~~ — on every
 object's page **but a shadowed copy's and a book play wrote**, the same two the
 selection refuses; a World's page has* Publish this world… *in its place. Leaving
 the memory book out of the page's door was the stage's own interpretation, not in
@@ -1281,7 +1281,7 @@ backwards: a writer takes the stored object and produces a document, and nothing
 is kept. The bundle direction is unchanged — [04 §9.1](04-schemas.md)'s
 *export-as-package* is still how a closure travels, and this is how one object
 does. *(2026-10-04: and that door is **Publish** from
-[P16.3](workplan/35-p16-world.md) — [16](16-publish.md), which keeps these two
+[P16.3](workplan/34-p16-world.md) — [16](16-publish.md), which keeps these two
 where they are and sends a single object back to Download when its closure is
 the object alone.)*
 
@@ -1294,7 +1294,7 @@ it and pretending otherwise is how it gets ignored.
 SillyTavern has priors for exactly two of them — a character card and world info
 — and no prior at all for Treatment, Setup, Preset or ~~Package~~, *and a
 misleading one for World — the Package's name since
-[P16.0](workplan/35-p16-world.md), 2026-10-10 — because SillyTavern's World Info
+[P16.0](workplan/34-p16-world.md), 2026-10-10 — because SillyTavern's World Info
 spends the word on what is here a lorebook*. Every one of those
 splits is *correct* and none should be undone; the Treatment/Setup split in
 particular is what Marinara's own scenario design identified and never built
@@ -1314,7 +1314,7 @@ is actually for: saying plainly what the thing on disk is called.
 **So: the panels are named for the kinds.** Actors, Lorebooks, Treatments,
 Setups, Presets, Worlds — six panels, no demotions, no presented subset, real
 names. *(2026-10-04: **Packages becomes Worlds** at
-[P16.0](workplan/35-p16-world.md), because the kind is renamed —
+[P16.0](workplan/34-p16-world.md), because the kind is renamed —
 [15 §3](15-world.md). It is not the *Worlds* this section withdrew above: that
 was a friendlier alias for Treatment, sitting next to *Lorebooks* while the world
 lived in the lorebook; this is a panel named for the kind it shows, which is the
@@ -1389,7 +1389,7 @@ of one query, alongside the delete confirmation's reference counts
 ([04 §9.1](04-schemas.md)). Anything that makes the index cheaper or staler is
 therefore a decision about all three at once.
 
-*(2026-10-10, [P16.3b](workplan/35-p16-world.md): **the dependency runs the other
+*(2026-10-10, [P16.3b](workplan/34-p16-world.md): **the dependency runs the other
 way now, and the panel says what it always meant to.** The closure is not a
 consumer of the index's query; since P16.3 both read 04 §9.1 through one reader,
 `library/references.ts` — the publish walker directly, the index through it —
@@ -1664,7 +1664,7 @@ Both sources use wizards and both wizards are good. Worth taking:
   it is stronger, because the snapshot is a real **Setup** object
   ([04 §7](04-schemas.md)) rather than a text file — editable, re-runnable, and
   shareable by dropping it in a World (a package, before
-  [P16.0](workplan/35-p16-world.md)).
+  [P16.0](workplan/34-p16-world.md)).
 
 Where it differs: **the wizard is declared, not coded.** `ModeDefinition.setup`
 ([06 §2](06-modes-and-turn-pipeline.md)) is a schema the shell renders, so an

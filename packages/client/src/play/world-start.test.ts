@@ -19,8 +19,8 @@ import {
 
 /**
  * ***What a World fills into the session form, and what it takes back*** —
- * [P16.2](../../../../docs/design/workplan/35-p16-world.md),
- * [P16 §1.3](../../../../docs/design/workplan/35-p16-world.md).
+ * [P16.2](../../../../docs/design/workplan/34-p16-world.md),
+ * [P16 §1.3](../../../../docs/design/workplan/34-p16-world.md).
  *
  * The page's tests assert the wire; these assert the rule on its own, because
  * the cases where a form quietly loses a choice — a book ticked before the

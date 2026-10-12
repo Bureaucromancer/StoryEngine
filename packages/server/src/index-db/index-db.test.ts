@@ -350,7 +350,7 @@ describe('an index whose rebuild never finished', () => {
 
 /**
  * ***An index the build before this one wrote*** — version 14,
- * [P16.3b](../../../../docs/design/workplan/35-p16-world.md), 2026-10-10.
+ * [P16.3b](../../../../docs/design/workplan/34-p16-world.md), 2026-10-10.
  *
  * 14 changed no table; it changed what files derive to, which `migrations.ts`
  * calls 9's shape. *That is the bump that is easy to forget*, because nothing

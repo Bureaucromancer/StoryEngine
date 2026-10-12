@@ -1,6 +1,7 @@
-# 35 — P16 implementation plan: World, the set that travels
+# 34 — P16 implementation plan: World, the set that travels
 
-**Status: skeleton, written 2026-10-04**, the day
+**Status: ~~skeleton~~ *built, and merged 2026-10-12 — open, not closed (the
+second note below)*; written 2026-10-04**, the day
 [15](../15-world.md) was rewritten under the owner's decision of 2026-10-03
 ([26 B17](../26-open-questions.md)) and [16](../16-publish.md) was written beside
 it. ~~Nothing is built.~~ Format follows [P1](07-p1-implementation.md); citations
@@ -8,7 +9,7 @@ follow the corpus convention.
 
 ***Opened 2026-10-10, by the owner's word, ahead of P12A*** — on the bare branch
 `p16`, cut from `main` at `ad47e39` (alpha 6). §0.1 filed this phase after
-[P12A](34-p12a-the-look.md) by a decision with its reversal written beside it —
+[P12A](35-p12a-the-look.md) by a decision with its reversal written beside it —
 *a release cut before P12A* — and alphas 5 and 6 were both cut before either
 phase opened; the 2026-10-07 note left *whether P16.0 still moves ahead of P12A*
 to the owner, and the owner's answer was to start the whole phase. **So it runs
@@ -18,6 +19,20 @@ first too**: the refile is `tools/renumber-docs.mjs`'s, at the merge, as
 document thirty-six files cite. §0.1's one scheduling claim about another
 phase's gate is unchanged: R4 waits on both. §2 records each stage as it is
 built.
+
+***Merged 2026-10-12, by the owner's word, with §3.1's rows 1–4 unwalked*** —
+into `main` with `--no-ff` from `p16`, after the refile the list under §2's
+*Owed at the merge* describes: `PLAN_ORDER` swapped and both documents moved
+(`d42aceb`), then `--rewrite` and the hand edits it cannot reach in the commit
+after. **So the phase is merged and not closed**: under
+[manual testing §0](05-manual-testing.md)'s two-tier rule a person walks the
+critical list before a phase closes, and [sitting AA](05-manual-testing.md) has
+only row 5 — desk work, answered in §3.3 — behind it. AA0's errand is not
+recorded either; its notes say how it can still be done late, on an alpha 6
+build. Nothing about the merge edits a step of §3.1: the rows are walked as
+written, and what they find comes back here as a dated note, or to the place
+[manual testing §8](05-manual-testing.md) sends it. *R4 still waits on this list
+as on [P12A](35-p12a-the-look.md)'s.*
 
 **P16 delivers the half of [15](../15-world.md) that is 1.0's**: World as a
 working kind that **replaces Package** — the kind itself, renamed as a migration;
@@ -91,7 +106,7 @@ stages as though they existed.*
 **Beta is a completeness gate** ([releases §0](04-repo-and-releases.md)):
 *feature complete to the 1.0 spec*, read against these documents by
 [P11](28-p11-implementation.md)'s **R4**, a person going through the 1.0 corpus
-capability by capability. [P12A §0.1](34-p12a-the-look.md) recorded what writing
+capability by capability. [P12A §0.1](35-p12a-the-look.md) recorded what writing
 [10 §1.3](../10-ui-surfaces.md) did to that gate — *the corpus R4 reads now
 contains commitments the build does not meet* — and writing
 [15](../15-world.md) does it again: membership, contribution and transport are
@@ -100,10 +115,14 @@ lands, as it must not be walked until P12A lands** — the one scheduling claim
 this document makes about another phase's gate. R1, R2, R3, R5 and R6 are
 unaffected.
 
-**It executes after [P12A](34-p12a-the-look.md), and is the last phase before
+~~**It executes after [P12A](35-p12a-the-look.md), and is the last phase before
 beta is said.** Filed at 35, by `PLAN_ORDER` in
 [`tools/renumber-docs.mjs`](../../../tools/renumber-docs.mjs), and nothing
-renumbers. The order is a decision rather than a default, and these are its
+renumbers.~~ *(2026-10-12: it executed **before** P12A, from 2026-10-10 by the
+owner's word — the opening note — and files at 34, ahead of P12A's 35, by the
+same `PLAN_ORDER` refiled at the merge. P12A is the last phase before beta again.
+The reasons below are the ones the order was decided on, and are left as
+written: the owner weighed them and chose the other order.)* The order is a decision rather than a default, and these are its
 reasons:
 
 - **P12A is ready and this is not.** P12A has been planned since 2026-09-22, part
@@ -1536,15 +1555,17 @@ italics. Each item says whose it is.
     scoped to a World**. Alpha 5's Known line — *World will rename them and go
     on reading the old name* — gets its sequel: it did. A link inside a
     published object keeps the name it was linked under (above, the owner's).
-- **The refile, at the merge.** By `PLAN_ORDER`'s rule this document files ahead
-  of [P12A](34-p12a-the-look.md), and `tools/renumber-docs.mjs` does that: the
+- **The refile, at the merge.** *(Done 2026-10-12, as written here: the rename
+  at `d42aceb`, then `--rewrite HEAD` — a hundred and fifty files — and every
+  hand edit below in the commit after it.)* By `PLAN_ORDER`'s rule this document files ahead
+  of [P12A](35-p12a-the-look.md), and `tools/renumber-docs.mjs` does that: the
   final audit ran it in a scratch clone at `e6b3cbd` — swap the two entries,
   `--rename`, commit, `--rewrite HEAD` — and it changed only the two documents'
   citations and their H1s, 149 files, with the one unresolved citation that was
   already there (`[28 §x]` in [P7B](24-p7b-presets-and-prompts.md)) and the
   `docs` project green. **Do it on `p16`, as its own commits, before the
   `--no-ff` merge**: `--rewrite` reads a committed rename, which a merge in
-  progress does not have — the trap [P12A](34-p12a-the-look.md)'s renumbering
+  progress does not have — the trap [P12A](35-p12a-the-look.md)'s renumbering
   notes record twice. **What it leaves stale, to edit by hand in the same
   commit as the rewrite:**
   - `tools/renumber-docs.mjs` — the two `PLAN_ORDER` entries swapped, and both
@@ -1559,7 +1580,7 @@ italics. Each item says whose it is.
   - [Work plan §4](01-work-plan.md): the P16 entry's *the last phase before beta
     is said … It runs after P12A rather than before it*, P12A's entry's *P16,
     World, runs after it, below*, and the two entries' order.
-  - [P12A](34-p12a-the-look.md): *filed **after** this phase, at 35* (dated
+  - [P12A](35-p12a-the-look.md): *filed **after** this phase, at 35* (dated
     2026-10-11 already, and still a bare number the rewrite will not touch), and
     a renumbering note of its own, as the three before it have.
   - This document: *Status: skeleton* in its first line, and §0.1's *It executes
@@ -1580,7 +1601,7 @@ was answered.
 
 **Registered as [sitting AA](05-manual-testing.md) on 2026-10-04**, before a line
 of the phase is built — the second list registered that early, after
-[P12A](34-p12a-the-look.md)'s T, and for T's reason: the claims are written before
+[P12A](35-p12a-the-look.md)'s T, and for T's reason: the claims are written before
 the code, and R4 waits on the phase. Derived by
 [manual testing §0](05-manual-testing.md)'s criterion — **(i)** it can falsify a
 claim this phase makes about itself, **(ii)** the claim compounds, **(iii)** it is

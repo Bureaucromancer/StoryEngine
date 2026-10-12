@@ -70,7 +70,7 @@ import { convertOne, sweep } from '../sweep.js';
 import { WorldFileReader } from './reader.js';
 
 /**
- * ***A World file, arriving*** — [P16.3e](../../../../../docs/design/workplan/35-p16-world.md),
+ * ***A World file, arriving*** — [P16.3e](../../../../../docs/design/workplan/34-p16-world.md),
  * [16 §5.1](../../../../../docs/design/16-publish.md), [04 §9](../../../../../docs/design/04-schemas.md).
  *
  * **Every file here is one the real writer wrote**: published by

@@ -11,7 +11,7 @@ import { REASON_LABELS, reasonFor } from './reasons.js';
 
 /**
  * ***Every rule the walker can follow has a sentence*** —
- * [P16.3g](../../../../../docs/design/workplan/35-p16-world.md), and the
+ * [P16.3g](../../../../../docs/design/workplan/34-p16-world.md), and the
  * promise `shared/src/publish.ts` makes for its `ClosureRule` union: *"a rule
  * added here with no sentence there is a compile error rather than a dotted
  * string on screen."*

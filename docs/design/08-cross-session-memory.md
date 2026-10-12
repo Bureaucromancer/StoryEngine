@@ -184,7 +184,7 @@ Mitigations, in order of how much they cost:
 - **[OPEN]** Whether sessions seeded from the same package should default to not
   sharing with each other. Tempting, and probably too clever — a continuing
   campaign in the same package is a normal thing to want. *(2026-10-04: the
-  package is a World from [P16.0](workplan/35-p16-world.md), and sessions started
+  package is a World from [P16.0](workplan/34-p16-world.md), and sessions started
   in one World sharing what they remember is [15 §4.1](15-world.md)'s accrual,
   which waits for real play — so this question waits with it, and the first
   mitigation above is the one that applies until then.)*
@@ -239,7 +239,7 @@ per block.
   "the GM remembers your last campaign". Coherent, and a different scope key.
   **That scope key now has a name**: it is a World
   ([15](15-world.md)), and this question is the one that found it. *(2026-10-04:
-  the key exists from [P16.0](workplan/35-p16-world.md), as a World's portable id;
+  the key exists from [P16.0](workplan/34-p16-world.md), as a World's portable id;
   keying memory on it is accrual, [15 §4.1](15-world.md), and waits for real play.)* The
   bearing on 1.0 is narrow but real: decide the book-granularity question
   directly above knowing that a fourth key is coming, so nothing hard-codes the

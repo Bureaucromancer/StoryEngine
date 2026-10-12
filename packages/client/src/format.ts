@@ -217,7 +217,7 @@ function numberFormatterFor(locale: string | undefined, options: Intl.NumberForm
 /**
  * A size in bytes, at the unit its magnitude deserves — *48 KB*, *1.4 MB*.
  *
- * ***Moved here from `settings/Backups.tsx` at [P16.3g](../../../docs/design/workplan/35-p16-world.md)***,
+ * ***Moved here from `settings/Backups.tsx` at [P16.3g](../../../docs/design/workplan/34-p16-world.md)***,
  * where it was written for the backups list and borrowed by the import panel.
  * The review vocabulary (`library/note-labels.ts`) needed it for the World
  * file's notes, which carry a size as `bytes`, and importing the settings page

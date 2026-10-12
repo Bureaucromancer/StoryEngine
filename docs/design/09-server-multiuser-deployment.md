@@ -540,7 +540,7 @@ So:
 ```
 
 *(2026-10-10: `worlds` replaced `packages` on the library line at
-[P16.0](workplan/35-p16-world.md), which renamed the kind and still reads the old
+[P16.0](workplan/34-p16-world.md), which renamed the kind and still reads the old
 folder; `setups` was missing from the line and is added in the same change. The
 block is a sketch of ownership rather than the tree — `memories/` has been gone
 since P8.2, as [03 §5.1](03-data-model.md) records, and that section is the
@@ -1332,7 +1332,7 @@ project asks copyleft of one category and nothing of the other
   sessions, and Worlds including their authored rules. These are data the
   program produces, not derivative works of it. Nobody's characters become AGPL
   by being authored here, and a World of rules can be licensed however its
-  author likes, or not at all. *(Packages until [P16.0](workplan/35-p16-world.md)
+  author likes, or not at all. *(Packages until [P16.0](workplan/34-p16-world.md)
   renamed the kind, 2026-10-10.)*
 
 Saying both halves clearly and in the same place is the cheapest available

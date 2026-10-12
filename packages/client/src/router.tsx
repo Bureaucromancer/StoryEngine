@@ -70,7 +70,7 @@ export interface LibrarySearch {
 export interface SessionsSearch {
   mode?: string;
   /**
-   * ***A World to start the new session in*** — [P16.2](../../../docs/design/workplan/35-p16-world.md).
+   * ***A World to start the new session in*** — [P16.2](../../../docs/design/workplan/34-p16-world.md).
    *
    * What a World's page links to as *Choose first…*: the session form, with
    * that World chosen and its books and treatment filled in for the person to
@@ -162,7 +162,7 @@ export function validateObjectSearch(search: Record<string, unknown>): ObjectSea
 }
 
 /**
- * ***Where a publish starts*** — [P16.3g](../../../docs/design/workplan/35-p16-world.md),
+ * ***Where a publish starts*** — [P16.3g](../../../docs/design/workplan/34-p16-world.md),
  * [16 §6](../../../docs/design/16-publish.md)'s three doors.
  *
  * **The address carries the start, and nothing else.** An object's page links
@@ -568,7 +568,7 @@ const newSetupRoute = createRoute({
 });
 /**
  * ***`/library/worlds/…` since [P16.0]***, and `/library/packages/…` is not
- * kept beside it — the line [P16 §1.1](../../../docs/design/workplan/35-p16-world.md)
+ * kept beside it — the line [P16 §1.1](../../../docs/design/workplan/34-p16-world.md)
  * takes for the server's routes, on the ground that their only caller is the
  * client that ships with them. **A page address has one more caller, a
  * bookmark, which that ground does not cover**, and it is not redirected: an
@@ -590,7 +590,7 @@ const newWorldRoute = createRoute({
 });
 
 /**
- * ***The publish review*** — [P16.3g](../../../docs/design/workplan/35-p16-world.md),
+ * ***The publish review*** — [P16.3g](../../../docs/design/workplan/34-p16-world.md),
  * [16 §5](../../../docs/design/16-publish.md).
  *
  * **Its own route rather than a dialog or the dock** ([P16.3]'s plan, §3): 16

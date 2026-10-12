@@ -37,7 +37,7 @@ import { clearLinks, referencesIn, writeLinks } from './links.js';
  * system, and a rename through the API is an ordinary write.
  *
  * ***~~The engine never renames a user's folders~~ — it does once, from
- * [P16.0](../../../../docs/design/workplan/35-p16-world.md) (2026-10-10)***: the
+ * [P16.0](../../../../docs/design/workplan/34-p16-world.md) (2026-10-10)***: the
  * first write to a World still in `packages/` moves its folder to `worlds/`
  * (`library.ts`, `relocateLegacy`). **It still needs no special case here.** The
  * write path moves the folder and then ingests the new path itself, and the old

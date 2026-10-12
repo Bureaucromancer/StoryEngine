@@ -89,7 +89,7 @@ describe('taking a file', () => {
 });
 
 /**
- * ***A publish, and what its answer said beside the file*** — [P16.3g](../../../docs/design/workplan/35-p16-world.md).
+ * ***A publish, and what its answer said beside the file*** — [P16.3g](../../../docs/design/workplan/34-p16-world.md).
  * The confirm's body is the file, so everything the review then says is a
  * header: the World it kept, drift, the notes, the missing count. And a `409`
  * that kept a World names it, which is the one refusal that must not lose it.
@@ -753,7 +753,7 @@ describe('library kinds', () => {
 
   /**
    * ***The kind's old name is the server's to read, not this side's*** —
-   * [P16 §1.1](../../../docs/design/workplan/35-p16-world.md). A body stored as
+   * [P16 §1.1](../../../docs/design/workplan/34-p16-world.md). A body stored as
    * `storyengine.package/1` is upgraded in memory wherever the server reads
    * one (`upgradeLegacySchema`: the library, the index's ingest, the import
    * reader), so no schema id this client is handed carries the old name, and a

@@ -11,7 +11,7 @@ import type { Member } from './members-form.js';
 
 /**
  * ***A World's member list, drawn and written*** —
- * [P16.1](../../../../docs/design/workplan/35-p16-world.md),
+ * [P16.1](../../../../docs/design/workplan/34-p16-world.md),
  * [15 §3.1](../../../../docs/design/15-world.md).
  *
  * **What is being defended.** The stage's end condition says *a dangling

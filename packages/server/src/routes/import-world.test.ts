@@ -42,7 +42,7 @@ import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
 
 /**
  * ***The look before a World lands*** —
- * [P16.3f](../../../../docs/design/workplan/35-p16-world.md),
+ * [P16.3f](../../../../docs/design/workplan/34-p16-world.md),
  * [16 §5.1](../../../../docs/design/16-publish.md),
  * [10 §5](../../../../docs/design/10-ui-surfaces.md).
  *

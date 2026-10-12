@@ -42,7 +42,7 @@ import {
 
 /**
  * ***P16.3's third end clause, as a test*** —
- * [P16.3h](../../../../docs/design/workplan/35-p16-world.md),
+ * [P16.3h](../../../../docs/design/workplan/34-p16-world.md),
  * [16 §5](../../../../docs/design/16-publish.md)'s *re-publishing opens on
  * the diff*, [16 §3](../../../../docs/design/16-publish.md),
  * [22 §9](../../../../docs/design/22-internal-contracts.md).

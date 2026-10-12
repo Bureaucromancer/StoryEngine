@@ -84,7 +84,7 @@ import {
  *   and there is nothing here that moves a directory.
  *
  *   ***~~Nothing here moves a directory~~ — one thing does, from
- *   [P16.0](../../../docs/design/workplan/35-p16-world.md) (2026-10-10).*** The
+ *   [P16.0](../../../docs/design/workplan/34-p16-world.md) (2026-10-10).*** The
  *   first write to a World still in the kind's old folder or under its old file
  *   name — a Package made before the rename — moves its folder to
  *   `library/worlds/`, history and assets with it, under the slug it had when
@@ -952,7 +952,7 @@ export async function update(
 }
 
 /**
- * ***The first write's move*** — [P16 §1.1](../../../docs/design/workplan/35-p16-world.md),
+ * ***The first write's move*** — [P16 §1.1](../../../docs/design/workplan/34-p16-world.md),
  * and the one place this engine moves a user's directory.
  *
  * Called with the new bytes already written over the legacy file in place and

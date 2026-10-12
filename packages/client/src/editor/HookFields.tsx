@@ -405,7 +405,7 @@ function WeightField(props: {
  * be doing the retiring on the author's behalf without telling them.
  *
  * ***Only an actor the library offers can be added*** (2026-10-10,
- * [P16.2](../../../../docs/design/workplan/35-p16-world.md)). The combobox is
+ * [P16.2](../../../../docs/design/workplan/34-p16-world.md)). The combobox is
  * `TokenField`, built for tags, where Enter, a comma and leaving the box all
  * commit whatever was typed — and until today this took what it was handed and
  * built `{ id: typed, name: typed }` around it: a `Ref` whose id is somebody's
@@ -635,7 +635,7 @@ function offer(
  * can pick from a list.
  *
  * ***And the same three corrections, on the same day*** (2026-10-10,
- * [P16.2](../../../../docs/design/workplan/35-p16-world.md)), because this had
+ * [P16.2](../../../../docs/design/workplan/34-p16-world.md)), because this had
  * the same flaw over a different set. **`strict`**: a title typed and left, or
  * typed and Entered, became a hook id that names no hook — and its chip drew
  * the typed text, so *The marriage* typed by hand looked exactly like a gate on

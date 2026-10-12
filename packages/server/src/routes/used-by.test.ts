@@ -139,7 +139,7 @@ describe('who points at an object', () => {
  * ***Who points at an object, read off 04 §9.1's table*** —
  * [04 §9.1](../../../../docs/design/04-schemas.md),
  * [10 §5.2](../../../../docs/design/10-ui-surfaces.md),
- * [P16.3b](../../../../docs/design/workplan/35-p16-world.md).
+ * [P16.3b](../../../../docs/design/workplan/34-p16-world.md).
  *
  * The index reads the publish walker's reader since P16.3b, and these are the
  * three answers that grew when it did — *and a fourth since the correction of

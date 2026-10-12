@@ -2529,7 +2529,7 @@ describe('the assistant’s view of the screen', () => {
 
   /**
    * ***A World is the world, and so is a Package the panel disclosed before
-   * P16.0*** — [P16 §1.1](../../../../docs/design/workplan/35-p16-world.md)'s
+   * P16.0*** — [P16 §1.1](../../../../docs/design/workplan/34-p16-world.md)'s
    * *read both, write the new one*, at the one place a kind's folder name
    * reaches a prompt. The panel writes this channel only when what it sees
    * changes, so an assistant session last pointed at a Package keeps

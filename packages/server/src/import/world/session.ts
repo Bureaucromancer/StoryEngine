@@ -21,7 +21,7 @@ import { idsNamedIn, rewriteIds } from './rewrite.js';
  * ***A World file's session, landed*** —
  * [16 §5.1](../../../../../docs/design/16-publish.md),
  * [16 §5.2](../../../../../docs/design/16-publish.md),
- * [P16.3f](../../../../../docs/design/workplan/35-p16-world.md).
+ * [P16.3f](../../../../../docs/design/workplan/34-p16-world.md).
  *
  * **What arrives**: `sessions/<id>/session-export.json` — P11.10's export,
  * unchanged but for the bindings and associations the writer took out — with

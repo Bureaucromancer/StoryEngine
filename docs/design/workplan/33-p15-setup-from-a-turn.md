@@ -30,7 +30,7 @@ while every line about `main`'s P13 is untouched. **The commits that built it
 still say P13 in their subjects, and the stage hashes in §2 still cite those
 original commits**: the branch was merged rather than rebased, precisely so
 that every one of them stays reachable, and that history is not rewritten. Its
-document is filed at **33**, ahead of [P12A](34-p12a-the-look.md), by the
+document is filed at **33**, ahead of [P12A](35-p12a-the-look.md), by the
 execution-order rule the work-plan README's 2026-10-02 refiling applied — this
 ran while P12A had not opened — and its sitting, lettered T on the branch, is
 **W**, because `main` had spent T, U and V by the day it landed.
@@ -93,7 +93,7 @@ from* a session would therefore have its entries barred from every effect and
 verdict call, silently. It is stamped `'generated'`. The Setup itself may be
 `'session'`: only lorebooks are read for that marker.
 
-*(2026-10-11, the [P16](35-p16-world.md) final audit: **one reader broke that
+*(2026-10-11, the [P16](34-p16-world.md) final audit: **one reader broke that
 sentence, and it is fixed.** P16's publish read the marker on any kind — "written
 by play", held at home — so a Setup made here never travelled in a World file, and
 §0.4's "what travels is a Setup" was not true of the file P16 writes. It reads the
@@ -108,8 +108,8 @@ route, an object start and a World start.)*
 condensed away and what travels is a Setup, which starts clean, reads in a
 library editor, and carries no turn record. Both are worth having; neither
 replaces the other. *(2026-10-11: both travel in a World file since
-[P16.3](35-p16-world.md) — the prologue as a ticked session, the Setup as an
-object, and the Setup only since the [P16](35-p16-world.md) final audit; §0.3's
+[P16.3](34-p16-world.md) — the prologue as a ticked session, the Setup as an
+object, and the Setup only since the [P16](34-p16-world.md) final audit; §0.3's
 note says why.)*
 
 
@@ -745,5 +745,5 @@ lettered T on the branch, and re-lettered at the merge on 2026-10-03 because
 | 6 | A kept fact activates in play on its key | [manual testing](05-manual-testing.md) |
 
 *(2026-10-11, beside row 4 and not in it: the package is a World file since
-[P16.3](35-p16-world.md), sent with **Publish…** on the Setup's page, and the row
-can be walked only since the [P16](35-p16-world.md) final audit — §0.3's note.)*
+[P16.3](34-p16-world.md), sent with **Publish…** on the Setup's page, and the row
+can be walked only since the [P16](34-p16-world.md) final audit — §0.3's note.)*

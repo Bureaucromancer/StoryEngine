@@ -291,7 +291,7 @@ describe('the actors a hook names', () => {
 
 /**
  * ***The index and the walker agree about what a reference is*** —
- * [P16.3a](../../../../docs/design/workplan/35-p16-world.md),
+ * [P16.3a](../../../../docs/design/workplan/34-p16-world.md),
  * [04 §9.1](../../../../docs/design/04-schemas.md).
  *
  * `hookActorIds`' docstring said it in advance: *"the two agreeing about hooks

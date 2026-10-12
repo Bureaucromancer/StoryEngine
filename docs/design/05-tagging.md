@@ -135,7 +135,7 @@ is upheld here rather than amended.
 
 **Not a portable schema.** `schema/` means portable, versioned, emitted, and
 carryable inside a World (a Package, before
-[P16.0](workplan/35-p16-world.md)). A registry of one person's colour choices crosses no
+[P16.0](workplan/34-p16-world.md)). A registry of one person's colour choices crosses no
 install boundary. It lives in the internal tier beside the turn record, and
 carries an inline version string the way the preferences document does.
 

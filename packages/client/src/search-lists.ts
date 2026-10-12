@@ -21,7 +21,7 @@ export function parseList(raw: unknown): string[] {
 
 /**
  * ***Ids in an address, each kept whole*** — the publish review's `?from=`
- * ([P16.3g](../../../docs/design/workplan/35-p16-world.md)).
+ * ([P16.3g](../../../docs/design/workplan/34-p16-world.md)).
  *
  * **Each id percent-encoded before the join, and decoded after the split**
  * (2026-10-11, the P16.3g review). An id is any string — `schema/common.ts`:

@@ -1505,7 +1505,7 @@ over `rendition-ready`: so its second instance would not require renaming it.
 
 ## 9. `PublishRecord` — the publish ledger
 
-*Added 2026-10-10, built at [P16.3d](workplan/35-p16-world.md).*
+*Added 2026-10-10, built at [P16.3d](workplan/34-p16-world.md).*
 
 [16 §5](16-publish.md)'s *re-publishing opens on the diff* needs to know what
 left last time, and [16 §8](16-publish.md)'s three watches — does anyone publish
@@ -1555,10 +1555,10 @@ interface PublishRecord {
   choices a person made against the defaults — which is what *what gets
   unchecked* is counted from.
 - **An object's `contentHash` is its stored hash**, not the hash of its bytes in
-  the file: a card re-spliced to drop a removed picture ([P16.3c](workplan/35-p16-world.md))
+  the file: a card re-spliced to drop a removed picture ([P16.3c](workplan/34-p16-world.md))
   is not a changed object, and the diff compares stored hash with stored hash. A
   session is compared by its head and `updatedAt`, since a rename or a hide moves
-  no head. *(2026-10-11, [P16.3h](workplan/35-p16-world.md): **by its `digest`
+  no head. *(2026-10-11, [P16.3h](workplan/34-p16-world.md): **by its `digest`
   now** — a `sha256` of the session's export as it travels, leaving out
   `exportedBy` and the session's `updatedAt`, together with the names of the
   pictures and attachments that travel beside it. A picture drawn since is a
@@ -1572,7 +1572,7 @@ interface PublishRecord {
   can name: renamed, re-versioned, re-described.
 - **Written when a `200`'s file has been sent to its end**, and only then — never
   for a refusal, an unreadable file, or a download abandoned part-way. *Its `at`
-  is not that moment (corrected 2026-10-11, the [P16](workplan/35-p16-world.md)
+  is not that moment (corrected 2026-10-11, the [P16](workplan/34-p16-world.md)
   final audit): it is the manifest's `exportedBy.at`, taken when the confirm
   planned the file, so the line and the file it describes carry one time, and on
   a slow download the diff's "since" is the time the file was made.* A World

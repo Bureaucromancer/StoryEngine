@@ -348,7 +348,7 @@ always something for an id to name ([04 §9](04-schemas.md), corrected
 that persists on the install a file arrives at, which needs an import that keeps
 the set as well as its members, and no build has ever read a package file. A World
 is that object ([15 §3.1](15-world.md)), and its importer is
-[P16.3](workplan/35-p16-world.md)'s. **No channel is owned by one yet**: declaring
+[P16.3](workplan/34-p16-world.md)'s. **No channel is owned by one yet**: declaring
 a channel is the authoring tier's, below.
 
 **Scope: the tier is committed; the vocabulary is 6.0, the authoring tier**
@@ -372,7 +372,7 @@ So there is a **third extensibility tier** between "engine feature" and "code
 extension": authored rules. Concretely:
 
 - `owner` may be a package, not just a mode or extension — *the content bundle,
-  which is a World from [P16.0](workplan/35-p16-world.md) (2026-10-04)*.
+  which is a World from [P16.0](workplan/34-p16-world.md) (2026-10-04)*.
 - Packages and treatments carry a `rules` collection — declarative
   condition/effect pairs over channels, evaluated as an end-of-turn step, with
   effects applied through the same path model-proposed updates use and recorded

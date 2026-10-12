@@ -16,7 +16,7 @@ import { countPhrase, REFUSAL_WORDS, WORDS } from './words.js';
 
 /**
  * ***The strip the decision is made from, and what it said*** —
- * [P16.3g](../../../../../docs/design/workplan/35-p16-world.md),
+ * [P16.3g](../../../../../docs/design/workplan/34-p16-world.md),
  * [10 §11.6](../../../../../docs/design/10-ui-surfaces.md)'s held controls.
  *
  * **Sticky, in the page's own actions strip** (`page.actions`): a review of

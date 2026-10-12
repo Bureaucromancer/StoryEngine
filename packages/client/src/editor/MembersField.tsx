@@ -33,7 +33,7 @@ import {
 
 /**
  * ***A World's members, written rather than shown*** —
- * [P16.1](../../../../docs/design/workplan/35-p16-world.md),
+ * [P16.1](../../../../docs/design/workplan/34-p16-world.md),
  * [15 §3.1](../../../../docs/design/15-world.md),
  * [manual testing §10](../../../../docs/design/workplan/05-manual-testing.md).
  *

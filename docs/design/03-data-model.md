@@ -22,7 +22,7 @@ Eight persistent kinds. Everything else is a sub-structure of one of them.
 | **Treatment** | yes | Tone, framing and *links*. Carries no world facts of its own. |
 | **Setup** | yes | How to start playing: mode, treatment, cast, preset, opening. The "full game" definition. |
 | **Preset** | yes | Prompt templates, budgets, generation params, authored variables. |
-| **World** | yes | A named set of the above, and of sessions, held as references — kept, started from, and moved between installs as one file. *Package until [P16.0](workplan/35-p16-world.md).* |
+| **World** | yes | A named set of the above, and of sessions, held as references — kept, started from, and moved between installs as one file. *Package until [P16.0](workplan/34-p16-world.md).* |
 | **Session** | no | One running story. Lives under its owner. |
 | **Connection** | **never** | Provider endpoint + credentials. Local, private, never exported. |
 
@@ -36,7 +36,7 @@ objects travel*. Sharing a full game means putting a Setup in a World — but th
 Setup is an ordinary library object, useful for your own reuse without any of the
 transport machinery. See §7.
 
-*(2026-10-04: **Package is renamed World** at [P16.0](workplan/35-p16-world.md) —
+*(2026-10-04: **Package is renamed World** at [P16.0](workplan/34-p16-world.md) —
 [26 B17](26-open-questions.md), [15](15-world.md) — and the count stays eight. A
 World is the same portable set, stored as references and published as copies, and
 it gains two jobs a Package never had: sessions among its members, and being read
@@ -44,7 +44,7 @@ when a session starts in it. The split above survives the rename word for word:
 a Setup is what a game is, and a World is the set it draws from.)*
 *(**2026-10-10: renamed** — P16.0 landed on branch `p16`, and the table and the
 paragraph above say World where they said Package. The two new jobs are
-[P16.1](workplan/35-p16-world.md)'s and [P16.2](workplan/35-p16-world.md)'s; at
+[P16.1](workplan/34-p16-world.md)'s and [P16.2](workplan/34-p16-world.md)'s; at
 P16.0 a World does what a Package did, under the new name and folder.)*
 
 ---
@@ -386,12 +386,12 @@ duplication disappears for free once persona is a flag on an actor.
 > a Worlds-shaped concept ([15 §5.3](15-world.md)) — rather than letting a field
 > on a library object opt itself into somebody's story.
 >
-> *Designed 2026-10-04, ~~not yet built~~ built at [P16.2](workplan/35-p16-world.md)
+> *Designed 2026-10-04, ~~not yet built~~ built at [P16.2](workplan/34-p16-world.md)
 > on 2026-10-10, once [26 B16](26-open-questions.md) was answered "open the
 > unions": the `world` arm and an open arm sit inside `storyengine.lorebook/1`
-> (corrected 2026-10-11, the [P16](workplan/35-p16-world.md) final audit)*
+> (corrected 2026-10-11, the [P16](workplan/34-p16-world.md) final audit)*
 > ([15 §5.3](15-world.md),
-> [P16.2](workplan/35-p16-world.md)): a World contributes by **copying** its books
+> [P16.2](workplan/34-p16-world.md)): a World contributes by **copying** its books
 > into `session.lore` when a session starts in it, and `LoreScope` gains a `world`
 > arm read at that one moment, by the same copy. The rule above is intact — a
 > World is one more thing that does the selecting, once, visibly — and `global`
@@ -408,7 +408,7 @@ duplication disappears for free once persona is a flag on an actor.
 > [15 §5.3](15-world.md) — B14 no, B15 `{ kind: 'linked', actorIds: [] }` for a
 > new book and for every standalone SillyTavern import — as recommended answers,
 > owner deferred; see [26](26-open-questions.md), where either can be overruled.
-> Built at [P16.2](workplan/35-p16-world.md).)*
+> Built at [P16.2](workplan/34-p16-world.md).)*
 
 **`category` is removed**, not renamed — reversing an earlier decision here that
 kept Marinara's five-value book-level union as-is. The trigger was a collision
@@ -536,7 +536,7 @@ Notes on why:
   session-local actors available (§2.3), inline snapshots are unnecessary:
   the cast links to actors, and ~~a Package embeds copies of them~~ a World's
   published file carries copies of them (§7) — *corrected 2026-10-10, at
-  [P16.0](workplan/35-p16-world.md)'s rename: the stored container never held
+  [P16.0](workplan/34-p16-world.md)'s rename: the stored container never held
   copies, which §7.2's correction of 2026-10-04 already says.*
 - **This dissolves the `keyLocations` problem.** Marinara's consumption design
   spends a full section on when to materialise a scenario's key locations into
@@ -576,7 +576,7 @@ when the vocabulary arrives.)*
 **Treatments are the primary home.** A Setup may add its own on top, a session may
 add its own while running ([06 §6.1](06-modes-and-turn-pipeline.md)), and a
 package carries all of them by carrying the objects. *(A World, since
-[P16.0](workplan/35-p16-world.md) renamed the kind; the sentence holds of it
+[P16.0](workplan/34-p16-world.md) renamed the kind; the sentence holds of it
 unchanged.)*
 
 **Lorebooks may also carry hooks, optionally** — and the reason is better than
@@ -904,9 +904,9 @@ library. The install's sits at the data root rather than inside a user
 directory, for `accounts.json`'s reason — it holds everybody's work and, when it
 is a full archive, their password hashes.
 
-***`worlds/` was `packages/` until [P16.0](workplan/35-p16-world.md)***,
+***`worlds/` was `packages/` until [P16.0](workplan/34-p16-world.md)***,
 2026-10-10, and both are in the tree because both are read. The kind was renamed
-as a migration ([P16 §1.1](workplan/35-p16-world.md)), not by a rewrite at
+as a migration ([P16 §1.1](workplan/34-p16-world.md)), not by a rewrite at
 start: a folder under `packages/` — or a `package.json` under either name, which
 is what a move stopped between its two renames leaves — is read as a World every
 time, and nothing touches it until somebody writes it. **The first write moves
@@ -1205,10 +1205,10 @@ deliberately rather than accepting a library default.
 The same split applies to every multi-file kind: folders live, a
 custom-extension zip for exchange — `.sepack` for packages, and the same
 treatment for any lorebook or treatment that carries assets. *(2026-10-10: the
-kind is the World since [P16.0](workplan/35-p16-world.md); its exchange file
+kind is the World since [P16.0](workplan/34-p16-world.md); its exchange file
 is still P11.10's `.sepack.json`, and whether the World's own is this zip is
 [16 §5.2](16-publish.md)'s open question, decided before
-[P16.3](workplan/35-p16-world.md) writes it. **Decided the same day: the zip.**
+[P16.3](workplan/34-p16-world.md) writes it. **Decided the same day: the zip.**
 P16.3 writes it as `.seworld` — the World file, [04 §9.3](04-schemas.md) — and
 reads `.sepack.json` beside it.)*
 
@@ -1375,7 +1375,7 @@ acceptable, and the reason the layout above matters.
 
 Requested as two types, each with primary and secondary alternatives. Defined
 once and reused on Actor, Treatment and ~~Package~~ Setup. *(Corrected
-2026-10-10, at [P16.0](workplan/35-p16-world.md)'s rename: no Package carried
+2026-10-10, at [P16.0](workplan/34-p16-world.md)'s rename: no Package carried
 openings and no World does — `Openings` is on the actor, treatment and setup
 schemas, and the Setup split (§7) is where a game's start went.)*
 
@@ -1438,13 +1438,13 @@ touches can find it.
 
 > **Definitions: [04 §7](04-schemas.md) (Setup), [04 §9](04-schemas.md) (World).**
 
-***Setup and Package until [P16.0](workplan/35-p16-world.md)***, 2026-10-10,
+***Setup and Package until [P16.0](workplan/34-p16-world.md)***, 2026-10-10,
 which renamed the kind and nothing in this section's reasoning: the World is the
 container below with a new name and folder, and the jobs [15](15-world.md) gives
 it beyond travelling — membership, sessions among the members, contribution at
 session creation — are later stages'. **The file it travels as is not renamed
 yet**: still `storyengine.package-export/1`, as `.sepack.json`, until
-[P16.3](workplan/35-p16-world.md) defines the World's own. *(Defined and written
+[P16.3](workplan/34-p16-world.md) defines the World's own. *(Defined and written
 at P16.3c as `.seworld`, [04 §9.3](04-schemas.md); the `.sepack.json` export is
 removed at P16.3g, 2026-10-11, and the format is still read.)*
 
@@ -1488,9 +1488,9 @@ no surface of its own:
   *is* the mechanism. A World with no Setup is a content drop — *"here are five
   characters and a lorebook"* — which is a perfectly reasonable thing to share
   and had nowhere to live before.
-  ***A disagreement, recorded 2026-10-11 at the [P16](workplan/35-p16-world.md)
+  ***A disagreement, recorded 2026-10-11 at the [P16](workplan/34-p16-world.md)
   final audit, and open for the owner*** ([04 §9](04-schemas.md) carries the
-  same note): [P16.2](workplan/35-p16-world.md)'s *Start a session in this world*
+  same note): [P16.2](workplan/34-p16-world.md)'s *Start a session in this world*
   is a second way to start, and it reads the World's lorebook and treatment
   members and never a Setup member — so a World with no Setup starts, and one
   with a Setup does not start *through* it. Should Start in a world use the
@@ -1510,7 +1510,7 @@ no surface of its own:
   Campaign ≥ 2 and an image connection; you have neither" rather than a
   broken session later. A warning with a degraded-start option where possible,
   not a hard block.
-  ***A disagreement, recorded 2026-10-11 at the [P16](workplan/35-p16-world.md)
+  ***A disagreement, recorded 2026-10-11 at the [P16](workplan/34-p16-world.md)
   final audit, and open for the owner*** ([04 §9](04-schemas.md) carries the
   same note): the reader built at P16.3e warns about **modes only** — "this wants
   Campaign ≥ 2" is said, "an image connection" is not, since nothing is asked
@@ -1533,7 +1533,7 @@ no surface of its own:
   and no pixels — so the zip is not built; whether the World's file is that or a
   zip of the members' folders is [16 §5.2](16-publish.md)'s open question
   (2026-10-04).* *(2026-10-10: the zip, as `.seworld`, written and read at
-  [P16.3](workplan/35-p16-world.md).)*
+  [P16.3](workplan/34-p16-world.md).)*
 
 **[OPEN]** Can a World ship an extension/mode *implementation*, or only declare
 a dependency on one? Shipping code makes Worlds far more powerful and makes
@@ -1545,7 +1545,7 @@ starting state (a "pre-run prologue")? Attractive for authored content, and it
 crosses the content/session line the rest of the model keeps clean. Note the
 split makes this cleaner to reason about: it would be a *session* in a package,
 not a variant of Setup. *Answered 2026-10-04, by consequence: a World published
-with one session ticked, which [P16.3](workplan/35-p16-world.md) ships and which
+with one session ticked, which [P16.3](workplan/34-p16-world.md) ships and which
 needs nothing of its own ([26 B10](26-open-questions.md), [15 §3.2](15-world.md)).
 The line is crossed where it is drawn — in the file, as a session export beside the
 content, by a person ticking it.*
@@ -1900,7 +1900,7 @@ confirmation costs nothing:
 > Delete **Vera Kohl**?
 > Referenced by **12 sessions**, **3 treatments** and **1 world**.
 
-*(The last count said **1 package** until [P16.0](workplan/35-p16-world.md)
+*(The last count said **1 package** until [P16.0](workplan/34-p16-world.md)
 renamed the kind, 2026-10-10. Lower-case because it is the build's sentence —
 `UsedBy.tsx` names kinds in running copy that way — where this corpus would
 write a World.)*
@@ -1934,7 +1934,7 @@ search. Restoring re-indexes them. *(2026-09-27: for a session it did not, until
 now — the restore left it to the watcher, which does not look under `sessions/`,
 so a restored session was listed and never matched a search again. The restore
 indexes what it puts back, sessions through the rebuild's own derivation.)*
-*(2026-10-11, the [P16](workplan/35-p16-world.md) final audit: restoration is a
+*(2026-10-11, the [P16](workplan/34-p16-world.md) final audit: restoration is a
 move back **unless the id has arrived again**. A Package trashed before P16.0
 restores as a World, and if its id is in use on the install by then — the same
 World imported back, by this account or another — it comes back under a new id
@@ -2022,7 +2022,7 @@ Four behaviours, each of which is the non-obvious choice:
   interruption cannot leave a half-applied card. Marinara skips the snapshot when
   the current state already equals the target, which is the same no-op rule
   applied to the same problem.
-  *(2026-10-11, the [P16](workplan/35-p16-world.md) final audit: **a version is
+  *(2026-10-11, the [P16](workplan/34-p16-world.md) final audit: **a version is
   restored under the object's own id**, whatever id the version records. A
   legacy World restored from the trash while its id is in use again comes back
   under a new one (§10.2), and its versions still hold the old id; restored as

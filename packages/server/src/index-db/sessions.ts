@@ -510,7 +510,7 @@ export function sessionHoldingTurns(db: DatabaseSync, turnIds: Iterable<string>)
 
 /**
  * ***Which session holds these turns, and whose it is*** —
- * [P16.3f](../../../../docs/design/workplan/35-p16-world.md), the World file's
+ * [P16.3f](../../../../docs/design/workplan/34-p16-world.md), the World file's
  * session reader, which has to decide *whose* turns they are before it decides
  * what to do with a session it was handed: this account's own (the sender
  * reading their file back, or an earlier arrival of it), so nothing is

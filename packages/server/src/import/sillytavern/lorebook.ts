@@ -279,7 +279,7 @@ function applyBookFields(
 /**
  * ~~**A chat-scoped book imports as `global`, and the review names the drop.**~~
  * ***Every standalone book imports as `{ kind: 'linked', actorIds: [] }`, and a
- * chat-scoped one's drop is still named*** — [P16.2](../../../../../docs/design/workplan/35-p16-world.md),
+ * chat-scoped one's drop is still named*** — [P16.2](../../../../../docs/design/workplan/34-p16-world.md),
  * 2026-10-10, on [26 §B15](../../../../../docs/design/26-open-questions.md)'s
  * recommended answer (owner deferred; overrule it there). The history below is
  * kept because it is the argument for the change.
@@ -307,7 +307,7 @@ function applyBookFields(
  * *(2026-10-04: examined now. 26 §B15 answers that every standalone book —
  * this function's every call, not only a chat-bound one — imports as
  * `{ kind: 'linked', actorIds: [] }`, a recommended answer the owner deferred,
- * and [P16.2](../../../../../docs/design/workplan/35-p16-world.md) changes the
+ * and [P16.2](../../../../../docs/design/workplan/34-p16-world.md) changes the
  * line below and its test with the factory's default, neither waiting on the
  * `world` scope arm. The chat-bound warning stays. Until then `global` is still
  * what ships.)*

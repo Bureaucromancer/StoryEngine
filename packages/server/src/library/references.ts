@@ -21,7 +21,7 @@ import { actorsWithState } from '../sessions/cast.js';
  * ***[04 §9.1]'s table, read off one object at a time*** —
  * [04 §9.1](../../../../docs/design/04-schemas.md),
  * [16 §4](../../../../docs/design/16-publish.md),
- * [P16 §1.4](../../../../docs/design/workplan/35-p16-world.md), [P16.3a].
+ * [P16 §1.4](../../../../docs/design/workplan/34-p16-world.md), [P16.3a].
  *
  * **The table is normative in 04, and this is its reader** — one function per
  * kind, each emitting the references its rows name, in row order and then in

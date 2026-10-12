@@ -19,7 +19,7 @@ import {
 } from './members-form.js';
 
 /**
- * ***A World's members as data*** — [P16.1](../../../../docs/design/workplan/35-p16-world.md),
+ * ***A World's members as data*** — [P16.1](../../../../docs/design/workplan/34-p16-world.md),
  * [15 §3.1](../../../../docs/design/15-world.md).
  *
  * **The merge is the claim that most needs a test**, because its failure is

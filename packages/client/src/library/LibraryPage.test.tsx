@@ -864,7 +864,7 @@ describe('the Lorebooks panel', () => {
 });
 
 /**
- * ***The Worlds panel*** — [P16.1](../../../../docs/design/workplan/35-p16-world.md).
+ * ***The Worlds panel*** — [P16.1](../../../../docs/design/workplan/34-p16-world.md).
  *
  * **The generic table said nothing about a set**: a name and the word *World*
  * on every row, so telling *five characters and a lorebook* from *my six Rain
@@ -1238,7 +1238,7 @@ describe('deleting from the shelf', () => {
 });
 
 /**
- * ***Choosing on the shelves*** — [P16.3g](../../../../docs/design/workplan/35-p16-world.md),
+ * ***Choosing on the shelves*** — [P16.3g](../../../../docs/design/workplan/34-p16-world.md),
  * [10 §5](../../../../docs/design/10-ui-surfaces.md)'s *bulk select*, and
  * [16 §6](../../../../docs/design/16-publish.md)'s second door.
  *

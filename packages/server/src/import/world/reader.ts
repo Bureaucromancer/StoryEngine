@@ -45,7 +45,7 @@ import type { WorldSessionEntry } from './session.js';
  * ***A World file, read as a root*** —
  * [16 §5.1](../../../../../docs/design/16-publish.md),
  * [04 §9](../../../../../docs/design/04-schemas.md),
- * [P16.3e](../../../../../docs/design/workplan/35-p16-world.md).
+ * [P16.3e](../../../../../docs/design/workplan/34-p16-world.md).
  *
  * **What arrives**: a stored zip whose first member is the manifest
  * (`storyengine-world.json`), the members' own folders under `library/` laid

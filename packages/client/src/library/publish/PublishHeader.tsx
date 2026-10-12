@@ -15,7 +15,7 @@ import { kindWord } from './kind-words.js';
 import { REFUSAL_WORDS, WORDS } from './words.js';
 
 /**
- * ***What is being published, said first*** — [P16.3g](../../../../../docs/design/workplan/35-p16-world.md):
+ * ***What is being published, said first*** — [P16.3g](../../../../../docs/design/workplan/34-p16-world.md):
  * *Rain City — a world* / *5 things you chose*.
  *
  * **The heading is the thing's own name**, the World's or the object's, and a

@@ -20,7 +20,7 @@ import {
 
 /**
  * ***A session's turns, re-keyed for the account it lands on*** —
- * [P16.3f](../../../../../docs/design/workplan/35-p16-world.md), with the
+ * [P16.3f](../../../../../docs/design/workplan/34-p16-world.md), with the
  * fact check's two corrections to the plan's contract (2026-10-10): a turn id
  * is keyed in map **keys** as well as values, so the scan here reads keys too;
  * and a turn id that is not a v7 — every chat or Aventuras import's, and

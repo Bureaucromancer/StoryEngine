@@ -17,7 +17,7 @@ import { landWorld, type WorldLanding, type WorldStore } from './landing.js';
 
 /**
  * ***`landWorld` names what is here, not what was planned*** —
- * [P16.3e](../../../../../docs/design/workplan/35-p16-world.md),
+ * [P16.3e](../../../../../docs/design/workplan/34-p16-world.md),
  * [16 §5.1](../../../../../docs/design/16-publish.md).
  *
  * The reader already marks a member it refused itself (`landedId: null`), so

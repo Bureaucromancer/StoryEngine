@@ -35,7 +35,7 @@ import type { SessionFile } from '../sessions/types.js';
 /**
  * ***The closure walk*** — [16 §4](../../../../docs/design/16-publish.md),
  * [04 §9.1](../../../../docs/design/04-schemas.md),
- * [P16 §1.4](../../../../docs/design/workplan/35-p16-world.md), [P16.3a].
+ * [P16 §1.4](../../../../docs/design/workplan/34-p16-world.md), [P16.3a].
  *
  * **It replaces `export.ts`'s one level, and does not extend it.** P11.10's
  * export read the `contents[]` a World already declares and stopped, which is

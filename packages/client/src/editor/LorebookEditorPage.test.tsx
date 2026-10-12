@@ -1245,8 +1245,8 @@ describe('leaving an editor with unsaved changes', () => {
 
 /**
  * ***The book's scope, written*** —
- * [P16.2](../../../../docs/design/workplan/35-p16-world.md),
- * [P16 §1.3](../../../../docs/design/workplan/35-p16-world.md): *"a field that
+ * [P16.2](../../../../docs/design/workplan/34-p16-world.md),
+ * [P16 §1.3](../../../../docs/design/workplan/34-p16-world.md): *"a field that
  * is read and can only be changed in As stored is a field nobody sets."*
  *
  * Through the real write path, like the rest of this file: what is asserted is

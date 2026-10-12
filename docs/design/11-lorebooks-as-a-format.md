@@ -42,7 +42,7 @@ a reader who never runs a model at all.
 A lorebook is the only library kind whose object is a **collection**. An Actor is
 one document with fields. A Treatment is tone plus links. A Preset is machinery,
 a Setup is a starting configuration, a World — a Package, before
-[P16.0](workplan/35-p16-world.md) — is a manifest. A Lorebook is a
+[P16.0](workplan/34-p16-world.md) — is a manifest. A Lorebook is a
 record with a corpus inside it — and the library, which addresses objects, is
 therefore off by one level for exactly this kind and no other.
 

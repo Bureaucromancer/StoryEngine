@@ -88,7 +88,7 @@ export const OBJECT_FILENAMES = {
 
 /**
  * ***Names a kind's file had before a rename, and is still read under*** —
- * [P16 §1.1](../../../../docs/design/workplan/35-p16-world.md).
+ * [P16 §1.1](../../../../docs/design/workplan/34-p16-world.md).
  *
  * `package.json` is the World's before P16.0. **Read in either of the kind's
  * folders, current or legacy, and written in neither**: a World is
@@ -984,7 +984,7 @@ function relativeWithin(root: string, path: string): string | null {
  * a slug is chosen.
  *
  * ***~~The engine never moves the user's directories~~ — true until
- * [P16.0](../../../../docs/design/workplan/35-p16-world.md), 2026-10-10.*** The
+ * [P16.0](../../../../docs/design/workplan/34-p16-world.md), 2026-10-10.*** The
  * rename of Package to World is the first place it does: the first write to a
  * World still in `library/packages/` moves its folder, history and assets with
  * it, to `library/worlds/`, and a restore of one from the trash lands there too

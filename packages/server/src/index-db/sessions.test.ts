@@ -280,7 +280,7 @@ describe('search over turn text', () => {
 });
 
 /**
- * ***Whose turns these are*** — [P16.3f](../../../../docs/design/workplan/35-p16-world.md).
+ * ***Whose turns these are*** — [P16.3f](../../../../docs/design/workplan/34-p16-world.md).
  * The World file's session reader re-keys a session's turns only when somebody
  * else holds them, so the holder's owner is the answer it acts on — and the
  * fact check's correction is the second case: a turn row whose session row is

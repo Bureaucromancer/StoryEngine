@@ -9,7 +9,7 @@ What playing in a World would one day leave behind — memory keyed on it, hooks
 that do not fire twice across its sessions, a story bible — is designed here and
 **not scheduled**: it waits for real play (§4).
 
-**Half of it is scheduled for 1.0, at [P16](workplan/35-p16-world.md)**: the kind,
+**Half of it is scheduled for 1.0, at [P16](workplan/34-p16-world.md)**: the kind,
 membership, contribution and transport. **The other half — accrual and the story
 bible — is gated on play rather than on a date** (§4.3), and keeps 4.0's place in
 [work plan §0](workplan/01-work-plan.md) as its latest home rather than as a
@@ -65,7 +65,7 @@ exist is designed against a guess.
   by half.** The code never stored copies. A stored Package's `contents` is a
   list of `{ schema, id, name }` envelopes — references — resolved against the
   library when it is exported (`packaging/export.ts`, *removed at
-  [P16.3g](workplan/35-p16-world.md), 2026-10-11; the walker replaced it*). A Package has been a
+  [P16.3g](workplan/34-p16-world.md), 2026-10-11; the walker replaced it*). A Package has been a
   library object since P1, and since
   [P7B.6](workplan/24-p7b-presets-and-prompts.md) one a person can edit. So on
   the install that made it, a Package never
@@ -94,16 +94,16 @@ exist is designed against a guess.
 
 **So Package is renamed rather than joined.** The six portable kinds stay six
 ([04 §1](04-schemas.md)); World takes Package's place, its panel, its routes and
-its file. The rename is [P16.0](workplan/35-p16-world.md), a migration with a
+its file. The rename is [P16.0](workplan/34-p16-world.md), a migration with a
 path that reads the old name for as long as anything might hold it — **nothing
 on disk is renamed by this note**, and until that stage ships the code, the
 library and the guide all say Package and are right to. *(**2026-10-10: it has
 shipped** — P16.0 landed on branch `p16`, and the code, the library's Worlds
 panel, the routes and the guide say World. What still says package is what this
 phase leaves for later on purpose: the export envelope, `.sepack.json` and
-`storyengine.package-export/1`, which [P16.3](workplan/35-p16-world.md) owns;
+`storyengine.package-export/1`, which [P16.3](workplan/34-p16-world.md) owns;
 the namespace and workspace senses (§6); and `Provenance.source`'s `'package'`
-literal ([P16 §1.7](workplan/35-p16-world.md)).)*
+literal ([P16 §1.7](workplan/34-p16-world.md)).)*
 
 **Where this rewrite departs from the branch**, so that nobody reads one for the
 other:
@@ -134,9 +134,9 @@ follows from the answer rather than being bolted to it.**
 
 | Function | What it is | Where it stands |
 |---|---|---|
-| **Membership** | Which objects belong, sessions included. Stored as references; an object may belong to several Worlds or none, and a World never blocks a delete. | **1.0**, [P16.1](workplan/35-p16-world.md) — §3.1, §3.2 |
-| **Transport** | The envelope a set leaves in. Publishing a selection of two or more is how a World gets made; re-publishing one re-resolves it. | **1.0**, [P16.3](workplan/35-p16-world.md) — §3.3, [16](16-publish.md) |
-| **Contribution** | What a new session started in the World starts from — its books into `session.lore`, its treatment, the hooks those carry. Copied, prefill and never binding. | **1.0**, [P16.2](workplan/35-p16-world.md) — §5.3 |
+| **Membership** | Which objects belong, sessions included. Stored as references; an object may belong to several Worlds or none, and a World never blocks a delete. | **1.0**, [P16.1](workplan/34-p16-world.md) — §3.1, §3.2 |
+| **Transport** | The envelope a set leaves in. Publishing a selection of two or more is how a World gets made; re-publishing one re-resolves it. | **1.0**, [P16.3](workplan/34-p16-world.md) — §3.3, [16](16-publish.md) |
+| **Contribution** | What a new session started in the World starts from — its books into `session.lore`, its treatment, the hooks those carry. Copied, prefill and never binding. | **1.0**, [P16.2](workplan/34-p16-world.md) — §5.3 |
 | **Accrual** | What playing in it leaves behind: memory keyed on the World, a hook fired in one session not firing again in another, an introduction made once per World — and the story bible that shows it. | **Deferred, and gated on real play** — §4 |
 
 **None of the four is a feature added to a bundle.** Each is what a set of
@@ -266,7 +266,7 @@ five, and [16](16-publish.md) is a flow inside the library, not a fourth surface
 
 | | Holds | Why |
 |---|---|---|
-| **Stored** — `library/worlds/<slug>/world.json` from [P16.0](workplan/35-p16-world.md); `library/packages/<slug>/package.json` until then — *and after it, read as a World until that object's first write moves it (2026-10-10)* | **references** — the `{ schema, id, name }` envelopes a stored Package's `contents` already holds | The objects live in the library and are edited there. A World holding copies would be a second representation of every object in it — [00 §2.8](00-stance.md)'s derived data persisted as truth, at the scale of a set |
+| **Stored** — `library/worlds/<slug>/world.json` from [P16.0](workplan/34-p16-world.md); `library/packages/<slug>/package.json` until then — *and after it, read as a World until that object's first write moves it (2026-10-10)* | **references** — the `{ schema, id, name }` envelopes a stored Package's `contents` already holds | The objects live in the library and are edited there. A World holding copies would be a second representation of every object in it — [00 §2.8](00-stance.md)'s derived data persisted as truth, at the scale of a set |
 | **Wire** — the published file ([16](16-publish.md)) | **the objects**, each as it is stored — *with the exceptions [04 §9.3](04-schemas.md) lists (2026-10-11): the World re-encoded to what travels, a card without pictures no row names, history scrubbed of sessions* | *"The only reliable way to ship something working to someone whose library you know nothing about"* ([03 §7.2](03-data-model.md)), unchanged |
 
 **Embedding is a fact about the file; linking is a fact about the store.** Get it
@@ -279,14 +279,14 @@ renames the stored form and does not change what it means.
 **Import is where the two meet.** The objects arrive as real library objects
 through the ordinary review step ([10 §5](10-ui-surfaces.md)), and the World that
 arrives with them names what landed — *of its members (glossed 2026-10-11, the
-[P16](workplan/35-p16-world.md) final audit): what the walk brought beside them,
+[P16](workplan/34-p16-world.md) final audit): what the walk brought beside them,
 a treatment's books or a hook's actors, lands as loose library objects and is not
 added to the World, which names only what the sender's World named.* References inside the file resolve within
 it first, then locally, then dangle visibly ([00 §3.3](00-stance.md)) — which is
 [04 §9](04-schemas.md)'s rule unchanged, now with somewhere for the result to be
-kept. ~~*No build reads a `.sepack` today*; [P16.3](workplan/35-p16-world.md)
+kept. ~~*No build reads a `.sepack` today*; [P16.3](workplan/34-p16-world.md)
 builds the reader, and it reads the frozen package format as well as the new one.~~
-*Built at [P16.3e](workplan/35-p16-world.md) (2026-10-10): the reader takes the World
+*Built at [P16.3e](workplan/34-p16-world.md) (2026-10-10): the reader takes the World
 file and the frozen package format through one path.*
 
 **A member that is edited or deleted afterwards.** Edited: the World sees the
@@ -304,7 +304,7 @@ the World the place an actor is edited.
 ~~the envelope rule (§3.3) already carries a World found inside a file as an object
 like any other, so refusing nesting in the editor forecloses nothing~~ *refusing
 nesting forecloses the file path too (corrected 2026-10-11, the
-[P16](workplan/35-p16-world.md) final audit): since P16.3a and P16.3e a nested
+[P16](workplan/34-p16-world.md) final audit): since P16.3a and P16.3e a nested
 World — under either schema id — is excluded from a publish (`nested-world`) and
 never lands from a file (`import.world.nestedWorld`; an unlisted `world.json`
 lands loose, never as a World), which is [16 §5.2](16-publish.md)'s rule as built.
@@ -359,7 +359,7 @@ what a file validates:
   through the registry, and carries the rest through untouched. That is what
   keeps the kind stable when a new kind appears, and it survives the rename
   unchanged.
-  *(2026-10-11, the [P16](workplan/35-p16-world.md) final audit: true of the
+  *(2026-10-11, the [P16](workplan/34-p16-world.md) final audit: true of the
   **stored** World, which keeps an envelope of a kind this build does not know;
   not of the **file**. A publish leaves such a member behind (`unknown-kind`), and
   the World file reader reports one another build wrote
@@ -482,7 +482,7 @@ mood. Any of these, from real play:
   4"* — which is the feature asking to exist and the cheapest evidence there is.
   Also §8, also runnable now.
 - **Worlds made at P16 that hold sessions** — counted per World once
-  [P16.1](workplan/35-p16-world.md) ships — and somebody wishing the second one
+  [P16.1](workplan/34-p16-world.md) ships — and somebody wishing the second one
   knew what happened in the first.
 
 **Its place in the release line is 4.0's, as the latest home rather than a
@@ -501,15 +501,15 @@ records that already exist, which is the definition of something that can wait.
 
 **These are requirements, not insurance.** As a roadmap entry this table was a
 list of cheap options. As a committed design it is a list of things that are true
-when [P16](workplan/35-p16-world.md) closes, and of the three that had to be true
+when [P16](workplan/34-p16-world.md) closes, and of the three that had to be true
 long before it.
 
 | Element | Obligation | Lands |
 |---|---|---|
-| **The kind** | Package renamed World — schema id, folder, file, panel, routes — as a migration that reads the old name and writes the new one. No new kind. | [P16.0](workplan/35-p16-world.md) |
-| **Membership** | References, sessions included; never blocks a delete; an object in several Worlds or none. | [P16.1](workplan/35-p16-world.md) |
-| **Contribution** | A new session in a World copies its books into `session.lore`, offers its treatment, and copies the hooks those carry — §5.3. ~~The `world` arm waits on [26 B16](26-open-questions.md).~~ *The `world` arm is built (corrected 2026-10-11): B16 was answered on 2026-10-10 — open the unions — and P16.2 built it inside `/1` the same day.* | [P16.2](workplan/35-p16-world.md) |
-| **Transport** | [16](16-publish.md)'s review; publishing a selection of two or more makes a World, one object makes none; re-publishing re-resolves. | [P16.3](workplan/35-p16-world.md) |
+| **The kind** | Package renamed World — schema id, folder, file, panel, routes — as a migration that reads the old name and writes the new one. No new kind. | [P16.0](workplan/34-p16-world.md) |
+| **Membership** | References, sessions included; never blocks a delete; an object in several Worlds or none. | [P16.1](workplan/34-p16-world.md) |
+| **Contribution** | A new session in a World copies its books into `session.lore`, offers its treatment, and copies the hooks those carry — §5.3. ~~The `world` arm waits on [26 B16](26-open-questions.md).~~ *The `world` arm is built (corrected 2026-10-11): B16 was answered on 2026-10-10 — open the unions — and P16.2 built it inside `/1` the same day.* | [P16.2](workplan/34-p16-world.md) |
+| **Transport** | [16](16-publish.md)'s review; publishing a selection of two or more makes a World, one object makes none; re-publishing re-resolves. | [P16.3](workplan/34-p16-world.md) |
 | Sessions belong to a World | **None on the session.** Sessions are the *free to move* tier ([04 §1](04-schemas.md)), and membership is a reference on the World (§3.2). | — |
 | World-scoped memory | **Met.** Memory books must not hard-code the `(user, actor, persona)` three-tuple; `MemoryScope` is a record of named keys ([P8.2](workplan/25-p8-implementation.md)). The key itself is accrual's (§4.1). | P8 |
 | Hook identity survives the copy | **Met, and pinned.** §5.1 | P7 |
@@ -600,7 +600,7 @@ holds without amendment. Starting a session in a World:
 - **copies the hooks** those carry, by [03 §4.1](03-data-model.md)'s rule for
   every carrier a session names, ids kept (§5.1).
 
-*(2026-10-11, the [P16](workplan/35-p16-world.md) final audit: **a Setup member
+*(2026-10-11, the [P16](workplan/34-p16-world.md) final audit: **a Setup member
 is not on this list**, and P16.2 built exactly the list — so a World start never
 reads a Setup the World holds. [04 §9](04-schemas.md) and
 [03 §7.2](03-data-model.md) say a World starts *through* its Setup, "the whole
@@ -616,7 +616,7 @@ nothing in it, and per-session divergence is the default rather than a feature
 to add. **The rule that a lorebook reaches a session by being selected is
 intact**: a World is one more thing that does the selecting, once, visibly, with
 the result in the session's own list. *The check that proves it*, which
-[P16.2](workplan/35-p16-world.md) ends on: after starting a session in a World,
+[P16.2](workplan/34-p16-world.md) ends on: after starting a session in a World,
 `session.lore` names the books on disk, and nothing reaches the prompt that is
 not selected there. If a book reaches the prompt without appearing in that list,
 the stage rebuilt P5.7.
@@ -628,7 +628,7 @@ one, and copies the hooks they carry; the request's own `lore` and `treatment`
 override all of it, as they override a Setup's. `routes/world-contribution.test.ts`
 is the check above, with a `global` book outside the World keyed on a word the
 input says, and it holds. ~~**The `world` arm below is not built**: it waits on
-[26 B16](26-open-questions.md), and [P16.2](workplan/35-p16-world.md) records it as
+[26 B16](26-open-questions.md), and [P16.2](workplan/34-p16-world.md) records it as
 waiting.~~ *Later the same day the owner answered B16 — open the unions — and the
 arm below is built too, inside `/1`, with the union opened beside it: a book whose
 scope names the World is copied after the World's own books, ordered by name, and
@@ -658,14 +658,14 @@ refused and the arm added.
 **It widens a closed portable union inside its version, which is
 [26 B16](26-open-questions.md)'s question exactly, ~~and the arm waits on B16's
 answer.~~** ~~`LoreScope` is closed in `storyengine.lorebook/1`;~~ *(corrected
-2026-10-11, the [P16](workplan/35-p16-world.md) final audit: B16 was answered on
+2026-10-11, the [P16](workplan/34-p16-world.md) final audit: B16 was answered on
 2026-10-10 — open the unions — and the arm is built, with `LoreScope` opened
 inside `storyengine.lorebook/1` beside it; the paragraph says what was weighed
 before the answer.)* An older build
 fails a book that uses an arm it does not know, whole — *alphas 5 and 6 do, and
 P16's record says so where the next tag's notes are owed*. Whichever way B16 is
 answered — open the unions, bump the version, or accept and say so — decides how
-the arm lands, and [P16.2](workplan/35-p16-world.md) lands the copy from
+the arm lands, and [P16.2](workplan/34-p16-world.md) lands the copy from
 membership first and the arm second, so that the half of contribution that
 changes no portable schema does not wait on the half that does.
 
@@ -721,7 +721,7 @@ separate rather than replace:**
 
 | Sense | What it is | What happens to it |
 |---|---|---|
-| **The content bundle** | The portable kind — `storyengine.package/1`, the Packages panel, `.sepack`, and [06 §4.1](06-modes-and-turn-pipeline.md)'s `owner` arm for authored content | **Becomes World** at [P16.0](workplan/35-p16-world.md) — *all but `.sepack`, which is the export envelope and [P16.3](workplan/35-p16-world.md)'s ([P16 §1.1](workplan/35-p16-world.md): the envelope is not touched at P16.0). Became, 2026-10-10.* |
+| **The content bundle** | The portable kind — `storyengine.package/1`, the Packages panel, `.sepack`, and [06 §4.1](06-modes-and-turn-pipeline.md)'s `owner` arm for authored content | **Becomes World** at [P16.0](workplan/34-p16-world.md) — *all but `.sepack`, which is the export envelope and [P16.3](workplan/34-p16-world.md)'s ([P16 §1.1](workplan/34-p16-world.md): the envelope is not touched at P16.0). Became, 2026-10-10.* |
 | **A first-party namespace** | An engine subsystem that is not a mode and answers for the state it writes — `storyengine.lore`, `storyengine.cast`, `storyengine.hooks`, `storyengine.goals`, `storyengine.suggest`, `storyengine.renditions`, `storyengine.memory`, each owning a channel | **Unchanged, and never a World.** [06 §4.1](06-modes-and-turn-pipeline.md) names it *first-party namespace*; the code's comments call these *packages* and mean this sense |
 | **The workspace package** | `packages/server`, `packages/sdk`, a mode as a package — pnpm's word ([20 §10](20-tech-stack.md)) | **Untouched**, and unrelated to either |
 
@@ -776,7 +776,7 @@ the feature, and they change. Each test below says when it becomes runnable.
   continuity — *"Rain City 3"*, *"Rain City 4"* — that is accrual asking to exist,
   and it is the cheapest possible evidence for it.
 
-**Runnable once [P16.1](workplan/35-p16-world.md) ships:**
+**Runnable once [P16.1](workplan/34-p16-world.md) ships:**
 
 - **Count members per World, by kind.** A corpus of Worlds holding only lorebooks
   means this is a lorebook collection with extra steps, and the honest response is
@@ -788,7 +788,7 @@ the feature, and they change. Each test below says when it becomes runnable.
   an abandonment. What the count can still show is §4.3's third piece of evidence,
   or its absence.
 
-**Runnable once [P16.2](workplan/35-p16-world.md) ships the arm:**
+**Runnable once [P16.2](workplan/34-p16-world.md) ships the arm:**
 
 - **Watch whether `LoreScope`'s `world` arm gets set.** §5.3 gives the field its
   first consumer since [P5.7] took the last one away. If authors
@@ -796,7 +796,7 @@ the feature, and they change. Each test below says when it becomes runnable.
   contribution — in which case the honest repair is to stop reading it, not to
   find it a second job.
 
-**Runnable once [P16.3](workplan/35-p16-world.md) ships:**
+**Runnable once [P16.3](workplan/34-p16-world.md) ships:**
 
 - **Watch whether anybody makes a World that is not published.** The sharpest
   risk in this design is that a World is a folder with a fancy name — that

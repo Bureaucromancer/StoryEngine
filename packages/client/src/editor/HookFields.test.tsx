@@ -14,7 +14,7 @@ import { newHook, patchHook } from './hook-form.js';
 /**
  * ***The hook editor's two id pickers, picked and never typed*** (2026-10-10) —
  * [03 §4.1](../../../../docs/design/03-data-model.md),
- * [P16.2](../../../../docs/design/workplan/35-p16-world.md).
+ * [P16.2](../../../../docs/design/workplan/34-p16-world.md).
  *
  * `involves` and `blockedBy` are lists of **ids** drawn through `TokenField`,
  * which was built for tags: Enter, a comma and leaving the box all committed

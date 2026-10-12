@@ -10,7 +10,7 @@ import type { World } from './schema/world.js';
  * ***What a publish would send, and the one rule for what is in the file*** —
  * [16 §4](../../../docs/design/16-publish.md),
  * [04 §9.1](../../../docs/design/04-schemas.md),
- * [P16 §1.4](../../../docs/design/workplan/35-p16-world.md), [P16.3a].
+ * [P16 §1.4](../../../docs/design/workplan/34-p16-world.md), [P16.3a].
  *
  * **Two halves, and only one of them is computed here.** The *closure* — every
  * node a walk from the starting point reached, and every edge it followed — is
@@ -158,7 +158,7 @@ export type ClosureRule =
  * Ids are install-unique because `create` refuses any id the install already
  * holds, so a plain id needs no kind prefix to be unambiguous, and keeping it
  * plain is what lets a confirm re-apply ticks made against an earlier preview —
- * [P16.3](../../../docs/design/workplan/35-p16-world.md)'s decisions: *"review
+ * [P16.3](../../../docs/design/workplan/34-p16-world.md)'s decisions: *"review
  * choices are keyed by id and re-applied on a confirm that re-walks the
  * library."*
  *

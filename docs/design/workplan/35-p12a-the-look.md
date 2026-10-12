@@ -1,4 +1,4 @@
-# 34 — P12A implementation plan: the look, and the sentence it has to put back
+# 35 — P12A implementation plan: the look, and the sentence it has to put back
 
 **Status: skeleton, written 2026-09-22**, the day
 [10 §1.3](../10-ui-surfaces.md) was written. ~~Nothing is built.~~ *Part of it
@@ -61,9 +61,9 @@ sitting stays T and its name stays P12A**, both for the reasons the next
 paragraph gives; P15's sitting is **W**.
 
 ***And no longer the last phase before beta, from 2026-10-04*** — which moves
-nothing here. [P16](35-p16-world.md), World, was planned that day, when
+nothing here. [P16](34-p16-world.md), World, was planned that day, when
 [15](../15-world.md) put its set half into the 1.0 corpus, and it is filed
-**after** this phase, at 35, by a decision [P16 §0.1](35-p16-world.md) argues:
+**after** this phase, ~~at 35~~, by a decision [P16 §0.1](34-p16-world.md) argues:
 this phase is ready and unblocked, P16's `LoreScope` arm waits on an owner's
 answer, and P16's new surfaces are cheaper built to this phase's rules than
 retrofitted by its sweep. So this number, this sitting and this name all stay,
@@ -72,8 +72,24 @@ not be walked until this phase lands, and not until P16 lands either.
 *(2026-10-11: ~~filed **after** this phase~~ — P16 opened **ahead** of this phase
 on 2026-10-10, by the owner's word, and was built first; by `PLAN_ORDER`'s rule it
 is refiled ahead of this document at its merge, and this paragraph is on
-[P16](35-p16-world.md)'s list of what `tools/renumber-docs.mjs` will not reach.
+[P16](34-p16-world.md)'s list of what `tools/renumber-docs.mjs` will not reach.
 The sibling claim stands: R4 waits on both.)*
+
+***Renumbered a third time 2026-10-12, from 34 to 35***, on the `p16` branch
+before its merge, when [P16](34-p16-world.md) merged first. The paragraph two
+above decided it again without a new argument — execution order is filing order,
+and P16 ran first — so `PLAN_ORDER`'s two entries were swapped, `--rename` moved
+both documents (`d42aceb`), and **this time `--rewrite` repointed the
+citations**, a hundred and fifty files, because the rename was committed on the
+phase branch before the merge rather than sitting inside one: the trap the two
+renumbering notes above record, avoided by doing it in that order, which P16's
+owed-at-the-merge list had written down. What the rewrite cannot read — bare
+numbers, and sentences that say *after* — was edited by hand in the same commit,
+this paragraph's *~~at 35~~* among them. **Its sitting stays T and its name stays
+P12A**, for the reasons the next paragraph gives, and it is **the phase in front
+of us and the last before beta again**. The sibling claim is unchanged: R4 waits
+on both, and P16 merged with its own critical list unwalked, so landing is not
+yet closing ([P16 §2](34-p16-world.md)).
 
 **Its sitting stays T.** It was registered 2026-09-22; `main`'s own T — pictures
 on a move, [26 E15](../26-open-questions.md) — was registered 2026-09-27 by a
@@ -97,7 +113,7 @@ rewritten. The rest of that pass — polish §18 to §23 — is colour, navigati
 confirmation, refusals and the keyboard, and none of it is a stage here.
 
 ***And P16 hands this phase its entry — a note dated 2026-10-11, at
-[P16](35-p16-world.md)'s final audit.*** P16 ran first, and it leaves the client
+[P16](34-p16-world.md)'s final audit.*** P16 ran first, and it leaves the client
 entry at about **312.35 kB** gzip against a ceiling of **317**
 (`tools/entry-budget.test.ts`, raised at that audit with every figure measured) —
 under five kB for a phase whose stages, tokens, motions, faces and editor headers,

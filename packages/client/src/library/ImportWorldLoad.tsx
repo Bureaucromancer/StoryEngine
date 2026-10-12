@@ -11,7 +11,7 @@ import { Note } from '../ui/Text.js';
 
 /**
  * ***The look at a World's file, fetched when one is picked*** —
- * [P16.3f](../../../../docs/design/workplan/35-p16-world.md),
+ * [P16.3f](../../../../docs/design/workplan/34-p16-world.md),
  * [21 §7.2](../../../../docs/design/21-client-loading.md).
  *
  * **Measured, then moved.** The entry measured **308.10 kB** before the

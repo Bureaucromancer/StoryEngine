@@ -1019,7 +1019,7 @@ describe('a producer, importing one story twice', () => {
 
 /**
  * ***`landNewTurns`'s refusals and its one deletion rule*** —
- * [P16.3f](../../../../docs/design/workplan/35-p16-world.md), the review of
+ * [P16.3f](../../../../docs/design/workplan/34-p16-world.md), the review of
  * 2026-10-11, which found each could be removed with the whole suite green:
  * the World file's round trip (`routes/world-round-trip.test.ts`) never meets
  * a turn another session holds, a turn deleted here, or a document of some

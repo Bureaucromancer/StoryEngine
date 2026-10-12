@@ -205,7 +205,7 @@ export interface SessionImportOptions {
   requireLinks?: boolean;
   /**
    * ***`false`: leave the summary chain to the first turn played*** —
-   * [P16.3f](../../../../docs/design/workplan/35-p16-world.md), the fact
+   * [P16.3f](../../../../docs/design/workplan/34-p16-world.md), the fact
    * check's *landing a session warms the recipient's summariser*.
    *
    * Every door that imports a session warms its chain afterwards
@@ -624,7 +624,7 @@ export type NewTurnsLanded =
 
 /**
  * ***A session published again: the turns this one lacks*** —
- * [P16.3f](../../../../docs/design/workplan/35-p16-world.md), the fact check's
+ * [P16.3f](../../../../docs/design/workplan/34-p16-world.md), the fact check's
  * second correction to the plan (*"already here only when every turn is
  * held, else land what is new"*).
  *

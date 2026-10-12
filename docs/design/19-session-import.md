@@ -677,7 +677,7 @@ rather than let the 409 say it.
   `span: 20` asks for ~99 summariser calls, one after another, **inside the
   first turn played after import**. Either a post-import job warms the chain or
   the first turn says why it is slow. *(2026-10-10,
-  [P16.3f](workplan/35-p16-world.md): **a session landed from a World file is
+  [P16.3f](workplan/34-p16-world.md): **a session landed from a World file is
   never warmed**, on arrival or when a later file grows it — those are
   transcripts somebody else sent, often read and never played, and a warm would
   spend the recipient's model budget on their behalf without a choice offered.

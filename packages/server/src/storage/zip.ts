@@ -65,7 +65,7 @@ export interface ZipEntry {
   compression: number;
   /**
    * ***The CRC-32 the central record states, parsed and never checked*** —
-   * [P16.3c](../../../../docs/design/workplan/35-p16-world.md).
+   * [P16.3c](../../../../docs/design/workplan/34-p16-world.md).
    *
    * **Read so a caller can compare, not compared here.** The World file's
    * writer (`zip-writer.ts`) is proved against these readers by a round trip

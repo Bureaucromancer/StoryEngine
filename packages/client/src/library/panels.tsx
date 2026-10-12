@@ -122,7 +122,7 @@ function scopeKindOf(object: LibraryObject): string | null {
 }
 
 /**
- * ***Which of the scope filter's three a book is*** — [P16.2](../../../../docs/design/workplan/35-p16-world.md),
+ * ***Which of the scope filter's three a book is*** — [P16.2](../../../../docs/design/workplan/34-p16-world.md),
  * [26 §B15](../../../../docs/design/26-open-questions.md).
  *
  * **`linked` split in two at P16.2, because its meaning did.** Until then a
@@ -530,7 +530,7 @@ const WORLD_WORDS = labels('library.panel.worlds', {
 });
 
 /**
- * Worlds — [P16.1](../../../../docs/design/workplan/35-p16-world.md): the
+ * Worlds — [P16.1](../../../../docs/design/workplan/34-p16-world.md): the
  * Package's panel, renamed, and the first that answers what a World *holds*.
  *
  * **The two columns are §5.3's test passed by the kind's whole point.** A World

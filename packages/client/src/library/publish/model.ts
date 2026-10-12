@@ -16,7 +16,7 @@ import {
 
 /**
  * ***What the review draws, worked out from a closure and the ticks*** —
- * [P16.3g](../../../../../docs/design/workplan/35-p16-world.md).
+ * [P16.3g](../../../../../docs/design/workplan/34-p16-world.md).
  *
  * **Pure, and none of it decides what is in the file.** That is `fileSet`'s
  * alone (`shared/src/publish.ts`), which the confirm writes with; everything
@@ -222,7 +222,7 @@ export function orphanGroups(set: FileSet): { cameWith: NodeKey | null; keys: No
 }
 
 /**
- * ***Choose as last time*** — [P16.3h](../../../../../docs/design/workplan/35-p16-world.md),
+ * ***Choose as last time*** — [P16.3h](../../../../../docs/design/workplan/34-p16-world.md),
  * [16 §5](../../../../../docs/design/16-publish.md): the choices the last file
  * was made with, as the ledger recorded them ([22 §9]'s `ticked` and
  * `unticked`, *the person's overrides, both directions*), and its history flag.

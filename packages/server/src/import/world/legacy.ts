@@ -30,7 +30,7 @@ import { MemoryFileSource } from '../memory-source.js';
  * ***The frozen `.sepack.json`, read as a World file*** —
  * [16 §5.1](../../../../../docs/design/16-publish.md),
  * [P11.10](../../../../../docs/design/workplan/28-p11-implementation.md),
- * [P16.3e](../../../../../docs/design/workplan/35-p16-world.md).
+ * [P16.3e](../../../../../docs/design/workplan/34-p16-world.md).
  *
  * **It reads both formats** (16 §5.1): P16.3 writes the World's own, and reads
  * `storyengine.package-export/1` beside it, so a file written by P11.10's

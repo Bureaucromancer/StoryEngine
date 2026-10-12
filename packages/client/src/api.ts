@@ -604,7 +604,7 @@ export interface TakenFile {
 
 /**
  * ***What `api.publish` hands back*** — the World file, and what its answer said
- * beside it ([P16.3g](../../../docs/design/workplan/35-p16-world.md), the
+ * beside it ([P16.3g](../../../docs/design/workplan/34-p16-world.md), the
  * headers [docs/api.md](../../../docs/api.md)'s *Publish* section names).
  *
  * **Headers, because the body is the file** — P11.10's rule, which the confirm
@@ -1015,8 +1015,8 @@ export const api = {
 
   /**
    * ***Add to a World, from somewhere that is not its editor*** —
-   * [P16.1](../../../docs/design/workplan/35-p16-world.md),
-   * [P16 §1.2](../../../docs/design/workplan/35-p16-world.md).
+   * [P16.1](../../../docs/design/workplan/34-p16-world.md),
+   * [P16 §1.2](../../../docs/design/workplan/34-p16-world.md).
    *
    * **Not `updateObject` with one more envelope**, and the difference is who
    * holds the World. Its editor read it and owns the hash it presents, so it
@@ -1071,7 +1071,7 @@ export const api = {
 
   /**
    * ***What a publish would send, and why*** — `POST /api/publish/preview`,
-   * [P16.3g](../../../docs/design/workplan/35-p16-world.md),
+   * [P16.3g](../../../docs/design/workplan/34-p16-world.md),
    * [16 §5](../../../docs/design/16-publish.md).
    *
    * **Writes nothing**, on the server or here: the review runs `fileSet` over
@@ -1687,8 +1687,8 @@ export interface NewSession {
    */
   setup?: string | null;
   /**
-   * ***A World to start in*** — [P16.2](../../../docs/design/workplan/35-p16-world.md),
-   * [P16 §1.3](../../../docs/design/workplan/35-p16-world.md).
+   * ***A World to start in*** — [P16.2](../../../docs/design/workplan/34-p16-world.md),
+   * [P16 §1.3](../../../docs/design/workplan/34-p16-world.md).
    *
    * **A default one rung below the Setup's, and the session joins it.** The
    * route fills `lore` with the World's lorebook members (beside a Setup's,

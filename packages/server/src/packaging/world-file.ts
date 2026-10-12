@@ -64,7 +64,7 @@ import {
  * [16 §5.2](../../../../docs/design/16-publish.md),
  * [04 §9.1](../../../../docs/design/04-schemas.md),
  * [03 §5.2.3](../../../../docs/design/03-data-model.md),
- * [P16.3c](../../../../docs/design/workplan/35-p16-world.md).
+ * [P16.3c](../../../../docs/design/workplan/34-p16-world.md).
  *
  * **What goes in is the owner's decision of 2026-10-10**: *a stored zip of the
  * members' stored folders* (16 §5.2), sessions inside as their session exports

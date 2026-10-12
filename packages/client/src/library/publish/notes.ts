@@ -8,7 +8,7 @@ import { fill, NOTE_LABELS } from '../note-labels.js';
 
 /**
  * ***The notes only the publish review says*** —
- * [P16.3g](../../../../../docs/design/workplan/35-p16-world.md), owed since
+ * [P16.3g](../../../../../docs/design/workplan/34-p16-world.md), owed since
  * [P16.3d]: `publish.closure.*` and `publish.session.*`, which `fileSet` (in
  * `shared/src/publish.ts`) writes as the person ticks, and
  * `publish.requires.modeNotHere`, which the confirm sends in its notes header.

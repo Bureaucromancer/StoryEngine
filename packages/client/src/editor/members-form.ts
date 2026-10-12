@@ -16,9 +16,9 @@ import { mergeKeyed, type Draft } from './book-form.js';
 
 /**
  * ***A World's members, as data*** —
- * [P16.1](../../../../docs/design/workplan/35-p16-world.md),
+ * [P16.1](../../../../docs/design/workplan/34-p16-world.md),
  * [15 §3.1](../../../../docs/design/15-world.md),
- * [P16 §1.2](../../../../docs/design/workplan/35-p16-world.md).
+ * [P16 §1.2](../../../../docs/design/workplan/34-p16-world.md).
  *
  * **Pure, and apart from the field that draws it**, for the reason
  * `hook-form.ts` is apart from `HookList`: the three things here — what a
@@ -37,7 +37,7 @@ import { mergeKeyed, type Draft } from './book-form.js';
  * ***The schema a session member is named by*** — [P16 §1.2].
  *
  * ~~**Spelled here because `@storyengine/shared` exports no constant for it**:~~
- * ***A re-export since [P16.3a](../../../../docs/design/workplan/35-p16-world.md),
+ * ***A re-export since [P16.3a](../../../../docs/design/workplan/34-p16-world.md),
  * 2026-10-10***, when the closure walker became the first server reader that
  * has to *classify* a World member as a session rather than write one, and
  * shared grew `SESSION_SCHEMA` for it. The reason for one constant is unchanged:

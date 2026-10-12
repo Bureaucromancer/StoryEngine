@@ -47,7 +47,7 @@ import {
 /**
  * ***The walker, over the table*** — [04 §9.1](../../../../docs/design/04-schemas.md),
  * [16 §4](../../../../docs/design/16-publish.md),
- * [P16 §1.4](../../../../docs/design/workplan/35-p16-world.md), [P16.3a].
+ * [P16 §1.4](../../../../docs/design/workplan/34-p16-world.md), [P16.3a].
  *
  * **Two halves, for the reason `links.ts` records about its setup cast**: the
  * first draft of that reader was wrong in a way its unit test shared, and the

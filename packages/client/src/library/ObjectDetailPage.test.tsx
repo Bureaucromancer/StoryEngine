@@ -192,7 +192,7 @@ describe('starting a session from a setup', () => {
 
 /**
  * ***A World's page is somewhere to start from too*** —
- * [P16.2](../../../../docs/design/workplan/35-p16-world.md). The route does the
+ * [P16.2](../../../../docs/design/workplan/34-p16-world.md). The route does the
  * contribution, so the page sends the World and nothing else and goes into the
  * session it made; *Choose first…* is the session form with the World chosen.
  * Your own only — starting in a World writes the session into it.
@@ -490,7 +490,7 @@ describe('taking an object with you', () => {
 });
 
 /**
- * ***The doors into Publish*** — [P16.3g](../../../../docs/design/workplan/35-p16-world.md),
+ * ***The doors into Publish*** — [P16.3g](../../../../docs/design/workplan/34-p16-world.md),
  * [16 §6](../../../../docs/design/16-publish.md)'s *an object's detail page …
  * and a World's own page*, [10 §5.0a](../../../../docs/design/10-ui-surfaces.md)'s
  * two doors.

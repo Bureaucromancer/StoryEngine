@@ -57,7 +57,7 @@ extension implementation remains a no for 1.0, and the rule vocabulary needs
 versioning so a package authored against v2 fails legibly on a v1 host.
 *[03 §7, 02 §2]*
 
-*(2026-10-04: the package is a World from [P16.0](workplan/35-p16-world.md) — B17
+*(2026-10-04: the package is a World from [P16.0](workplan/34-p16-world.md) — B17
 below — and the answer moves with the name unchanged: **a World may ship rules,
 never code** ([15 §3.3](15-world.md)). Both open halves stay open; neither is the
 World phase's.)*
@@ -345,7 +345,7 @@ install loading one.
 ticked, and no feature of its own.** Sessions are a World's members
 ([15 §3.2](15-world.md), [16 §5](16-publish.md)), and a published World carries
 each ticked session as its session export — so the session that travels
-in a package, below, is exactly what [P16.3](workplan/35-p16-world.md) ships. The
+in a package, below, is exactly what [P16.3](workplan/34-p16-world.md) ships. The
 original framing, kept because it is why the answer needed nothing new:
 A package shipping a partially-played session as a starting state. Conceptually
 welcome and no longer blocked on an undecided question, only on a sequenced one.
@@ -465,11 +465,11 @@ reintroduces exactly the silence
 **B15. What should a new lorebook's `scope` be? — ~~OPEN, and only *because* B14
 is~~ ANSWERED 2026-10-04: `{ kind: 'linked', actorIds: [] }`, the narrowest honest
 value — recommended answer, owner deferred ([15 §5.3](15-world.md), built at
-[P16.2](workplan/35-p16-world.md)).** ***(2026-10-10: built, on branch `p16`** —
+[P16.2](workplan/34-p16-world.md)).** ***(2026-10-10: built, on branch `p16`** —
 `newLorebook` and the SillyTavern importer's every standalone book write it, and
 the Lorebooks panel's *Linked* badge is drawn only for a book linked to somebody.
 ~~The `world` arm is not built; it waits on B16.~~)* *(Corrected 2026-10-11, at
-[P16](workplan/35-p16-world.md)'s final audit: B16 was answered later on
+[P16](workplan/34-p16-world.md)'s final audit: B16 was answered later on
 2026-10-10, and the `world` arm was built the same day — B16's entry.)* *The condition below arrived*:
 `scope` regains a consumer in the `world` arm, so the default is decided first
 rather than inherited. An empty `linked` means *this book has not said where it
@@ -498,14 +498,14 @@ owner, and due before the first release that exports native objects~~ RESOLVED
 2026-10-10 by the owner, for beta: open the unions.** *The answer first.* Of the
 three choices below, the owner took **open the unions** — an arm a build does not
 know is kept and ignored, as `ActorRole` and `CallKind` already are — on being
-asked at [P16](workplan/35-p16-world.md)'s revisit, where the `world` arm on
+asked at [P16](workplan/34-p16-world.md)'s revisit, where the `world` arm on
 `LoreScope` was waiting on it. It is the only answer that keeps
 [04 §2](04-schemas.md)'s round-trip rule for a union that grows. **How it lands**:
-`LoreScope` opens with the `world` arm, at [P16.2](workplan/35-p16-world.md); the
+`LoreScope` opens with the `world` arm, at [P16.2](workplan/34-p16-world.md); the
 three unions already widened — `MediaRole`, and the preset block source's two
 arms — open under the same rule, owed before beta and recorded in
-[P16 §1.3](workplan/35-p16-world.md) beside the arm. *(2026-10-11, at
-[P16](workplan/35-p16-world.md)'s final audit: P16 closes without them and no
+[P16 §1.3](workplan/34-p16-world.md) beside the arm. *(2026-10-11, at
+[P16](workplan/34-p16-world.md)'s final audit: P16 closes without them and no
 later phase named them, so they are owned now by the work plan's pre-beta list —
 [work plan §8](workplan/01-work-plan.md), under* What beta requires *— where
 re-pinning the actor and preset artefacts in the release check is said too.)* A build from before the
@@ -534,7 +534,7 @@ fourth arm.)*
 
 *(2026-10-04: the World phase is planned, and how it meets this question is
 written down there rather than chosen here —
-[P16 §1.3](workplan/35-p16-world.md). **The `world` arm waits on this answer, and
+[P16 §1.3](workplan/34-p16-world.md). **The `world` arm waits on this answer, and
 the rest of contribution does not**: P16.2 lands the copy from a World's members
 first, which changes no portable schema, and the arm second, by whichever of the
 three answers above is taken — additively inside `/1` for the first and third,
@@ -555,7 +555,7 @@ the choice, and the `world` arm still waits on it.)*
 **B17. Are the portable Package and the continuity World one object? —
 RESOLVED 2026-10-03 by the owner: yes, World replaces Package, and ~~the design is
 owed~~ the design was written 2026-10-04 — [15](15-world.md),
-[16](16-publish.md), and [P16](workplan/35-p16-world.md) to build it.**
+[16](16-publish.md), and [P16](workplan/34-p16-world.md) to build it.**
 
 *Designed 2026-10-04, and here first so it is met before the history.*
 [15](15-world.md) is rewritten under the owner's option: **four functions —
@@ -568,20 +568,22 @@ adapted rather than adopted. [16](16-publish.md) is the publish flow, reconciled
 with [04 §9.1](04-schemas.md)'s newer closure table, which gains World and
 Session rows. [04 §9](04-schemas.md) is corrected — the stored form holds
 references and the file holds copies, which the code always did — and says the
-kind is renamed at [P16.0](workplan/35-p16-world.md), as a migration that reads
+kind is renamed at [P16.0](workplan/34-p16-world.md), as a migration that reads
 both names. [06 §4.1](06-modes-and-turn-pipeline.md) separates the two senses
 `PackageId` carried. [Work plan §0.2](workplan/01-work-plan.md)'s check becomes
 *World must change no other portable schema*, `LoreScope`'s `world` arm the one
-named, additive exception. [P16](workplan/35-p16-world.md) runs after P12A and
-before beta, and its critical list is sitting AA. **B14 and B15 above are
+named, additive exception. [P16](workplan/34-p16-world.md) ~~runs after P12A and~~
+*runs* before beta, and its critical list is sitting AA. **B14 and B15 above are
 answered by it, B10 by consequence; B16 is not, and the arm waits on it.**
 *(2026-10-11, at P16's final audit: B16 was answered on 2026-10-10 and the arm
 built at P16.2 the same day; and P16 opened ahead of P12A, by the owner's word,
-rather than after it — its refile is owed at its merge.)*
-***(2026-10-10: [P16.0](workplan/35-p16-world.md) landed on branch `p16`.)*** The
+rather than after it — its refile is owed at its merge.)* *(2026-10-12: refiled
+at its merge, to 34, ahead of [P12A](workplan/35-p12a-the-look.md) at 35; merged
+the same day with its critical list unwalked.)*
+***(2026-10-10: [P16.0](workplan/34-p16-world.md) landed on branch `p16`.)*** The
 kind is World in its schema id (`storyengine.world/1`), the registry, the folder
 and file (`library/worlds/<slug>/world.json`), the routes (`/library/worlds/*`)
-and the panel, as [P16 §1.1](workplan/35-p16-world.md)'s migration: a
+and the panel, as [P16 §1.1](workplan/34-p16-world.md)'s migration: a
 `storyengine.package/1` body, a `library/packages/` folder, a backup taken
 before the rename and a Package in the trash are each read as a World, and an
 object's first write moves it. The export envelope, `storyengine.package-export/1`
@@ -627,9 +629,9 @@ its version, which is B16's question exactly. So the rename lands before that
 release or ships as a migration, and how the arm arrives waits on B16's answer.
 *(2026-10-04: it ships as a migration either way — installs already hold
 `library/packages/` folders and `.sepack.json` files from dev builds, so
-[P16 §1.1](workplan/35-p16-world.md) reads both names for as long as anything might
+[P16 §1.1](workplan/34-p16-world.md) reads both names for as long as anything might
 hold the old one — and the deadline then stops being a cliff and becomes a cost:
-each release that writes the old name before [P16.0](workplan/35-p16-world.md)
+each release that writes the old name before [P16.0](workplan/34-p16-world.md)
 lands adds files the legacy read must cover, which is why P16 §0.1 moves that
 stage first if a release is cut before the phase runs.)*
 *[15](15-world.md), [04 §9](04-schemas.md), [work plan §0.2](workplan/01-work-plan.md)*

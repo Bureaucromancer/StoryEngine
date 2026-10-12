@@ -102,7 +102,7 @@ import type { DatabaseSync } from 'node:sqlite';
  *
  * **13 is 9's shape a third time** (2026-10-10, [P16.0]): no table changed, and
  * what a Package's file derives to did. Package is renamed World
- * ([P16 §1.1](../../../../docs/design/workplan/35-p16-world.md)), and a
+ * ([P16 §1.1](../../../../docs/design/workplan/34-p16-world.md)), and a
  * `packages/<slug>/package.json` that an older build indexed as a row of kind
  * `storyengine.package/1`, with that id in its body, is now a row of kind
  * `storyengine.world/1` whose body the ingest has upgraded. **Nothing re-reads a

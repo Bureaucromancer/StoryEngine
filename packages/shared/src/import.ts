@@ -173,7 +173,7 @@ export interface ImportReport {
 
 /**
  * ***The World a file landed, in one line*** —
- * [P16.3f](../../../docs/design/workplan/35-p16-world.md), the upload door's
+ * [P16.3f](../../../docs/design/workplan/34-p16-world.md), the upload door's
  * `world` beside its report, which the import panel leads with after the
  * commit: *a world named Rain City landed, naming 7 objects and 1 session —
  * Open it.*

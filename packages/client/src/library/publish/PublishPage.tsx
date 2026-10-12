@@ -27,7 +27,7 @@ import { REFUSAL_WORDS, WORDS } from './words.js';
 
 /**
  * ***The review, which is the surface*** — [16 §5](../../../../../docs/design/16-publish.md),
- * [P16.3g](../../../../../docs/design/workplan/35-p16-world.md).
+ * [P16.3g](../../../../../docs/design/workplan/34-p16-world.md).
  *
  * **One column, phone first, no stepper and no modal** ([16 §5]: *it renders
  * in the panel, not a modal … No stepper*): what is being published, *just the

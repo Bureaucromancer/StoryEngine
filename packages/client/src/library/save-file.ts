@@ -6,7 +6,7 @@
  * [EntryTravel](../editor/EntryTravel.tsx)'s way: an object URL, clicked and
  * revoked, under the name the route gave it.
  *
- * **Its own module since [P16.3g](../../../../docs/design/workplan/35-p16-world.md)**,
+ * **Its own module since [P16.3g](../../../../docs/design/workplan/34-p16-world.md)**,
  * when it gained a second caller. It was the detail page's private helper for
  * *Download* and *Export as…*; the publish review saves a World file the same
  * way, and the review is a chunk of its own ([21 §7](../../../../docs/design/21-client-loading.md)),

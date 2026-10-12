@@ -13,7 +13,7 @@ import { joinIds } from '../search-lists.js';
 import type { LibrarySelection } from './selection.js';
 
 /**
- * ***What is chosen, and the door it opens*** — [P16.3g](../../../../docs/design/workplan/35-p16-world.md),
+ * ***What is chosen, and the door it opens*** — [P16.3g](../../../../docs/design/workplan/34-p16-world.md),
  * [16 §6](../../../../docs/design/16-publish.md)'s *a selection in a library
  * panel*.
  *

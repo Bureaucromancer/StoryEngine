@@ -8,7 +8,7 @@ import { PUBLISH_NOTE_LABELS, publishSentence } from './notes.js';
 import { graph } from './test-closure.js';
 
 /**
- * ***`fileSet`'s notes, rendered*** — [P16.3g](../../../../../docs/design/workplan/35-p16-world.md).
+ * ***`fileSet`'s notes, rendered*** — [P16.3g](../../../../../docs/design/workplan/34-p16-world.md).
  *
  * `note-labels.test.ts` holds the publish vocabulary to the emitted keys by
  * reading source, and its placeholder check has to look back for params built

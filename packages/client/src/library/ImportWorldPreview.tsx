@@ -22,7 +22,7 @@ import { sentence } from './note-labels.js';
  * ***A World's file, before it lands*** —
  * [16 §5.1](../../../../docs/design/16-publish.md),
  * [10 §5](../../../../docs/design/10-ui-surfaces.md),
- * [P16.3f](../../../../docs/design/workplan/35-p16-world.md).
+ * [P16.3f](../../../../docs/design/workplan/34-p16-world.md).
  *
  * **What 16 §5.1 asks the look to answer, in its order**: what is inside, *by
  * kind and name* — the manifest exists so that *do I want these in my

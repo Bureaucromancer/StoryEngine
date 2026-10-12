@@ -13,7 +13,7 @@ import { MAX_CENTRAL_BYTES } from './zip-file.js';
  * ***The server's first zip writer*** —
  * [16 §5.2](../../../../docs/design/16-publish.md),
  * [03 §5.2.3](../../../../docs/design/03-data-model.md),
- * [P16.3c](../../../../docs/design/workplan/35-p16-world.md).
+ * [P16.3c](../../../../docs/design/workplan/34-p16-world.md).
  *
  * **Why it exists at all.** The owner decided on 2026-10-10 that a World
  * travels as *a stored zip of the members' stored folders* (16 §5.2): an actor

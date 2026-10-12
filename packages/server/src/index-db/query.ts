@@ -172,7 +172,7 @@ export function findPriorImport(
  * ***Every object a previous import of the same source produced*** — the same
  * triple as {@link findPriorImport}, all of it rather than the first.
  *
- * [P16.3e](../../../../docs/design/workplan/35-p16-world.md)'s keep-both: a
+ * [P16.3e](../../../../docs/design/workplan/34-p16-world.md)'s keep-both: a
  * World file's copy is stamped with the same arrival key as the arrival it sits
  * beside (`seworld:<file id>`), so one account can hold two objects under one
  * key — the arrival, edited since, and the copy the last keep-both import left

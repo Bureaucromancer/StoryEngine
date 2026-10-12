@@ -388,7 +388,7 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
    * `storyengine.package-export/1` envelope as `<name>.sepack.json`, one level
    * deep, with `x-storyengine-missing` counting what it could not include.~~
    *
-   * ***Removed 2026-10-11, at [P16.3g](../../../../docs/design/workplan/35-p16-world.md)***,
+   * ***Removed 2026-10-11, at [P16.3g](../../../../docs/design/workplan/34-p16-world.md)***,
    * with its writer (`packaging/export.ts`) and `packFileName`. A World leaves
    * as its World file now — `POST /api/publish`, every level of the closure,
    * reviewed ([16 §5]) — and the client's *Export this world* link gave way
@@ -404,8 +404,8 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
    */
 
   /**
-   * ***Add to a World*** — [P16.1](../../../../docs/design/workplan/35-p16-world.md),
-   * [P16 §1.2](../../../../docs/design/workplan/35-p16-world.md).
+   * ***Add to a World*** — [P16.1](../../../../docs/design/workplan/34-p16-world.md),
+   * [P16 §1.2](../../../../docs/design/workplan/34-p16-world.md).
    *
    * **The door for a gesture made from somewhere else** — *Add to a World* on a
    * session's page or in the session list — rather than for the World's own

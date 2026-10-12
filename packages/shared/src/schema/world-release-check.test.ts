@@ -11,7 +11,7 @@ import { describe, expect, it } from 'vitest';
 /**
  * ***World changes no other portable schema*** —
  * [work plan §0.2](../../../../docs/design/workplan/01-work-plan.md)'s release
- * check, as [P16 §1.6](../../../../docs/design/workplan/35-p16-world.md) makes it:
+ * check, as [P16 §1.6](../../../../docs/design/workplan/34-p16-world.md) makes it:
  * **a test rather than a promise**, due at that phase's exit rather than at a
  * release.
  *
@@ -22,7 +22,7 @@ import { describe, expect, it } from 'vitest';
  * reverses that check's reasoning and keeps its letter, and this is the letter
  * — **with its one exception named in advance**: `LoreScope`'s `world` arm, an
  * additive widening of the lorebook's scope union that
- * [P16.2](../../../../docs/design/workplan/35-p16-world.md) lands on
+ * [P16.2](../../../../docs/design/workplan/34-p16-world.md) lands on
  * [26 B16](../../../../docs/design/26-open-questions.md)'s answer. *A check with
  * an unstated exception is a check that gets waived the first time it fires,
  * and one with a stated exception is still a check only if something reads it.*

@@ -54,7 +54,7 @@ const EMITTED = /'((?:import|export)\.[a-zA-Z0-9.]+)'/g;
 const LABELLED = /'((?:import|export)\.[a-zA-Z0-9.]+)':/g;
 
 /**
- * ***And the third: what a publish says*** — [P16.3g](../../../../docs/design/workplan/35-p16-world.md),
+ * ***And the third: what a publish says*** — [P16.3g](../../../../docs/design/workplan/34-p16-world.md),
  * owed since [P16.3c] and [P16.3d].
  *
  * A note of publish's is `publish.<group>.<name>` — `publish.closure.*` and

@@ -49,7 +49,7 @@ import { eventually, makeTestServer, setUpAdmin, type TestServer } from '../test
 
 /**
  * ***P16.3's first end clause, as a test*** —
- * [P16.3f](../../../../docs/design/workplan/35-p16-world.md),
+ * [P16.3f](../../../../docs/design/workplan/34-p16-world.md),
  * [16 §5.1](../../../../docs/design/16-publish.md),
  * [16 §5.2](../../../../docs/design/16-publish.md).
  *

@@ -18,7 +18,7 @@ import { graph, previewOf, worldOf } from './test-closure.js';
 
 /**
  * ***Re-publishing opens on the diff*** — [16 §5](../../../../../docs/design/16-publish.md),
- * [P16.3h](../../../../../docs/design/workplan/35-p16-world.md): the review's
+ * [P16.3h](../../../../../docs/design/workplan/34-p16-world.md): the review's
  * half of it, as the plan lists it — *opens first*, *follows the checkboxes
  * live*, *Choose as last time never ticks an untold session* — and the
  * history flag it restores.

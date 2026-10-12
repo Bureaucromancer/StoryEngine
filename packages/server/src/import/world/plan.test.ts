@@ -23,7 +23,7 @@ import { arrivalKey, asLanded, type ArrivalObject, planArrivals } from './plan.j
 
 /**
  * ***One test per row of the identity table*** —
- * [P16.3e](../../../../../docs/design/workplan/35-p16-world.md), [P16.3]'s plan
+ * [P16.3e](../../../../../docs/design/workplan/34-p16-world.md), [P16.3]'s plan
  * §2. Each row is asked against a real library on a real install, because the
  * question each one answers — *who holds this id* — is a question about the
  * install, not about the file.
