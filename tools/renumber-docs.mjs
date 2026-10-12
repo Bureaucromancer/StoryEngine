@@ -125,25 +125,29 @@ const PLAN_ORDER = [
   // is no help either way, since P15 names the phase after P14 and P12A the
   // one after P12, which is a claim about labels and not about filing.
   ['p15-setup-from-a-turn', 'P15'],
+  // **Before P12A, by execution** (2026-10-12, at the merge that brings P16 into
+  // `main`). ~~*After P12A, by a decision rather than a default* (2026-10-04,
+  // written the day note 15 was rewritten under the owner's World decision):
+  // neither phase had opened, so execution order here was a plan, and P16's
+  // own §0.1 gave the reasons it would run second.~~ It ran first instead:
+  // P16 opened on 2026-10-10 and was built and merged while P12A had still not
+  // opened, so by this list's one rule — execution order is the order the work
+  // happened in, never the order a plan was first written — it files ahead of
+  // P12A, as P15 and the three before it did. The entry above it said, of this
+  // case, *"P16.0 moves ahead of it and this entry moves with it — by `--plan`
+  // and `--rename`, never by hand"*; the whole phase moved, and so did this.
+  ['p16-world', 'P16'],
   // **Last, and by execution rather than by its letter** (2026-10-02, at the
   // merge that brought P13, P14 and the main audit into a main that already
   // held this). It was filed at 30 on a local main on 2026-09-23 and never
   // pushed; `origin/main` meanwhile planned, built and merged P13 and P14 and
-  // ran its audit, filing them at 30 to 32. All three ran before it and it is
-  // still the phase in front of beta, so its place is after them — the letter
+  // ran its audit, filing them at 30 to 32. All three ran before it ~~and it is
+  // still the phase in front of beta~~, so its place is after them — the letter
   // says which phase it follows without renumbering the next, which is a claim
   // about the label and never about the filing position (the docstring above).
+  // *(2026-10-12: P16 ran before it too, and files ahead of it; P12A is still the
+  // phase in front of us, and now the last before beta again.)*
   ['p12a-the-look', 'P12A'],
-  // **After P12A, by a decision rather than a default** (2026-10-04, written the
-  // day note 15 was rewritten under the owner's World decision). Neither phase
-  // has opened, so execution order here is a plan, and P16's own §0.1 gives the
-  // reasons it runs second: P12A is ready and unblocked where P16's `LoreScope`
-  // arm waits on an owner's answer, the rename's deadline binds both phases
-  // alike, and surfaces built after the look are built to it. Both run before
-  // beta, so P12A stops being the last phase before beta and this one is. If a
-  // release is cut before P12A lands, P16.0 moves ahead of it and this entry
-  // moves with it — by `--plan` and `--rename`, never by hand.
-  ['p16-world', 'P16'],
 ];
 
 const git = (...args) => execFileSync('git', args, { encoding: 'utf8' });
