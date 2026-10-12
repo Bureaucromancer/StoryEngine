@@ -656,6 +656,8 @@ describe('starting a session in a world', () => {
     await waitFor(() => {
       expect(createSession).toHaveBeenCalledWith({
         world: 'w-harbour',
+        // No Setup on screen, said as `null` (2026-10-12): absent would be the World's.
+        setup: null,
         lore: ['book-rain', 'book-tide'],
         treatment: 'treat-wet',
         mode: SCENE,
@@ -737,6 +739,7 @@ describe('starting a session in a world', () => {
     await waitFor(() => {
       expect(createSession).toHaveBeenCalledWith({
         world: 'w-harbour',
+        setup: null,
         lore: [],
         treatment: 'treat-wet',
         mode: SCENE,
@@ -808,6 +811,7 @@ describe('starting a session in a world', () => {
     await waitFor(() => {
       expect(createSession).toHaveBeenCalledWith({
         world: 'w-dry',
+        setup: null,
         lore: ['book-rain', 'book-sand'],
         // No treatment chosen beside a World is said, as `null`: absent would
         // be read as *the World's*.
@@ -841,6 +845,7 @@ describe('starting a session in a world', () => {
       // The empty book list travels, as ever beside a World; no treatment does.
       expect(createSession).toHaveBeenCalledWith({
         world: 'w-two',
+        setup: null,
         lore: [],
         treatment: null,
         mode: SCENE,
@@ -930,6 +935,7 @@ describe('starting a session in a world', () => {
       await waitFor(() => {
         expect(createSession).toHaveBeenCalledWith({
           world: 'w-harbour',
+          setup: null,
           lore: ['book-rain', 'book-tide', 'book-alpha', 'book-gossip'],
           treatment: 'treat-wet',
           mode: SCENE,
@@ -1028,6 +1034,363 @@ describe('starting a session in a world', () => {
       await userEvent.selectOptions(screen.getByLabelText('Start in a world'), '');
       expect(checked('Alpha notes')).toBe(true);
       expect(checked('Harbour gossip')).toBe(false);
+    });
+  });
+  /**
+   * ***The World's Setup*** — **the owner's answer of 2026-10-12**: *"Use the
+   * World's Setup when it holds exactly one."* The route starts `{ world }`
+   * through the World's sole Setup; the form chooses it in the Setup select —
+   * which puts the form on the Setup's path, its openings offered as for a
+   * Setup picked by hand — says why, takes it back with the World, never
+   * replaces the person's own pick, and lists several first choosing none.
+   * Beside a World with no Setup on screen it sends `setup: null`, or the
+   * route would supply the one the person turned down.
+   */
+  describe('and its setup', () => {
+    const LEDGER = { schema: 'storyengine.setup/1', id: 'setup-ledger', name: 'The Ledger, Lost' };
+    const OTHER = { schema: 'storyengine.setup/1', id: 'setup-other', name: 'Another way in' };
+    const ONE_SETUP = aWorld('w-ledger', 'The ledger set', [
+      { schema: 'storyengine.lorebook/1', id: 'book-rain', name: 'Rain City' },
+      LEDGER,
+    ]);
+    const OTHER_SETUP = aWorld('w-other', 'The other set', [OTHER]);
+
+    /** The default shelf's Setup, and these beside it. */
+    function withSetups(...more: { id: string; name: string }[]) {
+      const fallback = listLibrary.getMockImplementation();
+      listLibrary.mockImplementation((kind: string) =>
+        kind === 'setups'
+          ? (fallback?.(kind) as Promise<{ objects: unknown[] }>).then((shelf) => ({
+              objects: [
+                ...shelf.objects,
+                ...more.map((one) => libraryObject(one.id, one.name, 'storyengine.setup.1')),
+              ],
+            }))
+          : (fallback?.(kind) as unknown),
+      );
+    }
+
+    async function chooseWorldNamed(name: string): Promise<void> {
+      await userEvent.selectOptions(
+        await screen.findByLabelText('Start in a world'),
+        await screen.findByRole('option', { name }),
+      );
+    }
+
+    function setupValue(): string {
+      return screen.getByLabelText<HTMLSelectElement>('Start from a setup').value;
+    }
+
+    const CHOSEN = /^Chosen because it is this world’s only setup\./;
+
+    it('chooses the world’s only setup, says why, offers its openings, and starts through it', async () => {
+      withWorlds(ONE_SETUP);
+      renderPage();
+      await userEvent.click(await screen.findByText(/Nothing chosen yet/));
+      await chooseWorldNamed('The ledger set');
+
+      expect(setupValue()).toBe('setup-ledger');
+      expect(optionsOf('Start from a setup')).toEqual([
+        'None — choose everything below',
+        'The Ledger, Lost (in this world)',
+      ]);
+      expect(screen.getByText(CHOSEN)).toBeTruthy();
+      expect(
+        screen.getByText('From the setup “The Ledger, Lost”, in the world “The ledger set”'),
+      ).toBeTruthy();
+      // The Setup's openings, as for one picked by hand; the World adds under it.
+      expect(optionsOf('Opening')).toContain('The docks');
+      expect(screen.getByText('This world’s lorebooks join the setup’s: Rain City.')).toBeTruthy();
+
+      await userEvent.selectOptions(screen.getByLabelText('Opening'), 'o-docks');
+      await userEvent.click(screen.getByRole('button', { name: 'Start' }));
+      await waitFor(() => {
+        expect(createSession).toHaveBeenCalledWith({
+          setup: 'setup-ledger',
+          world: 'w-ledger',
+          opening: 'o-docks',
+        });
+      });
+    });
+
+    /** A person's own Setup outranks the World's, and survives the World going. */
+    it('never replaces a setup the person chose', async () => {
+      withSetups(OTHER);
+      withWorlds(ONE_SETUP);
+      renderPage();
+      await userEvent.click(await screen.findByText(/Nothing chosen yet/));
+      await userEvent.selectOptions(
+        await screen.findByLabelText('Start from a setup'),
+        await screen.findByRole('option', { name: 'Another way in' }),
+      );
+      await chooseWorldNamed('The ledger set');
+
+      expect(setupValue()).toBe('setup-other');
+      expect(screen.queryByText(CHOSEN)).toBeNull();
+
+      await userEvent.selectOptions(screen.getByLabelText('Start in a world'), '');
+      expect(setupValue()).toBe('setup-other');
+    });
+
+    it('takes back the setup it chose when another world, or none, is chosen', async () => {
+      withSetups(OTHER);
+      withWorlds(ONE_SETUP, OTHER_SETUP);
+      renderPage();
+      await userEvent.click(await screen.findByText(/Nothing chosen yet/));
+      await chooseWorldNamed('The ledger set');
+      expect(setupValue()).toBe('setup-ledger');
+
+      await chooseWorldNamed('The other set');
+      expect(setupValue()).toBe('setup-other');
+      expect(screen.getByText(CHOSEN)).toBeTruthy();
+
+      await userEvent.selectOptions(screen.getByLabelText('Start in a world'), '');
+      expect(setupValue()).toBe('');
+      expect(screen.queryByText(CHOSEN)).toBeNull();
+    });
+
+    /** Picked after the World chose, it is the person's — the World does not take it back. */
+    it('keeps a setup the person picked after the world chose one', async () => {
+      withSetups(OTHER);
+      withWorlds(ONE_SETUP);
+      renderPage();
+      await userEvent.click(await screen.findByText(/Nothing chosen yet/));
+      await chooseWorldNamed('The ledger set');
+      await userEvent.selectOptions(screen.getByLabelText('Start from a setup'), 'setup-other');
+      expect(screen.queryByText(CHOSEN)).toBeNull();
+
+      await userEvent.selectOptions(screen.getByLabelText('Start in a world'), '');
+      expect(setupValue()).toBe('setup-other');
+    });
+
+    /**
+     * ***The World's own Setup, chosen again by hand, is the person's*** — the
+     * review of 2026-10-12. The take-back compared ids only, so *None* and
+     * then the same Setup picked back read as the World's choice still: the
+     * *chosen because* line returned, and *No world* took the Setup away and
+     * switched the whole form back to its own path. Any change to the select
+     * by hand now makes what it holds the person's.
+     */
+    it('keeps the world’s setup when the person chooses it again by hand', async () => {
+      withWorlds(ONE_SETUP);
+      renderPage();
+      await userEvent.click(await screen.findByText(/Nothing chosen yet/));
+      await chooseWorldNamed('The ledger set');
+      await userEvent.selectOptions(screen.getByLabelText('Start from a setup'), '');
+      await userEvent.selectOptions(screen.getByLabelText('Start from a setup'), 'setup-ledger');
+      expect(screen.queryByText(CHOSEN)).toBeNull();
+
+      await userEvent.selectOptions(screen.getByLabelText('Start in a world'), '');
+      expect(setupValue()).toBe('setup-ledger');
+    });
+
+    /**
+     * ***The reason goes with the World*** — the review of 2026-10-12. The
+     * line says the Setup *is* this world's only one, so it is said only while
+     * the World chosen still offers that Setup as its only one: deleted in
+     * another tab, the select shows *No world* and the line goes. The Setup
+     * stays chosen — it is on screen, and Start sends what is on screen.
+     */
+    it('stops saying why once the world that chose the setup is gone', async () => {
+      withWorlds(ONE_SETUP);
+      const client = renderPage();
+      await userEvent.click(await screen.findByText(/Nothing chosen yet/));
+      await chooseWorldNamed('The ledger set');
+      expect(screen.getByText(CHOSEN)).toBeTruthy();
+
+      withWorlds(OTHER_SETUP);
+      await client.invalidateQueries({ queryKey: ['library', 'worlds'] });
+      await waitFor(() => {
+        expect(screen.getByLabelText<HTMLSelectElement>('Start in a world').value).toBe('');
+      });
+      expect(setupValue()).toBe('setup-ledger');
+      expect(screen.queryByText(CHOSEN)).toBeNull();
+    });
+
+    /**
+     * ***Another World's Setup starts on its own opening*** — an opening is
+     * one of its Setup's, so the one chosen under World A's Setup would be
+     * `unknown-setup-opening` under World B's. The World that changes the
+     * Setup lets the opening go, as a Setup picked in the select does.
+     */
+    it('lets the opening go when another world changes the setup', async () => {
+      const SECOND = { schema: 'storyengine.setup/1', id: 'setup-two', name: 'Second way in' };
+      withSetups(SECOND);
+      withWorlds(ONE_SETUP, aWorld('w-b', 'The b set', [SECOND]));
+      renderPage();
+      await userEvent.click(await screen.findByText(/Nothing chosen yet/));
+      await chooseWorldNamed('The ledger set');
+      await userEvent.selectOptions(screen.getByLabelText('Opening'), 'o-docks');
+
+      await chooseWorldNamed('The b set');
+      expect(setupValue()).toBe('setup-two');
+      await userEvent.click(screen.getByRole('button', { name: 'Start' }));
+      await waitFor(() => {
+        expect(createSession).toHaveBeenCalledWith({ setup: 'setup-two', world: 'w-b' });
+      });
+    });
+
+    /**
+     * ***The World select's hint, on the Setup's path*** — the review of
+     * 2026-10-12. With the World's Setup chosen, its books and treatment are
+     * not controls below but lines saying what the route adds under the
+     * Setup, so a hint promising them *below for you to change* would point
+     * at nothing; it says instead where they go and how to get them back as
+     * controls. *None* returns the form's own hint.
+     */
+    it('says how the world adds under a setup, and how to change that instead', async () => {
+      withWorlds(ONE_SETUP);
+      renderPage();
+      await userEvent.click(await screen.findByText(/Nothing chosen yet/));
+      await chooseWorldNamed('The ledger set');
+      expect(screen.getByText(/To choose them yourself, choose None as the setup\./)).toBeTruthy();
+      expect(screen.queryByText(/filled in below for you to change/)).toBeNull();
+
+      await userEvent.selectOptions(screen.getByLabelText('Start from a setup'), '');
+      expect(screen.getByText(/filled in below for you to change/)).toBeTruthy();
+      expect(screen.queryByText(/choose None as the setup/)).toBeNull();
+    });
+
+    it('lists several first, and chooses none of them', async () => {
+      withSetups(OTHER, { id: 'setup-third', name: 'A third way' });
+      withWorlds(aWorld('w-two', 'Two ways in', [OTHER, LEDGER]));
+      renderPage();
+      await userEvent.click(await screen.findByText(/Nothing chosen yet/));
+      await chooseWorldNamed('Two ways in');
+
+      expect(setupValue()).toBe('');
+      expect(optionsOf('Start from a setup')).toEqual([
+        'None — choose everything below',
+        'Another way in (in this world)',
+        'The Ledger, Lost (in this world)',
+        'A third way',
+      ]);
+      expect(screen.getByText(/^This world has 2 setups/)).toBeTruthy();
+      expect(screen.queryByText(CHOSEN)).toBeNull();
+
+      await userEvent.click(screen.getByRole('button', { name: 'Start' }));
+      await waitFor(() => {
+        expect(createSession).toHaveBeenCalledWith(
+          expect.objectContaining({ world: 'w-two', setup: null }),
+        );
+      });
+    });
+
+    /** *None* beside a one-Setup World is a choice, and it travels as `null`. */
+    it('sends no setup, as null, when None is chosen beside a world that has one', async () => {
+      withWorlds(ONE_SETUP);
+      renderPage();
+      await userEvent.click(await screen.findByText(/Nothing chosen yet/));
+      await chooseWorldNamed('The ledger set');
+      await userEvent.selectOptions(screen.getByLabelText('Start from a setup'), '');
+
+      // The form's own path, with what the World filled in on screen.
+      expect(checked('Rain City')).toBe(true);
+      await userEvent.click(screen.getByRole('button', { name: 'Start' }));
+      await waitFor(() => {
+        expect(createSession).toHaveBeenCalledWith({
+          world: 'w-ledger',
+          setup: null,
+          lore: ['book-rain'],
+          treatment: null,
+          mode: SCENE,
+        });
+      });
+    });
+
+    /**
+     * ***A sole Setup the library no longer holds*** — not offered (a Setup is
+     * what to create, and a gone one named outright is refused), not chosen,
+     * and said: the route starts such a World without it.
+     */
+    it('names a sole setup the library does not hold, and does not choose it', async () => {
+      withWorlds(
+        aWorld('w-gone', 'The gone set', [
+          { schema: 'storyengine.setup/1', id: 'setup-gone', name: 'Gone' },
+        ]),
+      );
+      renderPage();
+      await userEvent.click(await screen.findByText(/Nothing chosen yet/));
+      await chooseWorldNamed('The gone set');
+
+      expect(setupValue()).toBe('');
+      // The whole list (the review of 2026-10-12): any offered option would be
+      // labelled *Gone (…)*, never *Gone*, so a `not.toContain('Gone')` could
+      // not fail.
+      expect(optionsOf('Start from a setup')).toEqual([
+        'None — choose everything below',
+        'The Ledger, Lost',
+      ]);
+      expect(
+        screen.getByText(
+          'This world’s only setup, “Gone”, is not in your library, so the session starts without it.',
+        ),
+      ).toBeTruthy();
+
+      await userEvent.click(screen.getByRole('button', { name: 'Start' }));
+      await waitFor(() => {
+        expect(createSession).toHaveBeenCalledWith(
+          expect.objectContaining({ world: 'w-gone', setup: null }),
+        );
+      });
+    });
+
+    /**
+     * ***Several, one of them gone*** — the gone one is named, not offered,
+     * and the one left is not promoted to *the only one* (the server counts
+     * members, and so does the form): nothing is chosen.
+     */
+    it('names the setups of several the library does not hold, and chooses none', async () => {
+      withWorlds(
+        aWorld('w-two', 'Two ways in', [
+          LEDGER,
+          { schema: 'storyengine.setup/1', id: 'setup-gone', name: 'Gone' },
+        ]),
+      );
+      renderPage();
+      await userEvent.click(await screen.findByText(/Nothing chosen yet/));
+      await chooseWorldNamed('Two ways in');
+
+      expect(setupValue()).toBe('');
+      expect(optionsOf('Start from a setup')).toEqual([
+        'None — choose everything below',
+        'The Ledger, Lost (in this world)',
+      ]);
+      expect(screen.getByText('Not in your library, so not offered: Gone.')).toBeTruthy();
+      expect(screen.queryByText(/only setup/)).toBeNull();
+    });
+
+    /**
+     * ***`?world=` waits for the Setups too*** — the address is applied once,
+     * and a World chosen before the Setups answered could not tell its only
+     * Setup from a gone one.
+     */
+    it('waits for the setups before choosing the world in the address', async () => {
+      withWorlds(ONE_SETUP);
+      let arrive: (value: unknown) => void = () => undefined;
+      const fallback = listLibrary.getMockImplementation();
+      listLibrary.mockImplementation((kind: string) =>
+        kind === 'setups'
+          ? new Promise((resolve) => {
+              arrive = resolve;
+            })
+          : (fallback?.(kind) as unknown),
+      );
+      search = { world: 'w-ledger' };
+      renderPage();
+      await waitFor(() => {
+        expect(listLibrary).toHaveBeenCalledWith('setups');
+      });
+      await screen.findByLabelText('Start from a setup');
+      expect(screen.queryByLabelText('Start in a world')).toBeNull();
+
+      arrive({
+        objects: [libraryObject('setup-ledger', 'The Ledger, Lost', 'storyengine.setup.1')],
+      });
+      expect(
+        await screen.findByText('From the setup “The Ledger, Lost”, in the world “The ledger set”'),
+      ).toBeTruthy();
+      expect(setupValue()).toBe('setup-ledger');
     });
   });
 });

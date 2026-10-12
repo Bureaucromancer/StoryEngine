@@ -114,14 +114,18 @@ The form says which.
 
 A world's own page has **Start a session in this world**, which starts and opens it
 in one step with the world's lorebooks, every lorebook of yours whose scope is for this
-world, and its treatment when it holds exactly one; and **Choose first…**, which opens
-this form with the world already picked.
+world, its treatment when it holds exactly one — and **its setup when it holds exactly
+one**, which the session starts from as if you had chosen it; and **Choose first…**,
+which opens this form with the world already picked.
 
-Neither reads a **setup** the world holds: starting in a world takes its lorebooks and
-its treatment only. To start from a setup in a world, choose both on this form: the world
-in **Start in a world** and the setup in **Start from a setup**. **Start a session** on
-the setup's own page starts from the setup alone: that session does not join the world
-or take its lorebooks.
+**A world with one setup starts from it.** Picking the world in **Start in a world**
+chooses that setup in **Start from a setup** when you have not chosen one, and says
+why; choose **None** there to start without it. A world with several setups lists
+them first and chooses none. A setup the world names that is no longer in your library
+is named, not offered, and the session starts without it. Changing the world takes
+back only a setup the world chose; one you picked yourself — even the world's own —
+stays. **Start a session** on a setup's own page starts from the setup alone: that
+session does not join any world or take its lorebooks.
 
 ### Starting from a setup
 

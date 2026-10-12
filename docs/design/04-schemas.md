@@ -2065,7 +2065,16 @@ and the sentence above is no longer *the whole mechanism*. **The question for th
 owner: should Start in a world use the World's Setup when it holds exactly
 one?** Until it is answered neither text is struck, and the emitted
 `storyengine.world.1.json` description, which says the same as this paragraph, is
-left as it is.
+left as it is. ***Answered by the owner, 2026-10-12: yes.*** A session started in a World that holds
+exactly one Setup, with no Setup named, starts *through* it — as if the caller
+had named it: its mode, opening, persona, party, preset, hooks and goals, with the
+World's books joining its own and the World's treatment used only if the Setup
+names none ([P16.2](workplan/35-p16-world.md), the owner's answer). So the
+paragraph above is true again of a World with one Setup, and the emitted
+description needs no change; a World with several Setups chooses none, and a World
+with none starts from its books and treatment, as P16.2 built. A sole Setup that is
+no longer in the library is started without, the member kept and marked
+*Missing*.
 
 **It is stable now, and can be `/1`.** §1 marked it `/0` because it was
 carrying a game definition nobody had tested. As a self-describing container it

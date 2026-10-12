@@ -2005,6 +2005,15 @@ rung below the Setup's**, read once here and copied:
   is chosen, because the first would be the server picking a story. A form offers
   them.
 - **The hooks those carry** join the pool as every carrier's do, with their ids.
+- **`setup`** — when the request sends none — is the World's Setup member **when
+  it holds exactly one** (2026-10-12, the owner's answer): the session starts
+  through it exactly as if `setup` had named it, held to every check a named
+  Setup is, and the two bullets above then add under it. With several, none is
+  chosen. **`setup: null`** says *no Setup*, the World's included. A sole Setup no
+  longer in the library is started without and logged (`world.setupMissing`),
+  never refused; an `opening` sent with a World alone takes that Setup's opening.
+  The World is read before the opening is checked, so a stray opening beside a
+  World that is not there answers `unknown-world`.
 
 **A request that sends `lore` or `treatment` gets what it sent**: a form that
 offered a World's books and had one unticked sends the rest, and the World does

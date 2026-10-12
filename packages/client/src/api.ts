@@ -1677,8 +1677,15 @@ export interface NewSession {
    * a default a field beside it overrides — which is why a caller starting
    * *from* a Setup sends this and little else: a form's own defaults sent
    * alongside would quietly override the Setup the person chose.
+   *
+   * ***`null` is *no Setup*, said out loud*** (2026-10-12) — `treatment:
+   * null`'s reason. Since the owner's answer of that day the route starts a
+   * session sent with a `world` and no Setup through the World's Setup when it
+   * holds exactly one, so absent beside a World means *the World's*; the
+   * session form's *None* beside such a World is sent as `null`, which the
+   * route reads as none.
    */
-  setup?: string;
+  setup?: string | null;
   /**
    * ***A World to start in*** — [P16.2](../../../docs/design/workplan/35-p16-world.md),
    * [P16 §1.3](../../../docs/design/workplan/35-p16-world.md).
@@ -1692,6 +1699,14 @@ export interface NewSession {
    * chosen treatment, lets the person change them, and sends what it shows
    * beside this. The World's page sends this alone, and the route fills in
    * everything. A World that is not there is `422 unknown-world`.
+   *
+   * ***And its Setup, when it holds exactly one*** — the owner's answer of
+   * 2026-10-12: with no `setup` sent, the route starts through the World's
+   * sole Setup exactly as if it had been named, the books and treatment above
+   * layered under it as they are under any Setup. So *the World's page sends
+   * this alone* now starts a World holding one Setup through that Setup; the
+   * form chooses the same Setup in its select, and sends it — or `null` for
+   * *None* — so that what it shows is what starts.
    */
   world?: string;
   /**
@@ -1886,6 +1901,8 @@ export function createSession(input: NewSession): Promise<{
     ...(input.modeConfig === undefined || Object.keys(input.modeConfig).length === 0
       ? {}
       : { modeConfig: input.modeConfig }),
+    // `null` travels — it is *no Setup* beside a World, which would otherwise
+    // supply its own (2026-10-12).
     ...(input.setup === undefined || input.setup === '' ? {} : { setup: input.setup }),
     ...(input.world === undefined || input.world === '' ? {} : { world: input.world }),
     // `null` travels — it is *start cold*, a choice rather than an absence.

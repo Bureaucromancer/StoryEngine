@@ -129,6 +129,11 @@ const SETUPS: SimpleKind = {
  * added to the World ([P16 §1.3](../../../../docs/design/workplan/35-p16-world.md)).
  * The struck paragraphs' rule did not change — the line says only what a
  * World can be used for today — and today includes this.
+ *
+ * *(2026-10-12, the owner's answer — "Use the World's Setup when it holds
+ * exactly one": the session form also chooses a World's only Setup, and the
+ * World's page starts through it. The blurb needs no change — "start from it"
+ * covers starting through its Setup, and says nothing it does not do.)*
  */
 const WORLDS: SimpleKind = {
   kind: 'worlds',

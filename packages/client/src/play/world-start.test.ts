@@ -7,8 +7,10 @@ import type { LibraryObject } from '../api.js';
 import {
   booksScopedTo,
   chooseWorld,
+  chooseWorldSetup,
   NOTHING_PREFILLED,
   ownWorlds,
+  soleSetup,
   soleTreatment,
   worldOffer,
   worldsToOffer,
@@ -43,14 +45,28 @@ function row(id: string, contents: unknown, over: Partial<LibraryObject> = {}): 
 const book = (id: string, name = id) => ({ schema: 'storyengine.lorebook/1', id, name });
 const treatment = (id: string) => ({ schema: 'storyengine.treatment/1', id, name: id });
 
-function offer(books: string[], treatments: string[] = []): WorldOffer {
+function offer(
+  books: string[],
+  treatments: string[] = [],
+  setups: string[] = [],
+  heldSetups: string[] = setups,
+): WorldOffer {
   return {
     id: 'w',
     name: 'w',
     books: books.map((id) => ({ id, name: id })),
     scoped: [],
     treatments: treatments.map((id) => ({ id, name: id })),
+    setups: setups.map((id) => ({ id, name: id })),
+    heldSetups,
   };
+}
+
+const setupMember = (id: string, name = id) => ({ schema: 'storyengine.setup/1', id, name });
+
+/** A Setup on the library's shelf. */
+function shelfSetup(id: string, name = id): LibraryObject {
+  return row(id, undefined, { schema: 'storyengine.setup/1', name, object: {} });
 }
 
 /** A lorebook row on the library's shelf, with whatever scope the test gives it. */
@@ -263,6 +279,119 @@ describe('choosing a World on a form already in progress', () => {
       lore: ['theirs', 'b3'],
       treatment: 't9',
       prefilled: { lore: ['b3'], treatment: null },
+    });
+  });
+});
+
+/**
+ * ***A World's Setup, as the form chooses it*** — **the owner's answer of
+ * 2026-10-12**: *"Use the World's Setup when it holds exactly one."* The server
+ * starts `{ world }` through the World's sole Setup member; the form chooses
+ * the same Setup in its select, so that what starts is what the person saw —
+ * and, like the treatment, only into an empty select, taken back with the
+ * World, and never in place of a Setup the person chose.
+ */
+describe('what a World offers as its Setup', () => {
+  it('reads its Setups in its order, each once, and which of them the library holds', () => {
+    const read = worldOffer(
+      row('w', [
+        setupMember('s2', 'Second'),
+        book('b1'),
+        setupMember('s1'),
+        setupMember('s2', 'Second'),
+        setupMember('gone', 'Gone'),
+      ]),
+      [],
+      [shelfSetup('s1'), shelfSetup('s2'), shelfSetup('elsewhere')],
+    );
+    expect(read.setups).toEqual([
+      { id: 's2', name: 'Second' },
+      { id: 's1', name: 's1' },
+      { id: 'gone', name: 'Gone' },
+    ]);
+    expect(read.heldSetups).toEqual(['s2', 's1']);
+    // Before the Setups shelf has been read, nothing can be started from.
+    expect(worldOffer(row('w', [setupMember('s1')])).heldSetups).toEqual([]);
+  });
+
+  it('offers each of your Worlds with the Setups the shelf holds', () => {
+    const offered = worldsToOffer(
+      [row('w1', [setupMember('s1')]), row('w2', [setupMember('s2')])],
+      [],
+      [shelfSetup('s1')],
+    );
+    expect(offered.map((one) => one.heldSetups)).toEqual([['s1'], []]);
+  });
+
+  /**
+   * ***Exactly one, and one the library holds*** — the server's count, which
+   * is of members: two Setups of which one is gone choose neither, so the one
+   * left is not promoted to *the only one*.
+   */
+  it('chooses a Setup by itself only when it holds exactly one, and the library holds it', () => {
+    expect(soleSetup(offer([], [], ['s1']))).toBe('s1');
+    expect(soleSetup(offer([], [], ['s1', 's2']))).toBeNull();
+    expect(soleSetup(offer([], [], ['gone'], []))).toBeNull();
+    expect(soleSetup(offer([], [], ['s1', 'gone'], ['s1']))).toBeNull();
+    expect(soleSetup(offer([]))).toBeNull();
+    expect(soleSetup(undefined)).toBeNull();
+  });
+});
+
+describe('choosing a World, for the Setup select', () => {
+  it('chooses its only Setup when none is chosen, and remembers that it did', () => {
+    expect(chooseWorldSetup('', null, offer([], [], ['s1']))).toEqual({
+      setup: 's1',
+      prefilled: 's1',
+    });
+  });
+
+  /** A person's own Setup outranks a World's, as a picked treatment does. */
+  it('never replaces a Setup the person chose', () => {
+    expect(chooseWorldSetup('theirs', null, offer([], [], ['s1']))).toEqual({
+      setup: 'theirs',
+      prefilled: null,
+    });
+  });
+
+  it('chooses none of several, and none that is gone', () => {
+    expect(chooseWorldSetup('', null, offer([], [], ['s1', 's2']))).toEqual({
+      setup: '',
+      prefilled: null,
+    });
+    expect(chooseWorldSetup('', null, offer([], [], ['gone'], []))).toEqual({
+      setup: '',
+      prefilled: null,
+    });
+  });
+
+  /** ***No world returns the select to where it was***, and another World chooses its own. */
+  it('takes back the Setup it chose when the World changes', () => {
+    const chosen = chooseWorldSetup('', null, offer([], [], ['s1']));
+    expect(chooseWorldSetup(chosen.setup, chosen.prefilled, undefined)).toEqual({
+      setup: '',
+      prefilled: null,
+    });
+    expect(chooseWorldSetup(chosen.setup, chosen.prefilled, offer([], [], ['s2']))).toEqual({
+      setup: 's2',
+      prefilled: 's2',
+    });
+    expect(chooseWorldSetup(chosen.setup, chosen.prefilled, offer([], [], ['a', 'b']))).toEqual({
+      setup: '',
+      prefilled: null,
+    });
+  });
+
+  /** A Setup the person picked after the World chose one is theirs from then on. */
+  it('keeps a Setup the person picked after the World chose', () => {
+    const chosen = chooseWorldSetup('', null, offer([], [], ['s1']));
+    expect(chooseWorldSetup('theirs', chosen.prefilled, undefined)).toEqual({
+      setup: 'theirs',
+      prefilled: null,
+    });
+    expect(chooseWorldSetup('theirs', chosen.prefilled, offer([], [], ['s2']))).toEqual({
+      setup: 'theirs',
+      prefilled: null,
     });
   });
 });

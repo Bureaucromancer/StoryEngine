@@ -74,7 +74,9 @@ export interface SessionsSearch {
    *
    * What a World's page links to as *Choose first…*: the session form, with
    * that World chosen and its books and treatment filled in for the person to
-   * change. **Checked only as a non-empty string**, for `mode`'s reason one
+   * change — *and, since the owner's answer of 2026-10-12, its Setup chosen
+   * when it holds exactly one*. **Checked only as a non-empty string**, for
+   * `mode`'s reason one
    * field up — the Worlds are the account's, which the router cannot know — and
    * the page drops an id that is not one of the person's own Worlds rather than
    * choosing nothing loudly.

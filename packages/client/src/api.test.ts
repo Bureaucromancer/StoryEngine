@@ -438,6 +438,10 @@ describe('the session write bodies', () => {
     await createSession({ world: 'w-harbour', lore: ['book-rain'], treatment: 'treat-wet' });
     await createSession({ lore: [] });
     await createSession({ world: '', lore: [] });
+    // *No Setup* beside a World travels as `null` (2026-10-12): absent would be
+    // the World's own Setup, when it holds exactly one — the one the person
+    // turned down by choosing *None*.
+    await createSession({ world: 'w-harbour', setup: null });
 
     expect(seen.map((each) => each.body)).toEqual([
       { world: 'w-harbour' },
@@ -445,6 +449,7 @@ describe('the session write bodies', () => {
       { world: 'w-harbour', lore: ['book-rain'], treatment: 'treat-wet' },
       {},
       {},
+      { world: 'w-harbour', setup: null },
     ]);
   });
 

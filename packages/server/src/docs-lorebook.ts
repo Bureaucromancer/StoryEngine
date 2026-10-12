@@ -206,6 +206,14 @@ const ENTRIES: readonly LoreEntry[] = [
     content:
       'A session has a **head** — the turn you are on. Moving it back is a rewind, and nothing is deleted: the turns after it are still on disk, reachable as a branch.\n\nState that was written by turns after the head is no longer in effect, because state is reconstructed from the line you are on rather than mutated in place. A commitment made on a turn you rewound past is not committed on the line you are now on — and a rewind landing *between* a commitment and its lapse behaves the way reading the line says it should.',
   }),
+  /*
+   * ***The World line, 2026-10-12*** — the owner's answer, *"Use the World's
+   * Setup when it holds exactly one"* ([04 §9], [03 §7.2]). It read ~~*A
+   * session started in a world gets copies of its lorebooks and its
+   * treatment, and joins it*~~, which stopped being the whole of it — and
+   * stopped being true of the treatment beside a Setup that names its own.
+   * `docs/guide` says the same thing at more length, and is the lead's.
+   */
   entry({
     id: '0199c000-0000-7000-8000-00000000000b',
     name: 'Actors, treatments, setups, presets, Worlds — which is which',
@@ -222,7 +230,7 @@ const ENTRIES: readonly LoreEntry[] = [
     description:
       "A one-line answer for each of the library's kinds and the split that is easiest to get wrong.",
     content:
-      '- **Actor** — a character. A card, importable from and exportable to the formats other tools use.\n- **Lorebook** — a collection of entries that activate on keywords. The unit other tools trade.\n- **Treatment** — the *setting and the story*: what this fiction is, independent of any one playthrough.\n- **Setup** — the *particular game*: this cast, in this situation, of that treatment.\n- **Preset** — the recipe for assembling a prompt.\n- **World** — a named set of library objects and sessions, kept together so new sessions can start in it and it can travel as one file. A session started in a world gets copies of its lorebooks and its treatment, and joins it. (It was called a Package before P16; a Package made by an earlier build opens as a World.)\n\n**The Treatment/Setup split is the one with no prior anywhere else**, and it is the one worth learning: a treatment is reusable across playthroughs and a setup is one of them. If you find yourself copying a treatment to change who is in it, you wanted a setup.',
+      '- **Actor** — a character. A card, importable from and exportable to the formats other tools use.\n- **Lorebook** — a collection of entries that activate on keywords. The unit other tools trade.\n- **Treatment** — the *setting and the story*: what this fiction is, independent of any one playthrough.\n- **Setup** — the *particular game*: this cast, in this situation, of that treatment.\n- **Preset** — the recipe for assembling a prompt.\n- **World** — a named set of library objects and sessions, kept together so new sessions can start in it and it can travel as one file. A session started in a world starts through its setup when it holds exactly one, gets copies of its lorebooks and its treatment (a treatment the setup names comes first), and joins it. (It was called a Package before P16; a Package made by an earlier build opens as a World.)\n\n**The Treatment/Setup split is the one with no prior anywhere else**, and it is the one worth learning: a treatment is reusable across playthroughs and a setup is one of them. If you find yourself copying a treatment to change who is in it, you wanted a setup.',
   }),
   entry({
     id: '0199c000-0000-7000-8000-00000000000c',

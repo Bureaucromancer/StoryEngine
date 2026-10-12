@@ -605,7 +605,11 @@ is not on this list**, and P16.2 built exactly the list — so a World start nev
 reads a Setup the World holds. [04 §9](04-schemas.md) and
 [03 §7.2](03-data-model.md) say a World starts *through* its Setup, "the whole
 mechanism"; both now carry the disagreement, open for the owner: should Start in
-a world use the World's Setup when it holds exactly one?)*
+a world use the World's Setup when it holds exactly one?)* *(Answered by the owner,
+2026-10-12: yes — **a Setup member joins the list when it is the World's only
+one**, and the session starts through it as if it had been named, the World's books
+joining the Setup's and its treatment used only if the Setup names none. Built on
+`p16` the same day.)*
 
 There is no live pointer back. A World edited after the session started changes
 nothing in it, and per-session divergence is the default rather than a feature

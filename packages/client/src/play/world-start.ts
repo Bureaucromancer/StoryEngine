@@ -1,7 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { LOREBOOK_SCHEMA, TREATMENT_SCHEMA, WORLD_SCHEMA, worldIdsOf } from '@storyengine/shared';
+import {
+  LOREBOOK_SCHEMA,
+  SETUP_SCHEMA,
+  TREATMENT_SCHEMA,
+  WORLD_SCHEMA,
+  worldIdsOf,
+} from '@storyengine/shared';
 
 import type { LibraryObject } from '../api.js';
 
@@ -34,6 +40,17 @@ import type { LibraryObject } from '../api.js';
  * of the copy, holds only if what the copy would add is on screen before Start.
  * Membership is the curator's statement and scope the author's; both end as
  * ticks the person can take off.
+ *
+ * ***And its Setup, when it holds exactly one*** — **the owner's answer of
+ * 2026-10-12**, *"Use the World's Setup when it holds exactly one"*, closing
+ * the disagreement the P16 final audit recorded against
+ * [04 §9](../../../../docs/design/04-schemas.md) and
+ * [03 §7.2](../../../../docs/design/03-data-model.md), which say a World is
+ * started *through* its Setup. The server now starts `{ world }` through the
+ * World's sole Setup member; this side chooses that Setup on the form the same
+ * way it ticks the books — as ordinary form state, said why, taken back with
+ * the World, and never in place of a Setup the person chose — so that the
+ * Setup the session starts through is one the person saw in the select.
  */
 
 /** A member as the form names it: its id, and the name the World last saw it by. */
@@ -59,6 +76,24 @@ export interface WorldOffer {
   scoped: string[];
   /** Its treatment members, in the World's order — offered, never chosen among. */
   treatments: Named[];
+  /**
+   * Its Setup members, in the World's order, each once — the owner's answer of
+   * 2026-10-12. Offered first; chosen only when there is exactly one
+   * ({@link soleSetup}).
+   */
+  setups: Named[];
+  /**
+   * ***The ids among `setups` the library holds*** — the ones the form can
+   * start from. **A Setup is what to create**, so one the library no longer
+   * holds is not a choice to offer: the session form starts from the Setup
+   * object it finds on the shelf, and the route refuses a Setup named outright
+   * that is not there (`unknown-setup`). The rest are said, not offered — and
+   * a World's *only* Setup that is gone is started without, which is the
+   * server's reading of the same World (`library/worlds.ts`). *Empty until the
+   * Setups shelf has been read*, since nothing can be started from a shelf this
+   * page has not seen.
+   */
+  heldSetups: string[];
 }
 
 /**
@@ -119,18 +154,26 @@ export function booksScopedTo(
  * offer is its members alone, which is what it was before the arm and what a
  * caller that has not read the shelf yet can honestly say.
  */
-export function worldOffer(world: LibraryObject, lorebooks?: readonly LibraryObject[]): WorldOffer {
+export function worldOffer(
+  world: LibraryObject,
+  lorebooks?: readonly LibraryObject[],
+  setups?: readonly LibraryObject[],
+): WorldOffer {
   const members = membersOfSchema(world, LOREBOOK_SCHEMA);
   const held = new Set(members.map((book) => book.id));
   // A member that also names the World in its scope stays where the World put
   // it — the server's `new Set([...members, ...scoped])`, which keeps the first.
   const scoped = booksScopedTo(world.id, lorebooks).filter((book) => !held.has(book.id));
+  const setupMembers = membersOfSchema(world, SETUP_SCHEMA);
+  const shelf = new Set((setups ?? []).map((row) => row.id));
   return {
     id: world.id,
     name: world.name,
     books: [...members, ...scoped],
     scoped: scoped.map((book) => book.id),
     treatments: membersOfSchema(world, TREATMENT_SCHEMA),
+    setups: setupMembers,
+    heldSetups: setupMembers.filter((one) => shelf.has(one.id)).map((one) => one.id),
   };
 }
 
@@ -150,8 +193,9 @@ export function worldOffer(world: LibraryObject, lorebooks?: readonly LibraryObj
 export function worldsToOffer(
   objects: readonly LibraryObject[] | undefined,
   lorebooks?: readonly LibraryObject[],
+  setups?: readonly LibraryObject[],
 ): WorldOffer[] {
-  return ownWorlds(objects).map((world) => worldOffer(world, lorebooks));
+  return ownWorlds(objects).map((world) => worldOffer(world, lorebooks, setups));
 }
 
 /**
@@ -173,6 +217,57 @@ export function ownWorlds(objects: readonly LibraryObject[] | undefined): Librar
  */
 export function soleTreatment(offer: WorldOffer | undefined): string | null {
   return offer?.treatments.length === 1 ? (offer.treatments[0]?.id ?? null) : null;
+}
+
+/**
+ * ***The Setup a World chooses by itself*** — the owner's answer of
+ * 2026-10-12. **Only when it holds exactly one**, the treatment's rule and the
+ * server's, because the first of several would be somebody else choosing the
+ * game; **and only when the library holds it**, because there is nothing to
+ * start from otherwise. *Counted as members*, as the server counts them, so a
+ * World holding two Setups of which one is gone chooses neither — the one
+ * still here is not *the only one*, it is the one left.
+ */
+export function soleSetup(offer: WorldOffer | undefined): string | null {
+  if (offer?.setups.length !== 1) return null;
+  const id = offer.setups[0]?.id;
+  return id !== undefined && offer.heldSetups.includes(id) ? id : null;
+}
+
+/**
+ * ***Choosing a World, for the Setup select*** — the owner's answer of
+ * 2026-10-12, as `chooseWorld` is for the books and the treatment, and apart
+ * from it because the Setup is its own control: choosing one switches the form
+ * to the Setup's path, where the books and the treatment are the route's to
+ * layer under it rather than controls.
+ *
+ * - **A Setup the person chose is never replaced.** The World's sole Setup is
+ *   filled only into an empty select — `''`, *None* — which is the treatment's
+ *   rule: a choice outranks a default one rung below it.
+ * - **Changing World takes back only what the last one chose, and only while
+ *   it is still chosen** — so *No world* returns the select to where it was,
+ *   and a Setup the person picked after the World chose one stays theirs.
+ *
+ * `prefilled` is the Setup the last World chose, or `null`; the answer's
+ * `prefilled` is the one this World chose, for the next change to take back.
+ *
+ * ***`prefilled` is the caller's to drop*** (2026-10-12, at the review). Read
+ * here by id, it cannot tell the World's choice from the same Setup picked
+ * back by hand — *None*, then the World's Setup again — which would be taken
+ * back as the World's. So the session form passes `null` once the person has
+ * changed the select at all; the second bullet holds because of that, not
+ * because of the comparison alone.
+ */
+export function chooseWorldSetup(
+  current: string,
+  prefilled: string | null,
+  next: WorldOffer | undefined,
+): { setup: string; prefilled: string | null } {
+  const setup = prefilled !== null && current === prefilled ? '' : current;
+  const sole = soleSetup(next);
+  return setup === '' && sole !== null
+    ? { setup: sole, prefilled: sole }
+    : { setup, prefilled: null };
 }
 
 /**

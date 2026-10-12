@@ -81,6 +81,20 @@ export function StartSession(props: {
  * its `contents` — and every part of it lands as the session's own data, on
  * disk and editable from its lore panel ([00 §3.1]: prefill, never binding).
  *
+ * ***And its Setup, when it holds exactly one*** — **the owner's answer of
+ * 2026-10-12**, *"Use the World's Setup when it holds exactly one"*
+ * ([04 §9](../../../../docs/design/04-schemas.md),
+ * [03 §7.2](../../../../docs/design/03-data-model.md): a World is started
+ * *through* its Setup). This still sends `{ world }` and nothing else, and the
+ * route supplies the Setup — its mode, opening, cast, preset, hooks and goals,
+ * as if it had been named — with the World's books and treatment layered under
+ * it as under any Setup. The paragraph above's reason — the World already says
+ * what it brings, so a form in between asks for a confirmation — holds the
+ * more for it: a World with one Setup says how to begin, too. Two or more
+ * choose none, and a sole Setup the library no longer holds is started
+ * without — the World's page lists it *Missing* among its members, above this
+ * button, which is where that is seen.
+ *
  * ***Choose first…*** is the quieter way in, for somebody who wants to see or
  * change that before it starts — the session form with this World chosen and
  * its contribution filled in as ordinary ticks and a select. It is a link

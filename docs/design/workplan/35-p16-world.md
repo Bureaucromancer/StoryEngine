@@ -368,7 +368,8 @@ answers the owner deferred — and this stage builds them:
 - **The copy.** The World's lorebook members go into `session.lore`, its treatment
   members are offered as the session's treatment, and the hooks those carry are
   copied by [03 §4.1](../03-data-model.md)'s rule with their ids. Prefill, never
-  binding ([00 §3.1](../00-stance.md)).
+  binding ([00 §3.1](../00-stance.md)). *(2026-10-12, the owner's answer: and its **Setup**, when it holds
+  exactly one — the session starts through it as if it had been named.)*
 - **The arm.** `LoreScope` gains `{ kind: 'world', worldIds: string[] }`: at
   creation in one of those Worlds, a book in the person's library whose scope
   names it is copied into `session.lore` beside the members. It is the only arm
@@ -869,6 +870,38 @@ says a `Ref` resolves by id **then by case-insensitive name**, always; the turn
 pipeline's hook pool (`sessions/hook-pool.ts`) resolves `involves` by id alone,
 so a typed-in name the old picker stored still retires its hook. The badge follows
 the server. Which of the two gives way is its own decision.
+
+**The owner's answer, built 2026-10-12, on `p16`: a World with exactly one Setup
+starts through it.** 04 §9 and 03 §7.2 said a World starts through its Setup, and
+P16.2 had built a start that read the World's books and treatment and never a
+Setup member; the final audit recorded the disagreement and the owner answered it.
+Built by a builder, two reviewers — the server's layering against a Setup named
+outright, field by field; the form and the tests — and a fixer: six findings, all
+fixed.
+
+- **As if the caller had named it.** `POST /sessions` with `world` and no `setup`
+  reads the World first, and its sole Setup becomes the Setup the session starts
+  from before anything reads one — opening, mode and its answers, persona,
+  party, preset, hooks, goals — held to every check a named Setup is
+  (`unknown-mode`, `setup-invalid`, `too-many-actors`, `conflicting-openings`,
+  `unknown-preset`). The World's books join the Setup's and its treatment is
+  used only if the Setup names none, as before. `setup: null` says *no Setup*
+  beside a World, which is how a person choosing **None** is honoured. An
+  `opening` sent with a World alone takes its Setup's opening.
+- **Two or more Setups choose none**, as two treatments do; **a sole Setup no
+  longer in the library is started without** — a session copies its Setup, so
+  there is nothing to carry — logged, the member kept and marked *Missing*. A
+  present Setup that fails a check refuses the start, as it would if named;
+  that difference is deliberate. Each member is counted once, treatments
+  included, so a hand-edited World naming one twice reads the same to the form
+  and the server.
+- **The form** chooses the World's sole Setup into an empty Setup select and says
+  why, lists a World's several Setups first and chooses none, names Setups the
+  library no longer holds rather than offering them, and takes back only a Setup
+  the World chose; any change of the select by hand makes the Setup the
+  person's — *the review found* re-picking the World's own Setup still counted
+  as the World's choice. The World select's hint says what it does on whichever
+  path the form is on. The entry is **312.91 kB** of 317.
 
 ### P16.3 — Publish
 
@@ -1435,7 +1468,8 @@ and the next release cut read one list rather than eight stages' worth of
 italics. Each item says whose it is.
 
 - **Two disagreements between the notes and the build, open for the owner.**
-  *Starting in a World never reads a Setup member*:
+  *(The first answered 2026-10-12 — below, under P16.2's records — and built; the
+  `requires` one stays open.)* ~~*Starting in a World never reads a Setup member*:~~
   [04 §9](../04-schemas.md) and [03 §7.2](../03-data-model.md) say a World
   starts through its Setup — "the whole mechanism" — and P16.2 built a second
   start ([15 §5.3](../15-world.md)) that reads its lorebook and treatment members
@@ -1482,7 +1516,8 @@ italics. Each item says whose it is.
     deleted one marked *Missing* — a World never stops a delete and deleting one
     deletes no member. **Starting a session in a World**, from its page or the
     session form: its lorebooks, the books scoped to it, and its treatment when
-    it holds exactly one, copied in once. **A lorebook's scope can be set** —
+    it holds exactly one, copied in once — and **its setup, when it holds exactly
+    one**, which the session starts through as if you had chosen it. **A lorebook's scope can be set** —
     *For sessions started in particular worlds* — under **Scope** in its
     settings. **Publishing**: *Publish…* on an object's page, *Publish this
     world…* on a World's, and *Select* on the shelves; a review of

@@ -30,7 +30,9 @@ import { setupFromForm } from './setup-from-form.js';
 import { sessionLabel } from './session-label.js';
 import {
   chooseWorld,
+  chooseWorldSetup,
   NOTHING_PREFILLED,
+  soleSetup,
   worldsToOffer,
   type Named,
   type Prefilled,
@@ -313,11 +315,44 @@ const SETUP_WORDS = labels('sessions.setup', {
  * sends no `lore` or `treatment` of its own and the route layers the World
  * under the Setup — so the form says what that layering will do instead of
  * offering controls the Setup path does not send.
+ *
+ * ***The `…Setup…` lines are the owner's answer of 2026-10-12*** — *"Use the
+ * World's Setup when it holds exactly one."* `soleSetup` says why the Setup
+ * select holds what the World chose, in the voice of `scopedBooks`' *ticked
+ * because*: it is the only reason the choice was made for the person, and the
+ * choice is theirs to change from there. `severalSetups` is the treatments'
+ * rule again. `missingSoleSetup` and `missingSetups` name a World's Setup the
+ * library no longer holds, which the select does not offer — a Setup is what
+ * to create, so offering one that is gone would offer a Start the route
+ * refuses — and the first says what the route does with a World whose only
+ * Setup is gone: starts without it.
  */
 const WORLD_WORDS = labels('sessions.world', {
   label: 'Start in a world',
   none: 'No world',
-  hint: 'Its lorebooks, any book that says it is for this world, and its treatment are filled in below for you to change, and the new session joins the world.',
+  /**
+   * ~~*Its lorebooks, any book that says it is for this world, and its
+   * treatment are filled in below*~~ — and its Setup when it holds just one,
+   * since the owner's answer of 2026-10-12.
+   *
+   * *(2026-10-12, at the review: ~~*Its setup when it has just one, its
+   * lorebooks, … and its treatment are filled in below for you to change*~~ —
+   * true of the books and the treatment only on the form's own path. A World's
+   * Setup, once chosen, puts the form on the Setup's path, where they are
+   * lines saying what the route adds under it rather than controls, so this
+   * hint is the form path's and says the Setup in a sentence of its own;
+   * `hintUnderSetup` is the Setup path's.)*
+   */
+  hint: 'Its lorebooks, any book that says it is for this world, and its treatment are filled in below for you to change, and the new session joins the world. If it has just one setup and you have chosen none, that setup is chosen for you.',
+  /**
+   * ***The hint under a Setup*** (2026-10-12, at the review) — whoever chose
+   * the Setup, the World then adds under it ([P16.2]), as the lines below the
+   * select say once a World is chosen; and the one way to have its books and
+   * treatment as controls again is *None* in the Setup select, which nothing
+   * else on this path says.
+   */
+  hintUnderSetup:
+    'Under a setup, its lorebooks join the setup’s and its treatment is used only if the setup names none. To choose them yourself, choose None as the setup. The new session joins the world.',
   /**
    * Why a book the person never put in the world is ticked — [P16.2], the
    * `world` arm of a book's scope. Said once, under the list, rather than on
@@ -337,6 +372,13 @@ const WORLD_WORDS = labels('sessions.world', {
   setupTreatmentSole: 'The setup names no treatment, so the world’s is used: {name}.',
   setupTreatmentNone:
     'The setup names no treatment, and this world has several, so the session starts without one.',
+  soleSetup:
+    'Chosen because it is this world’s only setup. Choose another, or None to start without one.',
+  severalSetups:
+    'This world has {count} setups — those in your library are listed first. Choose one, or none: the world does not choose for you.',
+  missingSoleSetup:
+    'This world’s only setup, “{name}”, is not in your library, so the session starts without it.',
+  missingSetups: 'Not in your library, so not offered: {names}.',
 });
 
 /** The treatment a Setup names, or `null` — read defensively, as `modeOf` reads its mode. */
@@ -457,6 +499,16 @@ export function SessionsPage(): React.JSX.Element {
   const [world, setWorld] = useState('');
   const [prefilled, setPrefilled] = useState<Prefilled>(NOTHING_PREFILLED);
   /**
+   * ***The Setup the World chose, if it chose one*** — the owner's answer of
+   * 2026-10-12 (`chooseWorldSetup` is the rule). `fromSetup` holds the choice
+   * itself, as the person's own; this is kept so that another World, or none,
+   * takes back exactly that and never a Setup the person picked. *Dropped the
+   * moment the select is changed by hand* (the review of 2026-10-12), since an
+   * id cannot tell the World's choice from the same Setup picked back by the
+   * person: from that change on, what the select holds is theirs.
+   */
+  const [prefilledSetup, setPrefilledSetup] = useState<string | null>(null);
+  /**
    * The names every World chosen here gave its members, by id — kept past the
    * choice so that a book or treatment it filled in still has its name after
    * the World drops it, or is deleted in another tab while chosen
@@ -491,7 +543,9 @@ export function SessionsPage(): React.JSX.Element {
   const worlds = useLibrary('worlds');
   // With the lorebooks, so a World's offer includes the books whose own scope
   // names it, after its members — what the server's copy would add ([P16.2]).
-  const offered = worldsToOffer(worlds.data?.objects, books.data?.objects);
+  // And with the Setups, so it knows which of its Setups can be started from
+  // (the owner's answer of 2026-10-12).
+  const offered = worldsToOffer(worlds.data?.objects, books.data?.objects, setups.data?.objects);
   /**
    * ***Whether a World's offer is whole yet*** — [P16.2], the `world` arm.
    * Until the lorebooks have answered, an offer is its members alone, and a
@@ -502,8 +556,16 @@ export function SessionsPage(): React.JSX.Element {
    * have had. So the World select waits for the shelf, as `?world=` does
    * below. *Or for it to fail*: a shelf that cannot be read must not hold
    * the World back for ever, and then its members are all it can offer.
+   *
+   * ***And for the Setups*** (2026-10-12, the owner's answer), for the same
+   * reason: the choice is made once, and a World chosen before the Setups had
+   * answered could not tell its only Setup from a gone one, so it would choose
+   * none — and Start would send *None* where the World had one to give. A
+   * Setups shelf that fails lets the World through with no Setup chosen, which
+   * is all a form that cannot list Setups can honestly offer.
    */
-  const shelfAnswered = books.data !== undefined || books.isError;
+  const shelfAnswered =
+    (books.data !== undefined || books.isError) && (setups.data !== undefined || setups.isError);
   /**
    * The World chosen, **resolved against what is offered** — so a World
    * deleted in another tab since it was chosen stops being sent and the
@@ -555,10 +617,29 @@ export function SessionsPage(): React.JSX.Element {
     setLore(next.lore);
     setTreatment(next.treatment);
     setPrefilled(next.prefilled);
+    /**
+     * ***And its Setup, when it holds exactly one*** — the owner's answer of
+     * 2026-10-12. Chosen only into an empty select, taken back only while it
+     * is still the World's choice (`chooseWorldSetup`). The books and the
+     * treatment above are filled in either way: on the Setup's path they are
+     * not sent — the route layers the World under the Setup, and the form says
+     * how — and if the person chooses *None* they are the World's start
+     * without a Setup, already on screen.
+     */
+    const nextSetup = chooseWorldSetup(fromSetup, prefilledSetup, offer);
+    if (nextSetup.setup !== fromSetup) {
+      setFromSetup(nextSetup.setup);
+      // The opening was chosen among the last Setup's; the next starts on its
+      // primary, as a Setup picked in the select does.
+      setOpening('');
+    }
+    setPrefilledSetup(nextSetup.prefilled);
     setWorld(id);
     if (offer !== undefined) {
       const seen: Record<string, string> = {};
-      for (const one of [...offer.books, ...offer.treatments]) seen[one.id] = one.name;
+      for (const one of [...offer.books, ...offer.treatments, ...offer.setups]) {
+        seen[one.id] = one.name;
+      }
       setMemberNames((known) => ({ ...known, ...seen }));
     }
   }
@@ -581,6 +662,9 @@ export function SessionsPage(): React.JSX.Element {
    * and miss every book whose scope names it, and the address is applied only
    * once. *Or failed to* — a shelf that cannot be read must not hold the World
    * back for ever; it then fills in its members, which is all it can see.
+   * *And the Setups* (2026-10-12, the owner's answer): `shelfAnswered` waits
+   * for both, so the address chooses a World's only Setup too, and never
+   * mistakes it for a gone one.
    */
   const [worldFromAddress, setWorldFromAddress] = useState<string | undefined>(undefined);
   if (
@@ -763,6 +847,53 @@ export function SessionsPage(): React.JSX.Element {
     ]);
   }
 
+  /**
+   * ***The Setup select, with a World chosen*** — the owner's answer of
+   * 2026-10-12, arranged as the Treatment select is: the World's Setups first,
+   * each said to be the World's, then the rest of the shelf. **Only the ones
+   * the library holds**: the treatment select lists a gone treatment because
+   * the route keeps a dangling treatment as a link, but a Setup is copied, and
+   * a gone one named outright is `unknown-setup` — so it is said under the
+   * select instead (`missingSetups`), never offered.
+   */
+  const worldSetups = inWorld?.setups ?? [];
+  const shelfSetups = setups.data?.objects ?? [];
+  const setupOptions: [string, string][] = [
+    ['', 'None — choose everything below'],
+    ...worldSetups.flatMap((one): [string, string][] => {
+      const held = shelfSetups.find((each) => each.id === one.id);
+      return held === undefined
+        ? []
+        : [[one.id, WORLD_WORDS.listed.replace('{name}', () => held.name)]];
+    }),
+    ...shelfSetups
+      .filter((each) => !worldSetups.some((one) => one.id === each.id))
+      .map((each) => [each.id, each.name] as [string, string]),
+  ];
+  /** The World's Setups the library does not hold — said once the shelf has answered. */
+  const missingSetups =
+    setups.data === undefined
+      ? []
+      : worldSetups.filter((one) => !(inWorld?.heldSetups.includes(one.id) ?? false));
+  /**
+   * Whether the Setup on the form is the one the World chose — *ticked
+   * because*'s rule: the line explains the World's choice and nobody else's,
+   * so it goes the moment the person picks another, and it is never said of a
+   * Setup the form cannot find.
+   *
+   * ***And only while the World chosen still offers it as its only one***
+   * (2026-10-12, at the review). The line says the Setup *is* this world's
+   * only setup, so a World deleted in another tab — the select then shows *No
+   * world* — or one that has since gained a second Setup takes the line with
+   * it, as the treatment's `oneTreatment` line goes with `worldTreatments`.
+   * The Setup itself stays chosen: it is on screen, and Start sends what is.
+   */
+  const setupChosenByWorld =
+    prefilledSetup !== null &&
+    fromSetup === prefilledSetup &&
+    startingFrom !== undefined &&
+    soleSetup(inWorld) === prefilledSetup;
+
   const create = useMutation({
     mutationFn: () =>
       /**
@@ -822,6 +953,15 @@ export function SessionsPage(): React.JSX.Element {
              */
             ...(lore.length === 0 && inWorld === undefined ? {} : { lore }),
             ...(inWorld === undefined ? {} : { world: inWorld.id }),
+            /**
+             * ***No Setup, said beside a World*** — the owner's answer of
+             * 2026-10-12. The route starts `{ world }` through the World's only
+             * Setup when no `setup` is sent, so this path — the one with no
+             * Setup on screen — sends `null`, `treatment: null`'s reason: the
+             * person chose *None*, or the World had no Setup to choose when
+             * the form read it, and either way what they see is what starts.
+             */
+            ...(inWorld === undefined ? {} : { setup: null }),
             // The effective id, not the state: a form that rendered the default's
             // wizard and then sent no `mode` would be right only by coincidence.
             ...(chosen === null ? {} : { mode: chosen.id }),
@@ -850,6 +990,11 @@ export function SessionsPage(): React.JSX.Element {
       setOpenings({});
       setWorld('');
       setPrefilled(NOTHING_PREFILLED);
+      // With `fromSetup` back at *None*, a stale id here is unobservable — the
+      // select's own change drops it, and a World's choice replaces it (the
+      // review of 2026-10-12) — so no test can pin this; it is kept so that
+      // the fresh form holds nothing the last World chose.
+      setPrefilledSetup(null);
       /**
        * ***Replaying a treatment you have played*** — [08 §6], [P8.5].
        *
@@ -1063,6 +1208,19 @@ export function SessionsPage(): React.JSX.Element {
               offering only *No world*. *And absent until the lorebooks have
               answered* (`shelfAnswered` says why), so a World cannot be chosen
               before its offer includes the books whose scope names it.
+
+              ***And a World with exactly one Setup chooses it*** (2026-10-12,
+              the owner's answer), so the controls below give way to the
+              Setup's path after all — not because the World replaces them,
+              but because it fills one of them, the Setup select, and that
+              control's choice is the one that replaces the rest. The books and
+              treatment are still filled in underneath, and are what *None*
+              starts with. *And absent until the Setups have answered too*,
+              for the same reason as the lorebooks. *Its hint follows the path*
+              (2026-10-12, at the review): the form's own path's promises the
+              books and treatment below to change, which the Setup's path does
+              not show, so that path's says where they go and that *None* in
+              the Setup select is how to have them as controls again.
             */}
             {offered.length === 0 || !shelfAnswered ? null : (
               <SelectField
@@ -1073,7 +1231,9 @@ export function SessionsPage(): React.JSX.Element {
                   ...offered.map((one) => [one.id, one.name] as [string, string]),
                 ]}
                 onChange={pickWorld}
-                hint={WORLD_WORDS.hint}
+                // The path's own hint (2026-10-12, at the review): on the
+                // Setup's, the books and treatment are not controls below.
+                hint={startingFrom === undefined ? WORLD_WORDS.hint : WORLD_WORDS.hintUnderSetup}
               />
             )}
 
@@ -1083,23 +1243,56 @@ export function SessionsPage(): React.JSX.Element {
               browser had no way to send it. Choosing one replaces the controls
               below rather than prefilling them: the Setup says everything they
               would, and a prefilled form would be a second copy of it that
-              could drift from the object the person picked.
+              could drift from the object the person picked. *A World with one
+              Setup chooses it here* (2026-10-12, the owner's answer), and its
+              Setups are listed first (`setupOptions`); a choice made here is
+              the person's, and no World replaces it.
             */}
             <SelectField
               label="Start from a setup"
               value={fromSetup}
-              options={[
-                ['', 'None — choose everything below'],
-                ...(setups.data?.objects ?? []).map(
-                  (one) => [one.id, one.name] as [string, string],
-                ),
-              ]}
+              options={setupOptions}
               onChange={(next) => {
                 setFromSetup(next);
                 setOpening('');
+                /*
+                  ***Any change by hand makes the Setup the person's***
+                  (2026-10-12, at the review). The World's choice is
+                  remembered by id, so without this a person who chose *None*
+                  and then picked the World's Setup back would still read as
+                  the World's: the *chosen because* line returned, and *No
+                  world* took the Setup away again — overriding a choice the
+                  person had just made, which the owner's answer rules out.
+                */
+                setPrefilledSetup(null);
               }}
               hint="A saved way to begin — including one made from a point in another session."
             />
+            {/*
+              ***Why the World chose it, and what it could not*** — the owner's
+              answer of 2026-10-12. Said under the select rather than in its
+              option, as the books' *ticked because* line is said under the
+              list: the option is an ordinary choice from here on, and the line
+              is only the reason it was made.
+            */}
+            {setupChosenByWorld ? <Fine>{WORLD_WORDS.soleSetup}</Fine> : null}
+            {worldSetups.length > 1 ? (
+              <Fine>
+                {WORLD_WORDS.severalSetups.replace('{count}', () => String(worldSetups.length))}
+              </Fine>
+            ) : null}
+            {missingSetups.length === 0 ? null : (
+              <Fine>
+                {worldSetups.length === 1
+                  ? WORLD_WORDS.missingSoleSetup.replace(
+                      '{name}',
+                      () => missingSetups[0]?.name ?? '',
+                    )
+                  : WORLD_WORDS.missingSetups.replace('{names}', () =>
+                      missingSetups.map((one) => one.name).join(', '),
+                    )}
+              </Fine>
+            )}
 
             {startingFrom !== undefined ? (
               <>

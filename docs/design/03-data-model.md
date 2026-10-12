@@ -1494,7 +1494,9 @@ no surface of its own:
   is a second way to start, and it reads the World's lorebook and treatment
   members and never a Setup member — so a World with no Setup starts, and one
   with a Setup does not start *through* it. Should Start in a world use the
-  World's Setup when it holds exactly one? The owner's.
+  World's Setup when it holds exactly one? The owner's. ***Answered by the owner, 2026-10-12: yes.*** A World
+  with exactly one Setup starts through it, as if it had been named; several
+  choose none ([04 §9](04-schemas.md) has the detail).
 - **Contents are embedded copies, resolved on import** into the recipient's
   library (with a "these already exist, link or duplicate?" step). Links resolve
   within the package first, then locally, then dangle visibly. The only reliable

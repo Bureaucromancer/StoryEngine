@@ -5,6 +5,7 @@ import {
   LEGACY_PACKAGE_SCHEMA,
   LOREBOOK_SCHEMA,
   type PortableObjectEnvelope,
+  SETUP_SCHEMA,
   TREATMENT_SCHEMA,
   WORLD_SCHEMA,
   type World,
@@ -174,16 +175,56 @@ export async function addMembers(
  *   one to use when the caller chose none — **only when there is exactly one**,
  *   because picking the first of several would be the server choosing a story
  *   on somebody's behalf.
+ * - ***Its Setup members, and the one to start through*** — **the owner's
+ *   answer of 2026-10-12**: *"Use the World's Setup when it holds exactly
+ *   one."* [04 §9](../../../../docs/design/04-schemas.md) and
+ *   [03 §7.2](../../../../docs/design/03-data-model.md) say a World holding a
+ *   Setup is started *through* it — "that is the whole mechanism" — and
+ *   [P16.2] built this contribution from the World's books and treatment and
+ *   never read a Setup member, which the final audit recorded as open (04 §9,
+ *   03 §7.2, [15 §5.3](../../../../docs/design/15-world.md), and P16's *Owed*
+ *   list). Answered: `setups` is every Setup member in the World's order, and
+ *   `setup` is the one `POST /sessions` starts through when the caller names
+ *   none — **only when there is exactly one**, the treatment's rule and for
+ *   its reason, since the first of several would be the server choosing which
+ *   game somebody plays.
  *
  * Members are taken as the World names them, by id: a member since deleted is
  * a dangling id in `session.lore`, which the retriever already reports every
  * turn rather than refusing at the door ([00 §3.3]).
+ *
+ * ***A sole Setup that no longer resolves is still the World's sole Setup***
+ * (2026-10-12, decided with the owner's answer) — the treatment's rule,
+ * mirrored. A World whose one treatment was deleted still names it, and the
+ * session is started naming it: the id dangles in `session.treatment`, visibly,
+ * and nothing refuses. So `setups` keeps a dangling member, and `setup` names
+ * it when it is the only one — this reads no Setup, exactly as it reads no
+ * treatment — and the *count* is of members, not of what resolves, so a World
+ * holding two Setups of which one is gone does not quietly promote the other to
+ * *the only one*. **What differs is what a session can hold**: a treatment is
+ * a link, and a dangling link is a session missing a book; a Setup is copied,
+ * and there is nothing to copy. So the route starts the session without it —
+ * the World's books and treatment, which is what this start was before the
+ * answer — and says so in the log, rather than refusing the whole start: the
+ * caller asked for *this World*, which is still there, and not for a Setup by
+ * name, whose absence is what `unknown-setup` refuses. The member stays visible
+ * where members are shown — the World's page marks it *Missing*, and the
+ * session form names it as not in the library rather than offering it.
+ *
+ * ***Each id once*** (2026-10-12), for the treatments as well as the Setups.
+ * Membership is a set that happens to have an order (`addMembers` keeps one of
+ * each), and the session form already reads it that way (`world-start.ts`,
+ * `membersOfSchema`) — so a hand-edited World naming one treatment twice was a
+ * World with one treatment to the form and none to this function. A count that
+ * decides *the only one* has to be a count of members, not of lines.
  */
 export interface WorldContribution {
   world: { id: string; name: string };
   lore: string[];
   treatments: string[];
   treatment: string | null;
+  setups: string[];
+  setup: string | null;
 }
 
 export function worldContribution(
@@ -193,15 +234,21 @@ export function worldContribution(
 ): WorldContribution {
   const current = read(context, handle, worldId, WORLD_SCHEMA);
   const world = current.body as World;
-  const members = world.contents.filter((m) => m.schema === LOREBOOK_SCHEMA).map((m) => m.id);
+  const membersOf = (schema: string): string[] => [
+    ...new Set(world.contents.filter((m) => m.schema === schema).map((m) => m.id)),
+  ];
+  const members = membersOf(LOREBOOK_SCHEMA);
   const scoped = booksScopedTo(context, handle, current.id).map((row) => row.id);
   const lore = [...new Set([...members, ...scoped])];
-  const treatments = world.contents.filter((m) => m.schema === TREATMENT_SCHEMA).map((m) => m.id);
+  const treatments = membersOf(TREATMENT_SCHEMA);
+  const setups = membersOf(SETUP_SCHEMA);
   return {
     world: { id: current.id, name: current.name },
     lore,
     treatments,
     treatment: treatments.length === 1 ? (treatments[0] ?? null) : null,
+    setups,
+    setup: setups.length === 1 ? (setups[0] ?? null) : null,
   };
 }
 
