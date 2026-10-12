@@ -192,6 +192,15 @@ which image was the canonical likeness is not a migration. **This is the
 strictest check in the series and the first one to run**, which is the change
 the re-ordering makes to this section.
 
+*(2026-10-12: one of the four was specified wrong, and it was not the
+unrecoverable one. Per-media generation provenance named
+`GeneratedFieldProvenance`, whose `seed` is a prompt, and the only reading of
+[00 §3.2](../00-stance.md) on record — [P9.0](26-p9-implementation.md)'s — said
+a card may not carry a sampling seed at all. Found two releases before this
+check runs, and answered inside the 1.0 series as a portable recipe
+([26 B20](../26-open-questions.md)), an additive field — so at 3.0 the check
+still reads **no change**.)*
+
 > **The authoring tier at 6.0 must add only optional fields and new variants.
 > No portable schema may bump.**
 
@@ -567,7 +576,9 @@ probably the most useful single list in the document.
 - **Structured `VisualDescriptors`** alongside prose appearance.
 - **Per-media generation provenance including the seed** — a reference image
   whose seed was not recorded cannot be regenerated
-  ([18 §5](../18-character-studio.md)).
+  ([18 §5](../18-character-studio.md)). *As a portable recipe of its own,
+  never `GeneratedFieldProvenance`, whose `seed` is the prompt
+  ([26 B20](../26-open-questions.md), 2026-10-12).*
 - **Crop as a stored normalised rectangle**, never a destructive edit.
 
 ### The turn record

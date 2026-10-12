@@ -208,6 +208,16 @@ changing a type rather than forgetting a check.
 Model *preferences* are allowed, as abstract hints resolved locally — see
 [03 §2.6](03-data-model.md).
 
+***And a record of what made something is not a setting*** (2026-10-12,
+[26 B20](26-open-questions.md)). The model a picture was made with, the seed it
+was sampled from and the prompt it was sent are **provenance**: they describe
+what happened, act on nothing at import, and can neither repoint a provider nor
+spend against an endpoint — so they travel. What *made the call* — the
+connection, its URL, its key — never does. The distinction is worth stating
+because it was once read the other way: P9 kept a sampling seed out of every
+portable kind on this section's authority, and one of the Character Studio's
+obligations on 1.0 could not be met while that reading stood.
+
 ### 3.3 Dangling references are normal, not an error
 
 A package references a lorebook you don't have; a treatment links an actor that was

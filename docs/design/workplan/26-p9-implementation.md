@@ -630,6 +630,16 @@ into every exported actor card, which is a portable-shape change made to serve a
 internal record. The new type's `seed` is `number | null` and means the sampling
 seed only.
 
+*(2026-10-12: the tier answer holds and its premise was narrowed.
+[26 B20](../26-open-questions.md) found that [18 §5](../18-character-studio.md)
+still promised a reference image's seed through the type this section declined
+to widen, and that the reading of [00 §3.2](../00-stance.md) behind the
+declining forbade keeping it at all. Decided: a seed, the model as answered and
+the prompt are provenance and travel, in a portable recipe of their own; the
+binding's connection does not. So `RenditionProvenance` stays internal, and a
+rendition kept as library media is projected onto the recipe rather than
+exported as itself.)*
+
 ***And a third thing was wrong that this section did not predict.*** Two more
 fields were mistyped in the specification above: `AssembledPrompt.budget` in
 `number | undefined`, where an `undefined` in a persisted shape is a field JSON

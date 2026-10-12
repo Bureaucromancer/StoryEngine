@@ -230,6 +230,15 @@ export interface AssembledPrompt {
  * shareable content, which is the line [00 §3.2] draws and which [01 §1]
  * criticises `GameSetupConfig` for crossing.
  *
+ * *Narrowed 2026-10-12 by
+ * [26 B20](../../../docs/design/26-open-questions.md): the repair stands and
+ * that last reason does not.* A seed, the model as answered and the prompt are
+ * provenance rather than production settings, and a picture kept as library
+ * media carries them as a **portable recipe of its own** — this record
+ * projected onto it, `binding.connectionId` dropped and a seed that was never
+ * sent (`seedSent: false`) written as null. This type stays internal because
+ * of the binding, not because of the seed.
+ *
  * ***`workflow` holds scalars only, and the restriction is the recipe's.*** These
  * values are re-sent verbatim on re-creation and hashed into the digest, and a
  * nested object is a thing whose key order has to be canonicalised before either

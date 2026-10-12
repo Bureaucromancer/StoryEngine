@@ -1295,6 +1295,15 @@ repair**: it is portable, reachable from five emitted schemas through
 actor card — production settings crossing into shareable content, which is the
 line [00 §3.2](00-stance.md) draws.
 
+*Corrected 2026-10-12, [26 B20](26-open-questions.md).* The type stays internal
+and the repair stands; the last clause does not. **A seed is provenance, not a
+production setting**, and a picture kept as library media carries its seed,
+model and prompt in a portable recipe of its own — never in
+`GeneratedFieldProvenance`, whose `seed` still means the prompt. What never
+leaves the install is `binding.connectionId`, which names a connection on it;
+and `seedSent` travels only as its consequence — a seed that was never sent is
+projected as `null`, because the picture was not made with it.
+
 ```ts
 interface RenditionProvenance {
   at: string | null                                            // null while pending

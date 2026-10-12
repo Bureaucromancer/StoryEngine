@@ -690,6 +690,124 @@ deferred: leave the asymmetry documented until then*
 *[04 §7](04-schemas.md), [03 §7.1](03-data-model.md),
 [P14 §1.8](workplan/31-p14-scene-and-session-import.md)*
 
+**B20. Does a generated picture's recipe travel with the card? — RESOLVED
+2026-10-12, by the owner: yes, as a portable recipe of its own, and never as
+`GeneratedFieldProvenance`.** Recorded and decided the same day, because it
+arrived as a contradiction between two documents rather than as a question
+either of them asked. *Found from outside*: a review from an image-generation
+front end that may integrate with StoryEngine, reading
+[18 §5](18-character-studio.md) for what a card would keep of the pictures it
+made.
+
+**What the two documents said.** 18 §5's third obligation on 1.0 is
+*"per-media generation provenance, reusing `GeneratedFieldProvenance` — which
+model, which prompt, which seed. A reference image whose seed was not recorded
+cannot be regenerated consistently."* That type's `seed` is documented *"the
+input the generation ran from"* and holds the **prompt** an assist ran against;
+it has no field for a sampling seed or for workflow parameters. P9.0 found
+exactly that for renditions ([P9 §1.1](workplan/26-p9-implementation.md)),
+built `RenditionProvenance` as an **internal** type, and declined to widen the
+portable one on [00 §3.2](00-stance.md)'s authority — *"a sampling seed added to
+it travels inside every exported actor card — production settings crossing into
+shareable content"* ([22 §7](22-internal-contracts.md)). The finding was carried
+to [06 §10.1](06-modes-and-turn-pipeline.md) and 22 §7 and never to 18 §5 or to
+[work plan §0.2 and §2](workplan/01-work-plan.md), so the obligation stood for
+nearly a month specified against a type that cannot meet it **and** a reading of
+the stance that forbids meeting it at all.
+
+**Why it was a decision and not a citation fix.** The two disagreed about
+whether a sampling seed may be in a card, not about which type holds it, and
+under 18 §5's own rule — *the Studio at 3.0 adds no portable schema change at
+all* — every way of keeping one failed:
+
+| Route | Schema change | What it costs |
+|---|---|---|
+| Widen `GeneratedFieldProvenance`, or add a field to `EmbeddedMedia` | Yes — additive | Legal under [04 §2](04-schemas.md); not *no change* |
+| Write the seed into `seed` as a string, or JSON the recipe into `original` | None | P9's predicted failure, *"satisfy the type, pass review"* — and it beats 00 §3.2's structural guard, which is that crossing the line takes a type change rather than a forgotten check |
+| Keep it in `modeData` | None | Safe to strip on export by design ([00 §2.4](00-stance.md)), so the seed does not travel and the obligation is not met |
+| Point the row at its rendition | Yes | A rendition is internal and lives with its session (`renditions/store.ts`: one promoted to the library *"would be a picture that outlived the story it was of"*), and a Studio generation is not a turn |
+
+18 §5 says what that means: *"if it turns out to need a field, one of the four
+above was specified wrong."* The third one was. Writing the check down two
+releases early is what let it fail **before** the 1.0 format froze rather than
+at 3.0.
+
+**Why 00 §3.2 permits it.** P9's argument treated two different things as one: a
+*record* of what made something and a *setting* that acts on whoever imports
+it. 00 §3.2's list is connections, keys, endpoint URLs, model bindings and
+per-install toggles, and its test is that an import *"must not be able to
+repoint your provider, flip your content rating, or switch on generation against
+your paid image endpoint."* A seed, the name of the model that answered and the
+prompt that was sent can do none of that: they describe what happened and act on
+nothing. The format already agreed — `GeneratedFieldProvenance.model` has carried
+*which model* in portable files since P1 — and so does `ModelHint`, a
+preference that travels because it is resolved locally. **The line runs through
+`RenditionProvenance` itself**: its `binding.connectionId` names something on
+one install and never leaves it; its model as answered, its seed, its prompt and
+its workflow scalars are the picture's history. 00 §3.2 says so now.
+
+**What the decision fixes.**
+
+- **A new portable type, not a widening.** `GeneratedFieldProvenance` stays the
+  text-field record it is — revert and disclose ([10 §11.2](10-ui-surfaces.md)),
+  and its `seed` keeps meaning the prompt. It was never a fit for a picture
+  apart from the seed: `original` is the value to revert to, and a picture's is
+  the bytes the row's `digest` already names.
+- **Named so the two cannot be mistaken for each other.** *One word apart* is
+  the hazard P9 named, so not `GeneratedMediaProvenance`; `MediaRecipe` is the
+  working name, optional on `EmbeddedMedia`.
+- **What it carries**: when it was made; the **generator** — free text, because
+  a picture may come from this build or from another tool, and a recipe that
+  cannot say which is a recipe nobody can run; the **model as the endpoint
+  answered** (`answeredAs`, else the bound model id); the **seed**; the
+  **prompt as sent**, after capping; and the **workflow**, scalars only, under
+  `RenditionProvenance`'s rule that a recipe has to hash byte-stably without a
+  canonicaliser.
+- **What it never carries**: a connection id, a base URL, a key, or anything
+  else that resolves to this install.
+- **Keeping a rendition as library media is a projection, not a schema event.**
+  `RenditionProvenance` maps onto it by dropping the binding's connection, and a
+  rendition whose `seedSent` is `false` projects `seed: null` — its endpoint drew
+  its own, so the recipe does not know the seed, and saying otherwise would make
+  *re-created* mean *approximately*, which [06 §10.7](06-modes-and-turn-pipeline.md)
+  refuses.
+- **Additive inside 1.0**: an optional field, kept by any reader under 04 §2 —
+  `EmbeddedMedia` does not forbid unknown properties, so an older build keeps
+  the recipe it cannot read. *Not B16's question*, which is about closed unions.
+  It lands before beta, so 3.0's check still reads *no change* and still means it.
+
+**What it leaves to the stage that builds it**, each with the answer this entry
+would give:
+
+- ***How a seed is spelled.*** This build draws seeds below 2³¹
+  (`renditions/illustrate.ts`), but other tools' go to 2⁶⁴ − 1 — ComfyUI's
+  sampler takes any unsigned 64-bit value — and a JSON number past 2⁵³ rounds
+  silently in every JavaScript reader, which is *approximately re-creatable*
+  again. *Recommended*: a decimal string held to digits by pattern, which also
+  makes it impossible to validate a prompt where a seed belongs. The other
+  answer is a safe-integer bound with the rest refused.
+- ***`EmbeddedMedia.generated`.*** Nothing has ever written it. *Recommended*:
+  replace it with the recipe before beta rather than carry two provenance
+  slots on one row, one of which means nothing for a picture.
+- ***What a foreign workflow says about its author's disk.*** Another tool's
+  parameters can name checkpoint files and local paths. That is not a 00 §3.2
+  question — a path repoints nothing — but it is an export one, and the export
+  surface should say what it carries.
+
+**And a picture that brings its own recipe is a source, not a home.** Image
+tools write recipes into the file itself — a PNG text chunk, a C2PA manifest —
+and StoryEngine keeps the bytes it is given: assets are stored as uploaded, and
+writing a card keeps every chunk that is not its own (`storage/card/png.ts`).
+But a recipe in the bytes is specific to one container, validated by nobody,
+invisible to the library, and gone the moment anything redraws the picture —
+which the lorebook entry strip did until the same day
+([10 §11.2b](10-ui-surfaces.md)). So an importer may **read** one into the typed
+record, and the typed record is where it lives.
+
+*[18 §5](18-character-studio.md), [00 §3.2](00-stance.md),
+[22 §7](22-internal-contracts.md), [06 §10.7](06-modes-and-turn-pipeline.md),
+[04 §3](04-schemas.md), [P9 §1.1](workplan/26-p9-implementation.md)*
+
 ---
 
 ## C. Mode and pipeline questions

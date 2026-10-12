@@ -178,10 +178,14 @@ is the one that is not recoverable.
   likeness is not recoverable later.
 - **Structured `VisualDescriptors`** on the profile ([03 §2.1](03-data-model.md)).
   Fields now, or prose parsing later.
-- **Per-media generation provenance**, reusing `GeneratedFieldProvenance`
-  ([10 §11.2](10-ui-surfaces.md)) — which model, which prompt, which seed. A
+- **Per-media generation provenance**, ~~reusing `GeneratedFieldProvenance`
+  ([10 §11.2](10-ui-surfaces.md))~~ ***as a portable recipe of its own***
+  ([26 B20](26-open-questions.md)) — which model, which prompt, which seed. A
   reference image whose seed was not recorded cannot be regenerated
-  consistently, which defeats the purpose.
+  consistently, which defeats the purpose. *(Corrected 2026-10-12. The type
+  this named keeps the **prompt** in its `seed` and has nowhere for a sampling
+  seed or a workflow; [P9.0](workplan/26-p9-implementation.md) found that for
+  renditions on 2026-09-16 and the finding never reached this line.)*
 - **Crop as a stored rectangle** rather than a destructive edit
   ([03 §5.2.1](03-data-model.md)).
 
@@ -195,6 +199,17 @@ surface over a format that already exists, and if it turns out to need a field,
 one of the four above was specified wrong. That is worth discovering as a failed
 check rather than as a schema bump, and it is the strictest of the series'
 checks as well as the first to run.
+
+***It ran early, and failed where this paragraph said it would*** (2026-10-12).
+The third obligation was specified wrong: the type it named could not hold a
+sampling seed, and the one reading of [00 §3.2](00-stance.md) on record said a
+card must not carry one at all — so the first generated reference the Studio
+saved would have needed a field. Found from outside, by a review reading this
+section for what a card keeps of the pictures it made, and found **before** the
+1.0 format froze rather than at 3.0, which is what writing the check down two
+releases early was for. The answer is an additive field inside the 1.0 series
+([26 B20](26-open-questions.md)), so the check at 3.0 still reads *no change*,
+and still means it.
 
 ## 6. The surface question is open, and now closes earlier
 
