@@ -2165,12 +2165,29 @@ before it was named. A file is now collected when no version names it either,
 it is a day old, and its name is one the store writes, and every read, store
 and sweep checks where its path really lands ([03 §5.3](03-data-model.md)).
 
-*The crop is a centred square, in the browser.* §11's *"uploaded, cropped and
-replaced"* is three of four here; a drag-to-choose rectangle is a better tool and
-a surface of its own, and what this does is stop a wide photograph being
-letterboxed into a square thumbnail. The **book's** gallery is uncropped, because
-the case it exists for is a map and a map is not square. A crop that fails
-uploads the original rather than failing the upload.
+*The crop is a centred square, ~~in the browser~~ stored as a rectangle.* §11's
+*"uploaded, cropped and replaced"* is three of four here; a drag-to-choose
+rectangle is a better tool and a surface of its own, and what this does is stop a
+wide photograph being letterboxed into a square thumbnail. The **book's** gallery
+is uncropped, because the case it exists for is a map and a map is not square. ~~A
+crop that fails uploads the original rather than failing the upload.~~
+
+***Corrected 2026-10-12: the crop destroyed the original, and §11.3 below says
+it may not.*** The strip drew the square through a canvas and uploaded only
+that — the destructive edit §11.3 rules out for *"lorebook entry art"* by name,
+with `EmbeddedMedia.crop` sitting in the schema written by nothing, and the
+upload route's comment arguing for it as *"an uncropped original nothing asks
+for."* §11.3 is what asks for it. And the redraw cost more than the edges: a
+fresh PNG carries none of the source's text chunks, metadata or colour profile,
+so a picture whose maker had written its recipe into the file
+([26 B20](26-open-questions.md)) arrived without it — **but only when it was not
+already square**, because a square picture skipped the redraw, so whether a
+picture kept its history depended on its shape. Now the file goes up as picked,
+and a non-square picture's row carries its centred square as `crop`. The
+thumbnail is drawn with `object-fit: cover`, which in a square slot draws
+exactly that square, so nothing on the screen changed. *What it cannot mend*:
+pictures added to an entry's strip before this kept only their square, and the
+originals were never on the server.
 
 ### 11.2c Entries travel on their own
 

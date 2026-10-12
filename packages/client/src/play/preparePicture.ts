@@ -10,10 +10,14 @@
  * through a canvas keeps the pixels and nothing else. This is the one place
  * that can do it — the server keeps its position of having no raster encoder
  * — so it is not optional and it **fails closed**: a picture this cannot
- * redraw is refused, never uploaded as it came. `squareCrop` in the library
+ * redraw is refused, never uploaded as it came. ~~`squareCrop` in the library
  * editor is deliberately not reused, because it hands back the original when a
  * picture is already square or anything goes wrong, which is the right answer
- * for a portrait and the wrong one here.
+ * for a portrait and the wrong one here.~~ *(2026-10-12: the library editor no
+ * longer redraws at all — its strip sends the file as picked and stores a crop
+ * as a rectangle, [10 §11.2b]. The two paths are opposites on purpose: a
+ * picture kept in a book keeps everything it carries, a recipe its maker wrote
+ * into it included, and a picture sent to a model keeps nothing but pixels.)*
  *
  * ***Scaled so its longer edge is at most {@link MAX_PICTURE_EDGE}*** — past
  * that, the models that see pictures shrink them themselves, so the extra

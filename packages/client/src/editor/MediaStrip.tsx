@@ -3,7 +3,7 @@
 
 import { useRef, useState, type JSX } from 'react';
 
-import { uuidv7, type EmbeddedMedia, type MediaRole } from '@storyengine/shared';
+import { uuidv7, type EmbeddedMedia, type MediaRole, type SourceRect } from '@storyengine/shared';
 
 import { api, errorCode, type LibraryKind } from '../api.js';
 import { labels } from '../i18n/catalogue.js';
@@ -102,7 +102,8 @@ const ROLE_WORDS: Readonly<Record<string, string>> = labels('editor.media-role',
 });
 
 /**
- * ***The crop, in the browser*** — §11's *"uploaded, cropped and replaced"*.
+ * ***The crop, as a rectangle on the row*** — §11's *"uploaded, cropped and
+ * replaced"*, and [10 §11.3]'s *"cropping never costs you the original."*
  *
  * **A centred square rather than a rubber band**, and that is the honest version
  * of this control at 1.0: a strip renders square thumbnails, so what a crop is
@@ -111,50 +112,65 @@ const ROLE_WORDS: Readonly<Record<string, string>> = labels('editor.media-role',
  * would add over this is choosing *which* square, which is worth having and is
  * not worth blocking the feature on.
  *
- * ***It re-encodes to PNG*** — lossless, so a crop of a crop does not decay, and
- * one output type means the sniffer on the far side has one less case. The cost
- * is size on a photograph, which a person who wants the original keeps by not
- * cropping.
+ * ***~~It re-encodes to PNG~~ — corrected 2026-10-12: it re-encodes nothing.***
+ * This drew the square through a canvas and uploaded only that, which made the
+ * crop the one destructive edit §11.3 rules out — for *"lorebook entry art"* by
+ * name — and left `EmbeddedMedia.crop` written by nothing. The redraw cost more
+ * than the edges: a fresh PNG carries none of the source's text chunks,
+ * metadata or colour profile, so a picture whose maker had written its recipe
+ * into the file ([26 B20](../../../../docs/design/26-open-questions.md)) lost
+ * it — and only when it was not already square, so whether a picture kept its
+ * history depended on its shape. Now the bytes go up as they were picked, and
+ * this only measures them.
  *
- * Returns the original bytes unchanged when the image is already square, when
- * the canvas is unavailable, or when anything throws: **a crop that fails is a
- * picture that uploads uncropped**, never a picture that fails to upload.
+ * **Normalised against the upright picture**, the frame every renderer draws in
+ * — so `from-image`, as `preparePicture` asks for it, and a phone photograph
+ * stored on its side squares the way it is seen.
+ *
+ * Null when the picture is already square, and when it cannot be measured:
+ * **a crop that fails is a picture with no crop**, never a picture that fails to
+ * upload — and now never a picture that loses anything either.
  */
-export async function squareCrop(file: File): Promise<Blob> {
+export async function centredSquare(file: Blob): Promise<SourceRect | null> {
   try {
-    const bitmap = await createImageBitmap(file);
-    const side = Math.min(bitmap.width, bitmap.height);
-    if (bitmap.width === bitmap.height) {
-      bitmap.close();
-      return file;
-    }
-    const canvas = document.createElement('canvas');
-    canvas.width = side;
-    canvas.height = side;
-    const context = canvas.getContext('2d');
-    if (context === null) {
-      bitmap.close();
-      return file;
-    }
-    context.drawImage(
-      bitmap,
-      Math.round((bitmap.width - side) / 2),
-      Math.round((bitmap.height - side) / 2),
-      side,
-      side,
-      0,
-      0,
-      side,
-      side,
-    );
+    const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+    const { width, height } = bitmap;
     bitmap.close();
-    const cropped = await new Promise<Blob | null>((resolve) => {
-      canvas.toBlob(resolve, 'image/png');
-    });
-    return cropped ?? file;
+    return squareOf(width, height);
   } catch {
-    return file;
+    return null;
   }
+}
+
+/** The centred square of a `width` × `height` picture, or null when it is one. */
+export function squareOf(width: number, height: number): SourceRect | null {
+  if (!(width > 0 && height > 0) || width === height) return null;
+  const side = Math.min(width, height);
+  return {
+    x: (width - side) / 2 / width,
+    y: (height - side) / 2 / height,
+    width: side / width,
+    height: side / height,
+  };
+}
+
+/**
+ * ***Replace keeps the row, and not what described the old bytes.*** Its id,
+ * role, label and tags are the author's decisions about a slot; its crop and
+ * size were measurements of a picture that is no longer there, and a rectangle
+ * kept across a replace would frame the new picture by the old one's shape.
+ */
+function reframed(
+  row: EmbeddedMedia,
+  asset: Pick<EmbeddedMedia, 'ref' | 'digest' | 'bytes' | 'mime'>,
+  crop: SourceRect | null,
+): EmbeddedMedia {
+  const next: EmbeddedMedia = { ...row, ...asset };
+  delete next.crop;
+  delete next.width;
+  delete next.height;
+  if (crop !== null) next.crop = crop;
+  return next;
 }
 
 export function MediaStrip(props: {
@@ -180,7 +196,10 @@ export function MediaStrip(props: {
   /** The book's gallery designates one; an entry's strip does not. */
   coverId?: string | null;
   onCover?: (mediaId: string | null) => void;
-  /** Whether a fresh picture should be cropped square before it is sent. */
+  /**
+   * Whether a fresh picture's row records its centred square as `crop`. The
+   * bytes are sent as picked either way.
+   */
   crop?: boolean;
   /**
    * ***A book that has never been saved has nowhere to put the bytes***
@@ -208,20 +227,28 @@ export function MediaStrip(props: {
     setBusy(true);
     setProblem(null);
     try {
-      const blob = props.crop === false ? file : await squareCrop(file);
-      const { asset } = await api.uploadAsset(props.kind, props.objectId, blob, file.name);
+      const crop = props.crop === false ? null : await centredSquare(file);
+      const { asset } = await api.uploadAsset(props.kind, props.objectId, file, file.name);
       const target = replacing;
       if (target === null) {
         // The row is made out here and only appended inside: React runs an
         // updater twice under StrictMode, and a uuid minted inside one would
         // name a different row each time.
-        const row: EmbeddedMedia = { id: uuidv7(), role: 'gallery', tags: [], ...asset };
+        const row: EmbeddedMedia = {
+          id: uuidv7(),
+          role: 'gallery',
+          tags: [],
+          ...asset,
+          ...(crop === null ? {} : { crop }),
+        };
         props.onChange((media) => [...media, row]);
       } else {
-        // **Replace keeps the row.** Its id, role, label and tags are the
-        // author's decisions about a slot; the bytes are what is being swapped,
-        // and re-deriving the rest would make *replace* a *remove and add*.
-        patch(target, asset);
+        // **Replace keeps the row** — the bytes are what is being swapped, and
+        // re-deriving the rest would make *replace* a *remove and add*. See
+        // `reframed` for the part of it that does not survive.
+        props.onChange((media) =>
+          media.map((one) => (one.id === target ? reframed(one, asset, crop) : one)),
+        );
       }
     } catch (failure: unknown) {
       /**
@@ -268,6 +295,11 @@ export function MediaStrip(props: {
         <ul className="flex flex-wrap gap-3">
           {props.media.map((one, index) => (
             <li key={one.id} className="flex w-44 flex-col gap-1">
+              {/* `object-cover` in a square slot draws exactly the centred
+                  square, which is the only rectangle this strip writes — so the
+                  thumbnail frames a stored crop without reading it. A rectangle
+                  from anywhere else is drawn centred, and the drag-to-choose
+                  control that would write one brings the renderer with it. */}
               <img
                 src={`/api/library/${props.kind}/${props.objectId}/media/${one.id}`}
                 alt={one.label ?? ''}

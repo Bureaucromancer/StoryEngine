@@ -187,7 +187,9 @@ is the one that is not recoverable.
   seed or a workflow; [P9.0](workplan/26-p9-implementation.md) found that for
   renditions on 2026-09-16 and the finding never reached this line.)*
 - **Crop as a stored rectangle** rather than a destructive edit
-  ([03 §5.2.1](03-data-model.md)).
+  ([03 §5.2.1](03-data-model.md)). *(2026-10-12: the lorebook entry strip broke
+  this until that day, and keeps the original now —
+  [10 §11.2b](10-ui-surfaces.md).)*
 
 All four are Actor-card work, which is what makes the release check strict:
 

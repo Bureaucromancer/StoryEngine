@@ -579,7 +579,9 @@ probably the most useful single list in the document.
   ([18 §5](../18-character-studio.md)). *As a portable recipe of its own,
   never `GeneratedFieldProvenance`, whose `seed` is the prompt
   ([26 B20](../26-open-questions.md), 2026-10-12).*
-- **Crop as a stored normalised rectangle**, never a destructive edit.
+- **Crop as a stored normalised rectangle**, never a destructive edit. *The
+  lorebook entry strip broke this from P11 to 2026-10-12, redrawing the picture
+  and keeping only the square ([10 §11.2b](../10-ui-surfaces.md)).*
 
 ### The turn record
 
