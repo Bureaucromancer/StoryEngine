@@ -7,7 +7,7 @@
  * Authored as TypeBox; **the published artefact is JSON Schema**
  * (docs/design/20-tech-stack.md §4), emitted to `schemas/` by
  * `pnpm --filter @storyengine/shared emit-schemas` so that third-party tools can
- * validate a card or a package without compiling our types.
+ * validate a card or a World without compiling our types.
  *
  * Pure. No I/O, and no runtime dependency beyond the schema library and its
  * validator — which is what makes this the cheapest place in the project to be
@@ -73,6 +73,20 @@ export * from './import.js';
 // What an import *would* do — beside the review rather than in it, because a
 // report is written to disk and a prediction never is.
 export * from './import-preview.js';
+// What a publish would send — [P16.3a]. Beside the import preview and for its
+// reason: a closure is a statement about a file that does not exist yet, never
+// stored as itself, and `fileSet` is the one rule the review draws with and the
+// confirm writes with, so it lives where both sides import it.
+export * from './publish.js';
+// The two names of publish's the client's entry reads — a session member's
+// schema and the selection bar's bound — in a module of their own, so the entry
+// does not pull `fileSet` in with them ([P16.3g]).
+export * from './publish-constants.js';
+// The file a publish writes — [P16.3c]. Shared because the server writes and
+// reads it and the client reads the head of one before uploading it, and a
+// manifest read two ways would preview one file and import another. An
+// envelope with a hand-written reader, `backup.js`'s precedent: never emitted.
+export * from './world-file.js';
 // The other direction: what a library object can be written out *as*. Shared
 // because the client builds the menu from the same table the server dispatches
 // on, and two copies of it would disagree about what a file will work in.
@@ -113,5 +127,5 @@ export * from './schema/lorebook.js';
 export * from './schema/treatment.js';
 export * from './schema/setup.js';
 export * from './schema/preset.js';
-export * from './schema/package.js';
+export * from './schema/world.js';
 export * from './schema/registry.js';

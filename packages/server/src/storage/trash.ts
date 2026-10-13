@@ -4,12 +4,21 @@
 import { readdir, rm, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import { LIBRARY_DIRECTORIES, uuidv7, type PortableSchemaId } from '@storyengine/shared';
+import {
+  kindOfDirectory,
+  LEGACY_LIBRARY_DIRECTORIES,
+  LIBRARY_DIRECTORIES,
+  upgradeLegacySchema,
+  uuidv7,
+  type PortableSchemaId,
+} from '@storyengine/shared';
 
 import type { Logger } from '../state/commit.js';
 import { watchWallClock, type WallClockWatch } from '../wall-clock.js';
-import type { Layout } from './layout.js';
-import { moveTree } from './files.js';
+import { writeJsonAtomic } from './atomic.js';
+import { objectFilenames, resolveFreeFolder, type Layout, userOwner } from './layout.js';
+import { fileExists, moveTree, readFileBytes, renamePath } from './files.js';
+import { libraryWrites } from './library-writes.js';
 import { KeyedQueue } from './keyed-queue.js';
 
 /**
@@ -101,9 +110,25 @@ export function splitTrashEntry(entry: string): { name: string; suffix: string }
   return match === null ? null : { name: match[1] ?? '', suffix: match[2] ?? '' };
 }
 
-/** The directories the trash is organised into — the live tree's, plus sessions. */
+/**
+ * The directories the trash is organised into — the live tree's, plus sessions.
+ *
+ * ***And the folders a kind used to have*** — [P16 §1.1]. A Package deleted
+ * before P16.0 sits at `trash/packages/<slug>-<uuid>`, and the backup alias
+ * never reaches it, because no archive carries the trash. With `packages` gone
+ * from `LIBRARY_DIRECTORIES`, such an entry would never be listed,
+ * `splitTrashId` would refuse its address, and the sweep would never expire it
+ * — a folder on disk for good that nobody can see or restore, which is the
+ * stranding a migration exists not to cause. So the legacy folder stays a
+ * trash kind for as long as the legacy read lives: listed, restored into the
+ * kind's current folder, and expired, where it lies.
+ */
 function trashKinds(): string[] {
-  return [...Object.values(LIBRARY_DIRECTORIES as Record<PortableSchemaId, string>), 'sessions'];
+  return [
+    ...Object.values(LIBRARY_DIRECTORIES as Record<PortableSchemaId, string>),
+    ...Object.keys(LEGACY_LIBRARY_DIRECTORIES),
+    'sessions',
+  ];
 }
 
 /**
@@ -221,8 +246,29 @@ export type RestoreOutcome =
       restored:
         | { kind: 'session'; sessionId: string }
         | { kind: 'object'; schemaId: PortableSchemaId; slug: string };
+      /**
+       * ***Brought back under a new id, because its own was taken*** —
+       * 2026-10-11, the [P16 audit] (safety finding 1). Only a legacy entry
+       * ({@link restoreLegacy}) is ever re-minted; `name` is the object's
+       * own, for the sentence the restore's answer carries.
+       */
+      reminted?: { from: string; to: string; name: string };
     }
   | { ok: false; reason: 'not-found' | 'occupied' };
+
+/**
+ * ***What a restore may ask of the index*** — the trash module holds no
+ * database, so the route that does hands this over (2026-10-11, the [P16
+ * audit]).
+ */
+export interface RestoreOptions {
+  /**
+   * Whether an object id is held, live, anywhere in this install — the
+   * index's `findById`, which skips tombstoned rows. Absent, nothing is
+   * re-minted.
+   */
+  idIsLive?: (id: string) => boolean;
+}
 
 /**
  * Puts one entry back where it came from.
@@ -241,16 +287,52 @@ export async function restoreFromTrash(
   layout: Layout,
   handle: string,
   id: string,
+  options: RestoreOptions = {},
 ): Promise<RestoreOutcome> {
-  return moves.run(handle, () => restoreNow(layout, handle, id));
+  return moves.run(handle, () => restoreNow(layout, handle, id, options));
 }
 
-async function restoreNow(layout: Layout, handle: string, id: string): Promise<RestoreOutcome> {
+async function restoreNow(
+  layout: Layout,
+  handle: string,
+  id: string,
+  options: RestoreOptions,
+): Promise<RestoreOutcome> {
   const [kind, entry] = splitTrashId(id);
   const from = trashEntryPath(layout, handle, id);
   if (!(await exists(from))) return { ok: false, reason: 'not-found' };
 
   const name = splitTrashEntry(entry)?.name ?? entry;
+
+  /**
+   * ***An entry from a folder a kind no longer has*** — [P16 §1.1]. A Package
+   * trashed before P16.0 comes back as a World, in `library/worlds/`: a
+   * restore is a write, and every write writes the new form. **Under its old
+   * slug if that is free and a fresh one if not** — never `occupied`, because
+   * slugs are frozen and renaming the World that took the name frees nothing,
+   * so the refusal the current kinds give would strand it in the trash for
+   * good. ***And under a fresh id when its own is held*** (2026-10-11, the
+   * [P16 audit]): ~~the fresh-slug rule alone~~ turned *the name is taken by
+   * the same id, landed again* into a certain duplicate, the stale copy
+   * winning the id — {@link remintIfLive}.
+   */
+  const legacyKind = Object.hasOwn(LEGACY_LIBRARY_DIRECTORIES, kind)
+    ? (LEGACY_LIBRARY_DIRECTORIES[kind] ?? null)
+    : null;
+  if (legacyKind !== null) {
+    return restoreLegacy(layout, handle, from, legacyKind, name, options.idIsLive ?? null);
+  }
+
+  /*
+   * ***The same id-held-live case, on the current kinds, is not answered
+   * here*** (2026-10-11, the [P16 audit]): a trashed object whose id was
+   * landed again under a *different* slug since — an import, a backup — comes
+   * back beside it as a second copy of one id, and the index's tie-break
+   * picks between them. That is the older, non-legacy path, and a separate
+   * queued change; the legacy path below is fixed because its fresh-slug rule
+   * made the duplicate certain rather than possible.
+   */
+
   const to =
     kind === 'sessions'
       ? layout.sessionRoot(handle, name)
@@ -293,12 +375,170 @@ async function restoreNow(layout: Layout, handle: string, id: string): Promise<R
   if (kind === 'sessions') {
     return { ok: true, path: to, restored: { kind: 'session', sessionId: name } };
   }
-  const schemaId = (Object.entries(LIBRARY_DIRECTORIES) as [PortableSchemaId, string][]).find(
-    ([, directory]) => directory === kind,
-  )?.[0];
+  const schemaId = kindOfDirectory(kind);
   // `splitTrashId` admitted only the library's directories and `sessions`.
-  if (schemaId === undefined) throw new Error(`No kind keeps its objects in ${kind}.`);
+  if (schemaId === null) throw new Error(`No kind keeps its objects in ${kind}.`);
   return { ok: true, path: to, restored: { kind: 'object', schemaId, slug: name } };
+}
+
+/**
+ * ***A legacy entry, restored into its kind's current folder*** — [P16 §1.1].
+ *
+ * In the order that leaves one readable object wherever it stops: the folder
+ * moves into `library/worlds/` under a free name, the file it carried —
+ * `package.json`, saying `storyengine.package/1` — is rewritten in place under
+ * the kind's id, and then renamed `world.json`, exactly as the first write's
+ * move leaves one (`library.ts`, `relocateLegacy`). The layout reads the old
+ * file name in the new folder, so a restore interrupted after the move is a
+ * World that reads rather than one that vanished.
+ *
+ * **The body is changed in its `schema` and nothing else**, and written in the
+ * library's own JSON form (`writeJsonAtomic` is the same two spaces and newline
+ * `encodeObject` writes), so restoring a Package is the rename and no more. A
+ * file that will not parse is left as it is, under its old name: it is
+ * somebody's damaged object, the library lists it as a file error where it
+ * lands, and rewriting what cannot be read is how a restore would lose it.
+ *
+ * *Not snapshotted into history*: the change is the format's, not the person's,
+ * and the version before it would be the same object under its old name.
+ */
+async function restoreLegacy(
+  layout: Layout,
+  handle: string,
+  from: string,
+  schemaId: PortableSchemaId,
+  name: string,
+  idIsLive: ((id: string) => boolean) | null,
+): Promise<RestoreOutcome> {
+  const owner = userOwner(handle);
+  const kindRoot = layout.kindRoot(owner, schemaId);
+
+  /**
+   * ***The free name is looked for and claimed on the kind's turn*** — the
+   * library's own queue (`storage/library-writes.ts`), the one a create of a
+   * World and the first-write move take for the same reason (2026-10-10, after
+   * review). Chosen on the trash's queue alone, a create of a World named the
+   * same could resolve the same folder between the look and the rename, and a
+   * POSIX rename onto the empty directory it had just made succeeds without a
+   * word — so the refusal below would never be reached.
+   */
+  let slug: string;
+  let reminted: { from: string; to: string; name: string } | null;
+  try {
+    ({ slug, reminted } = await libraryWrites.run(`kind:${kindRoot}`, async () => {
+      // On the same turn as a create of the kind, whose own id check runs
+      // there: an import landing this id cannot slip between the look and
+      // the move.
+      const fresh = idIsLive === null ? null : await remintIfLive(from, schemaId, idIsLive);
+      const free = await resolveFreeFolder(kindRoot, name);
+      await moveTree(from, layout.objectRoot(owner, schemaId, free));
+      return { slug: free, reminted: fresh };
+    }));
+  } catch (error) {
+    // Gone between the look and the rename is the refusal `restoreNow` gives;
+    // anything else is the failure it was.
+    if (!(await exists(from))) return { ok: false, reason: 'not-found' };
+    throw error;
+  }
+  const to = layout.objectRoot(owner, schemaId, slug);
+
+  /**
+   * ***Rewritten in place, then renamed*** — the first write's order
+   * (`library.ts`, `relocateLegacy`), so every state this can stop in is one
+   * file that reads. Writing `world.json` first and then removing the old file
+   * left both for a moment, holding one id, and a crash there was a duplicate
+   * the next edit would never resolve (2026-10-10, after review).
+   */
+  const current = layout.objectFile(owner, schemaId, slug);
+  if (!(await exists(current))) {
+    for (const legacyName of objectFilenames(schemaId).slice(1)) {
+      const carried = layout.objectFileIn(kindRoot, slug, legacyName);
+      const bytes = await readFileBytes(carried);
+      if (bytes === null) continue;
+      let body: unknown;
+      try {
+        body = JSON.parse(new TextDecoder().decode(bytes));
+      } catch {
+        break;
+      }
+      await writeJsonAtomic(carried, upgradeLegacySchema(body));
+      if (!(await fileExists(current))) await renamePath(carried, current);
+      break;
+    }
+  }
+
+  return {
+    ok: true,
+    path: to,
+    restored: { kind: 'object', schemaId, slug },
+    ...(reminted === null ? {} : { reminted }),
+  };
+}
+
+/**
+ * ***A legacy entry whose id is held again comes back under a new one*** —
+ * 2026-10-11, the [P16 audit] (safety finding 1).
+ *
+ * **What happened without it.** A Package trashed under alpha 6, then the
+ * `.sepack.json` exported before the delete (or a backup taken before it)
+ * imported on this build: the import sees no live row for the id — the old
+ * one is tombstoned, or matured away — and lands it as a World, which the
+ * person then plays in. Restoring the trash entry then found a free folder
+ * (the fresh-slug rule above, *never occupied*), rewrote the body under the
+ * **same id**, and answered *restored*. Two Worlds, one id, and the index's
+ * tie-break by path put `rain-city-2/` before `rain-city/` — so the stale copy
+ * took the id over, and every by-id read, edit, start and publish went to it,
+ * the World with the person's session in it shadowed. Gate row 1's walk (a
+ * Package in the trash and a pre-P16.0 archive imported) is that sequence.
+ *
+ * **Re-minted rather than refused**, because a legacy entry must never strand:
+ * refusing would leave it in the trash with no remedy — renaming frees no id —
+ * which is the stranding [P16 §1.1] built the legacy restore to prevent. So
+ * the trashed body is rewritten **in the trash**, before the folder moves into
+ * the watched library tree, with a fresh `uuidv7` and its kind's current
+ * schema, and the restore lands it as a World of its own. The restore's answer
+ * says so (`trash.restore.reminted`), so the person knows the copy they
+ * brought back is a second World and not the one they have been using.
+ * *Whoever holds the id* (2026-10-11, the review of the audit's fixes): ids
+ * are the install's, so the look is the index's whole table, and the holder
+ * may be another account's import of the same file — the re-mint is right
+ * either way, and the note's params and the client's sentence name nothing
+ * of whose it is.
+ *
+ * *Only the body's own `id`.* Its history stays as it is and names the old id
+ * — ~~restoring one of its earlier versions is refused (*an object cannot
+ * change its id*), which is said in the report rather than repaired here~~:
+ * a version restored is restored under the object's own id (`library.ts`,
+ * `restoreVersion`, 2026-10-11, the review of the audit's fixes), because a
+ * history is content-addressed and rewriting it here would re-address every
+ * payload for nothing the restore needs. A body that
+ * will not parse, or has no string `id`, is left for the rename below to land
+ * as it does today.
+ */
+async function remintIfLive(
+  from: string,
+  schemaId: PortableSchemaId,
+  idIsLive: (id: string) => boolean,
+): Promise<{ from: string; to: string; name: string } | null> {
+  for (const filename of objectFilenames(schemaId)) {
+    const path = join(from, filename);
+    const bytes = await readFileBytes(path);
+    if (bytes === null) continue;
+    let body: unknown;
+    try {
+      body = JSON.parse(new TextDecoder().decode(bytes));
+    } catch {
+      return null;
+    }
+    if (typeof body !== 'object' || body === null || Array.isArray(body)) return null;
+    const id = (body as { id?: unknown }).id;
+    if (typeof id !== 'string' || !idIsLive(id)) return null;
+    const fresh = uuidv7();
+    const name = (body as { name?: unknown }).name;
+    await writeJsonAtomic(path, { ...upgradeLegacySchema(body), id: fresh });
+    return { from: id, to: fresh, name: typeof name === 'string' ? name : '' };
+  }
+  return null;
 }
 
 /**

@@ -362,7 +362,20 @@ export async function identifyNative(
       prior.slug,
       object,
     );
-    if (encoded === prior.contentHash) return { kind: 'unchanged', id: prior.id };
+    /**
+     * ***A prior still under its kind's old name*** — [P16 §1.1]. A Package
+     * nobody has edited since the upgrade is the old bytes on disk, saying
+     * `storyengine.package/1`, and the object arriving has been read as the
+     * World it is; so the two can never hash alike, and a backup imported over
+     * the library it came from would report every such World as changed. The
+     * index holds the prior's body already upgraded, and encoding *that* is the
+     * hash the prior would have under the name every write now gives it.
+     */
+    const priorHash =
+      context.layout.parseObjectPath(prior.path)?.legacy === true
+        ? await encodeForCompare(context, userOwner(handle), schemaId, prior.slug, prior.body)
+        : prior.contentHash;
+    if (encoded === priorHash) return { kind: 'unchanged', id: prior.id };
     return { kind: 'changed', id: prior.id, contentHash: prior.contentHash };
   } catch {
     // As above: encoding is the only way to know, so a failure means we cannot

@@ -6,28 +6,30 @@ import { describe, expect, it } from 'vitest';
 import {
   newActor,
   newLorebook,
-  newPackage,
   newPreset,
   newTreatment,
   newSetup,
+  newWorld,
 } from '../factories.js';
 import { ACTOR_SCHEMA } from './actor.js';
-import { PACKAGE_SCHEMA } from './package.js';
 import {
   createValidator,
   isKnownSchema,
   isTimestamp,
+  kindOfDirectory,
+  LEGACY_LIBRARY_DIRECTORIES,
   LIBRARY_DIRECTORIES,
   PORTABLE_SCHEMAS,
   schemaIdOf,
   validate,
 } from './registry.js';
+import { LEGACY_PACKAGE_SCHEMA, upgradeLegacySchema, WORLD_SCHEMA } from './world.js';
 
 /**
  * One minimal instance of every kind — **all six** (F18).
  *
  * Package was missing, which made "a minimal instance of every kind validates"
- * a claim about five of them. It is the kind least like the others and so the
+ * a claim about five of them — the kind that is World from [P16.0]. It is the kind least like the others and so the
  * most worth including: a container whose contents are open by design, and the
  * one whose round trip has never been exercised.
  */
@@ -37,7 +39,7 @@ const library = {
   treatment: newTreatment('Rain City, noir'),
   setup: newSetup('The Fixer’s Debt'),
   preset: newPreset('House style'),
-  package: newPackage('The Rain City bundle'),
+  world: newWorld('Rain City'),
 };
 
 describe('the registry', () => {
@@ -53,13 +55,13 @@ describe('the registry', () => {
     // The registry is the mechanism behind "every portable object
     // self-describes, so containers never enumerate kinds"
     // ([work plan §2](../../../../docs/design/workplan/01-work-plan.md)). If a kind is added to the design
-    // and not here, a Package would carry it as unrecognised.
+    // and not here, a World would carry it as unrecognised.
     expect(Object.keys(PORTABLE_SCHEMAS).sort()).toEqual(
       [
         'storyengine.actor/1',
         'storyengine.lorebook/1',
-        'storyengine.package/1',
         'storyengine.preset/0',
+        'storyengine.world/1',
         'storyengine.treatment/1',
         'storyengine.setup/1',
       ].sort(),
@@ -68,10 +70,62 @@ describe('the registry', () => {
 
   it('gives every portable kind a library directory', () => {
     // [03 §5.1](../../../../docs/design/03-data-model.md) lists all six under
-    // users/<handle>/library/, `packages/` included. A kind added to the
+    // users/<handle>/library/, `worlds/` included. A kind added to the
     // registry without a directory would have nowhere to be written.
     expect(Object.keys(LIBRARY_DIRECTORIES).sort()).toEqual(Object.keys(PORTABLE_SCHEMAS).sort());
-    expect(LIBRARY_DIRECTORIES[PACKAGE_SCHEMA]).toBe('packages');
+    expect(LIBRARY_DIRECTORIES[WORLD_SCHEMA]).toBe('worlds');
+  });
+
+  /**
+   * ***The kind's old name is read and never written*** — [P16 §1.1]. Each
+   * assertion fails with its alias removed, which is what makes the legacy read
+   * a test rather than a promise.
+   */
+  describe('the World kind, renamed from Package at P16.0', () => {
+    it('does not register the old id as a kind of its own', () => {
+      // Six stays six: the old id is read as a World, not listed beside it.
+      expect(isKnownSchema(LEGACY_PACKAGE_SCHEMA)).toBe(false);
+      expect(Object.keys(PORTABLE_SCHEMAS)).toHaveLength(6);
+    });
+
+    it('reads the old folder as the World kind, and the current name first', () => {
+      expect(LEGACY_LIBRARY_DIRECTORIES['packages']).toBe(WORLD_SCHEMA);
+      expect(kindOfDirectory('packages')).toBe(WORLD_SCHEMA);
+      expect(kindOfDirectory('worlds')).toBe(WORLD_SCHEMA);
+      expect(kindOfDirectory('actors')).toBe('storyengine.actor/1');
+      expect(kindOfDirectory('campaigns')).toBeNull();
+      // An own key or nothing, as `validatorFor` learned the hard way.
+      expect(kindOfDirectory('constructor')).toBeNull();
+    });
+
+    it('upgrades a body in the old name to a World that validates', () => {
+      const legacy = { ...library.world, schema: LEGACY_PACKAGE_SCHEMA };
+      const upgraded = upgradeLegacySchema(legacy);
+      expect(schemaIdOf(upgraded)).toBe(WORLD_SCHEMA);
+      expect(validate(upgraded)).toEqual({ valid: true });
+      // Everything but the id is the body it was.
+      expect({ ...upgraded, schema: LEGACY_PACKAGE_SCHEMA }).toEqual(legacy);
+    });
+
+    it('never mutates what it was handed, and leaves every other body alone', () => {
+      const legacy = { ...library.world, schema: LEGACY_PACKAGE_SCHEMA };
+      upgradeLegacySchema(legacy);
+      expect(legacy.schema).toBe(LEGACY_PACKAGE_SCHEMA);
+      // The same reference back, so a caller comparing identities sees no copy.
+      expect(upgradeLegacySchema(library.actor)).toBe(library.actor);
+      expect(upgradeLegacySchema(library.world)).toBe(library.world);
+      expect(upgradeLegacySchema(null)).toBeNull();
+      expect(upgradeLegacySchema('storyengine.package/1')).toBe('storyengine.package/1');
+    });
+
+    it('does not validate an old-named body as a World without the upgrade', () => {
+      // The upgrade is explicit at every door, and this is why: `validate`
+      // answers an unknown id with *valid*, so a door that forgot it would
+      // take a Package body as an unrecognised kind rather than as a World.
+      const legacy = { ...library.world, schema: LEGACY_PACKAGE_SCHEMA };
+      expect(validate(legacy)).toEqual({ valid: true });
+      expect(isKnownSchema(schemaIdOf(legacy) ?? '')).toBe(false);
+    });
   });
 
   it('reads the schema id off a self-describing object', () => {
@@ -108,7 +162,7 @@ describe('the registry', () => {
   });
 
   it('accepts a kind it has never heard of rather than rejecting it', () => {
-    // A Package may legitimately contain a kind this build does not know —
+    // A World may legitimately contain a kind this build does not know —
     // Campaign, at 2.0. Rejecting it is the stranding §2 forbids: the object
     // must survive a round trip through an older reader.
     expect(isKnownSchema('storyengine.campaign/1')).toBe(false);

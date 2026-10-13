@@ -99,8 +99,12 @@ export const DEFAULT_ZIP_FILE_LIMITS: ZipFileLimits = {
  * forty-six bytes and a name per entry — and 4,096 entries with the longest
  * names and extras the format allows would be far past this; an end record
  * that claims more is refused rather than believed into memory.
+ *
+ * *Exported since [P16.3c]'s review (2026-10-10)*: the zip writer holds the
+ * bound too, so a World file is never one this reader refuses — and it is a
+ * bound on names, which no count or size limit says.
  */
-const MAX_CENTRAL_BYTES = 16 * 1024 * 1024;
+export const MAX_CENTRAL_BYTES = 16 * 1024 * 1024;
 
 /** An archive on disk, open. {@link ZipFile.close} lets go of the handle. */
 export class ZipFile {
@@ -349,7 +353,7 @@ export async function landEntryWithLog(
   if (free !== null && free < needed) throw new SnapshotSpaceError(needed, free);
 
   // The last segment, which is one the resolver takes: an entry's name is
-  // already safe (`zip.ts`'s `safeName`), and the space holds nothing else.
+  // already safe (`zip.ts`'s `safeZipName`), and the space holds nothing else.
   const name = path.split('/').pop() ?? path;
   const space = await openImportScratch(options.layout);
   try {

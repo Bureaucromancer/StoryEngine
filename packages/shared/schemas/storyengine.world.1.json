@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://storyengine.dev/schemas/storyengine.package.1.json",
-  "title": "Package",
-  "description": "No `entry` field. A package containing one or more Setups is startable, and that is the whole mechanism. A package with no Setup is a content drop — \"here are five characters and a lorebook\" — which is a perfectly good thing to share and had no home before.",
+  "$id": "https://storyengine.dev/schemas/storyengine.world.1.json",
+  "title": "World",
+  "description": "A named set of library objects and sessions, held as references. No `entry` field: a World containing one or more Setups is startable, and that is the whole mechanism. A World with no Setup is a content drop — \"here are five characters and a lorebook\" — which is a perfectly good thing to share. Read from `storyengine.package/1` as well, the name the kind had before it was renamed.",
   "type": "object",
   "required": [
     "schema",
@@ -18,7 +18,7 @@
   ],
   "properties": {
     "schema": {
-      "const": "storyengine.package/1",
+      "const": "storyengine.world/1",
       "type": "string"
     },
     "id": {

@@ -18,7 +18,7 @@ size with much of the intended application still ahead of it. Modes, richer
 editors, memory inspection, renditions and localisation will add browser code;
 Write, World and authoring add whole surfaces later *(World adds no surface —
 [15 §3](15-world.md) — but its 1.0 half brings a panel's editor, a picker and a
-publish review into the library at [P16](workplan/35-p16-world.md), corrected
+publish review into the library at [P16](workplan/34-p16-world.md), corrected
 2026-10-04)*. The next few phases should
 be expected to increase the bundle. Neither ordinary cleanup nor the end of
 the current phase is a reason to expect that trend to reverse.
@@ -101,7 +101,7 @@ different kinds of pressure:
   boundary as well as a feature boundary.
 - **Later surfaces:** Write's binder and prose tooling, World, and authoring.
   *(World is not a surface — [15 §3](15-world.md); its 1.0 half is library code
-  at [P16](workplan/35-p16-world.md), which belongs with the library's routes
+  at [P16](workplan/34-p16-world.md), which belongs with the library's routes
   rather than with resuming Play, and its continuity half is later. Noted
   2026-10-04.)*
   Their release order remains [work plan §0](workplan/01-work-plan.md)'s. They
@@ -571,3 +571,29 @@ The first three fail the structural check and the ceiling; the last two fail
 against the built server, on a throwaway install: the setup page fetched only
 the entry's files, `readers` arrived once on reaching `/`, the dock's list
 followed with no second request, and choosing an older release redrew at once.
+
+### 7.4 The publish review is a route of its own (2026-10-11)
+
+**What forced it was named in advance.** `tools/entry-budget.test.ts`'s last raise
+left about five kilobytes and said P16.3's review was the next candidate for a
+`lazy()`; P16.3f had already taken the World import's look off the entry, which
+put the entry at 309.69 against 312. The review — a list of every level of a
+closure, its choices, its sentences — imported statically measured **320.11**.
+
+**The boundary.** `/library/publish` is its own route, and `PublishRoute.tsx` — the
+half on the entry — reads the address, says it is loading, and holds the
+`lazy()` and its error boundary; everything else is one chunk, about 10 kB
+gzipped, fetched when the review is opened. The selection bar and the doors
+stay on the entry, because they are drawn on pages everybody visits.
+
+**What the boundary taught, which is the reason for this section.** A module the
+entry reads pulls its whole file onto a preloaded chunk: with `shared/publish.ts`
+imported by the entry through one constant, the bundler moved `fileSet` and the
+closure's types onto a file `index.html` preloads, and the entry measured
+**313.44** with the review lazy. The constants moved to
+`shared/publish-constants.ts`, and the chunk imports no entry-only module the
+bundler would split — `locale` and the file saver are passed in, and its checkbox
+copies `CheckboxField`'s markup rather than importing `ui/Field`. The entry
+measured **311.66**, then **311.84** with review's fixes: 0.16 kB under a
+ceiling this stage did not raise. *The next client change of any size meets it.*
+

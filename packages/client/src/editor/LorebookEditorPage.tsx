@@ -46,6 +46,7 @@ import {
   withoutEntry,
   type Draft,
 } from './book-form.js';
+import { BookScope } from './BookScope.js';
 import { EditorFrame } from './EditorFrame.js';
 import { useObjectEditor, type EditorKind } from './object-editor.js';
 import { EntryFields } from './EntryFields.js';
@@ -414,6 +415,26 @@ function Editor(props: EditorProps): JSX.Element {
         required={isRequiredField('lorebooks', 'name')}
         error={missing.includes('name') ? 'A lorebook needs a name.' : null}
         hint="What the library shelf calls it. Renaming does not move the file."
+      />
+
+      {/*
+       * ***The book's scope*** — [P16.2], [15 §5.3]. Beside the name and
+       * above the knobs, because it is a statement about the book rather than
+       * tuning: P16 §1.3 gives it a surface *with* the `world` arm, the first
+       * thing since [P5.7] that reads it, so that [15 §8]'s *watch whether the
+       * arm gets set* measures the idea rather than a missing control.
+       *
+       * ***Merged on a 412 as an ordinary book field*** — `reapplyBookEdits`'
+       * `withMyBookFields`, with no line of its own: `scope` is one value, so
+       * *did I change it from what I opened* is the whole question, and a scope
+       * I left alone takes theirs.
+       */}
+      <BookScope
+        scope={draft['scope']}
+        saved={base.object['scope']}
+        onSet={(scope) => {
+          edit((current) => ({ ...current, scope }));
+        }}
       />
 
       <BookRetrieval

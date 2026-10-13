@@ -11,8 +11,13 @@ import {
   TREATMENT_SCHEMA,
   type ImportDestination,
   type ImportNote,
+  type ImportedWorld,
   type ImportPreview,
   type NearMissOffer,
+  type PublishChoices,
+  type PublishPreview,
+  type PublishRecord,
+  type PublishStart,
   type Turn as TurnRecord,
   type TurnPreview,
 } from '@storyengine/shared';
@@ -529,6 +534,12 @@ export interface ImportFileResult {
   report?: ImportReport;
   /** The recorded upload (2026-09-28), which *Earlier imports* can open again. */
   jobId: string;
+  /**
+   * ***The World the file landed*** — [P16.3f]: what the panel leads its
+   * review with, read by the server off the World's own row. Absent when the
+   * file landed none.
+   */
+  world?: ImportedWorld;
 }
 
 export interface Credentials {
@@ -582,8 +593,77 @@ export interface TakenFile {
   fileName: string | null;
   /** What an export left out — empty for a download, which converts nothing. */
   notes: Pick<ImportNote, 'key' | 'params'>[];
-  /** How many objects a package names and its file does not carry. */
+  /*
+   * ~~`missing`: how many objects a World names and its export does not
+   * carry~~ — gone with that export (2026-10-11, [P16.3g]). It was read from
+   * `x-storyengine-missing`, which only `GET /library/worlds/:id/export` sent,
+   * and that route is removed: a World leaves through Publish, whose answer
+   * {@link PublishedFile} reads the same header.
+   */
+}
+
+/**
+ * ***What `api.publish` hands back*** — the World file, and what its answer said
+ * beside it ([P16.3g](../../../docs/design/workplan/34-p16-world.md), the
+ * headers [docs/api.md](../../../docs/api.md)'s *Publish* section names).
+ *
+ * **Headers, because the body is the file** — P11.10's rule, which the confirm
+ * route keeps: everything the review says after a publish is read from here and
+ * nothing from the bytes, so the client never opens the zip it was handed.
+ */
+export interface PublishedFile {
+  blob: Blob;
+  /** `content-disposition`'s ASCII name — `<name>.seworld` — or null when it gave none. */
+  fileName: string | null;
+  /**
+   * `x-storyengine-world`: the World **this publish kept** — a selection of two
+   * or more kept as a World. `null` for a World start (the caller has its id,
+   * and nothing was kept), one object, and a snapshot.
+   */
+  world: string | null;
+  /**
+   * `x-storyengine-review-drift: 1` — the library changed between the review
+   * and the confirm, so the file is the library as it is now and not exactly
+   * what the person read ([16 §5]'s *the honest failure rather than a
+   * prevented one*).
+   */
+  drift: boolean;
+  /** What the file does not carry and says so — warnings first, capped; the manifest holds the rest. */
+  notes: Pick<ImportNote, 'key' | 'params'>[];
+  /** `x-storyengine-missing`: references the file would have followed and could not. */
   missing: number;
+}
+
+/**
+ * ***A refusal from `POST /api/publish` that names a World it kept*** —
+ * `409 publish.changed`, the one refusal that can leave one behind (docs/api.md).
+ *
+ * **Lifted onto the error for `ApiError.current`'s reason**: a caller digging
+ * `world` out of an untyped body is a caller that can read the wrong key, and
+ * this is the one fact the review must not lose — a World now exists that the
+ * person did not see made, and their next *Publish* would make a second.
+ */
+export class PublishError extends ApiError {
+  /**
+   * `name` is `null` for `publish.interrupted` — a `200` whose body failed after
+   * its headers, which name the World by id alone; the review has the name it
+   * sent (2026-10-11, the P16.3g review).
+   */
+  readonly world: { id: string; name: string | null } | null;
+
+  constructor(base: ApiError, world: { id: string; name: string | null } | null) {
+    super(base.status, base.code, base.message);
+    this.name = 'PublishError';
+    this.world = world;
+  }
+}
+
+/** The `world` a `409 publish.changed` names, when it names one. */
+function keptWorldOf(payload: Record<string, unknown> | null): { id: string; name: string } | null {
+  const world = payload?.['world'];
+  if (typeof world !== 'object' || world === null) return null;
+  const { id, name } = world as { id?: unknown; name?: unknown };
+  return typeof id === 'string' && typeof name === 'string' ? { id, name } : null;
 }
 
 /**
@@ -934,6 +1014,31 @@ export const api = {
     request('DELETE', objectUrl(kind, id), undefined, { 'if-match': contentHash }),
 
   /**
+   * ***Add to a World, from somewhere that is not its editor*** —
+   * [P16.1](../../../docs/design/workplan/34-p16-world.md),
+   * [P16 §1.2](../../../docs/design/workplan/34-p16-world.md).
+   *
+   * **Not `updateObject` with one more envelope**, and the difference is who
+   * holds the World. Its editor read it and owns the hash it presents, so it
+   * writes the whole object like every editor; a button on a session's page
+   * read nothing, and a read-modify-write done here would lose whatever a
+   * second tab saved in between. The server does the add against the World as
+   * stored, idempotent by id, and answers what it stored — so *no hash is
+   * sent*: an add overwrites nothing this client read.
+   *
+   * *The address is spelled out rather than built on `objectUrl`*, because the
+   * route is `worlds` and nothing else — and `route-callers.test.ts` credits a
+   * literal segment only to a route whose segment is that literal, so
+   * `` `${objectUrl(kind, id)}/members` `` would leave the route uncalled in its
+   * eyes while calling it in fact.
+   */
+  addWorldMembers: (
+    worldId: string,
+    members: readonly { schema: string; id: string; name?: string }[],
+  ): Promise<{ contentHash: string; object: Record<string, unknown> }> =>
+    request('POST', `/api/library/worlds/${encodeURIComponent(worldId)}/members`, { members }),
+
+  /**
    * ***A file from a download or export route, and what its answer said***
    * (2026-09-28) — gap round A5.4.
    *
@@ -941,8 +1046,9 @@ export const api = {
    * give below — a `fetch` rebuilds what the browser already does — and for
    * these routes it does not hold, because the answer says things the page
    * has to read. An export names what it left out in
-   * `x-storyengine-export-notes`; a package counts the objects it could not
-   * include in `x-storyengine-missing`; and a refusal is a JSON body, which a
+   * `x-storyengine-export-notes`; a World's export (a package's, until
+   * [P16.0]) counts the objects it could not include in
+   * `x-storyengine-missing`; and a refusal is a JSON body, which a
    * browser following a link saves as the file. None of the three reached
    * anybody.
    *
@@ -960,9 +1066,96 @@ export const api = {
       blob: await response.blob(),
       fileName: fileNameOf(response.headers.get('content-disposition')),
       notes: exportNotesOf(response.headers.get('x-storyengine-export-notes')),
-      missing: missingCountOf(response.headers.get('x-storyengine-missing')),
     };
   },
+
+  /**
+   * ***What a publish would send, and why*** — `POST /api/publish/preview`,
+   * [P16.3g](../../../docs/design/workplan/34-p16-world.md),
+   * [16 §5](../../../docs/design/16-publish.md).
+   *
+   * **Writes nothing**, on the server or here: the review runs `fileSet` over
+   * the closure this answers, live, as the person ticks — the one rule the
+   * confirm writes with — and sends the ticks back. A POST because the start is
+   * a body (up to `PUBLISH_MAX_START` ids), so it carries the CSRF header like
+   * any other.
+   */
+  previewPublish: (start: PublishStart): Promise<PublishPreview> =>
+    request('POST', '/api/publish/preview', { start }),
+
+  /**
+   * ***The file*** — `POST /api/publish`, [P16.3g].
+   *
+   * **`fetch` rather than `request`**, for `takeFile`'s reason one method up:
+   * the answer is bytes and its headers say what the review then says, which
+   * `request` (a JSON reader) would drop. The CSRF header rides as on every
+   * state-changing call — this is one: a selection kept as a World is the
+   * publish's one library write ([16 §3]).
+   *
+   * `reviewed` is the preview's hash, sent so a library that changed while the
+   * person looked is *reported* (`drift`) rather than silently published.
+   */
+  publish: async (
+    start: PublishStart,
+    choices: PublishChoices,
+    reviewed?: string,
+  ): Promise<PublishedFile> => {
+    const headers: Record<string, string> = { 'content-type': 'application/json' };
+    const token = cookieValue(document.cookie, CSRF_COOKIE);
+    if (token !== null) headers[CSRF_HEADER] = token;
+    const response = await fetch('/api/publish', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ start, choices, ...(reviewed === undefined ? {} : { reviewed }) }),
+    });
+    if (!response.ok) {
+      const payload = (await response.json().catch(() => null)) as Record<string, unknown> | null;
+      throw new PublishError(refusalFrom(response.status, payload), keptWorldOf(payload));
+    }
+    /*
+     * ***Every header before the body*** (2026-10-11, the P16.3g review). A
+     * selection kept as a World is kept before the file streams, and the
+     * header names it; a body that fails part way — a restart, a dropped
+     * connection — rejected `blob()` before the header was read, so the review
+     * said *nothing was published* and offered Publish again, which keeps a
+     * second World (risk 14). So the headers are read first, and a body that
+     * does not arrive is a `PublishError` that still names what was kept.
+     */
+    const world = response.headers.get('x-storyengine-world');
+    const answer = {
+      fileName: fileNameOf(response.headers.get('content-disposition')),
+      world,
+      drift: response.headers.get('x-storyengine-review-drift') === '1',
+      notes: exportNotesOf(response.headers.get('x-storyengine-export-notes')),
+      missing: missingCountOf(response.headers.get('x-storyengine-missing')),
+    };
+    let blob: Blob;
+    try {
+      blob = await response.blob();
+    } catch {
+      throw new PublishError(
+        new ApiError(0, 'publish.interrupted', 'The file did not arrive.'),
+        world === null ? null : { id: world, name: null },
+      );
+    }
+    return { blob, ...answer };
+  },
+
+  /**
+   * ***What this account has published*** — `GET /api/publish/records`,
+   * newest first ([P16.3g]; [P16.3h]'s diff reads the same ledger through the
+   * preview's `previous`). `world` narrows to one World's — a World's page says
+   * how many times it has left, and when last.
+   */
+  publishRecords: (world?: string): Promise<{ count: number; records: PublishRecord[] }> =>
+    request(
+      'GET',
+      // Two whole literals, for `readNotifications`' reason: the route-callers
+      // scan reads a quoted `/api/…` with no whitespace in it.
+      world === undefined
+        ? '/api/publish/records'
+        : `/api/publish/records?world=${encodeURIComponent(world)}`,
+    ),
 
   /**
    * What that file *would* become, with nothing written ([10 §5], as amended).
@@ -1423,7 +1616,8 @@ export interface NewSession {
    * what it is. `sessionLabel` is what renders the gap in the meantime.
    */
   name?: string;
-  treatment?: string;
+  /** `null` is *no treatment*, overriding a Setup's or a World's ([P16.2]). */
+  treatment?: string | null;
   lore?: string[];
   preset?: string;
   /**
@@ -1483,8 +1677,38 @@ export interface NewSession {
    * a default a field beside it overrides — which is why a caller starting
    * *from* a Setup sends this and little else: a form's own defaults sent
    * alongside would quietly override the Setup the person chose.
+   *
+   * ***`null` is *no Setup*, said out loud*** (2026-10-12) — `treatment:
+   * null`'s reason. Since the owner's answer of that day the route starts a
+   * session sent with a `world` and no Setup through the World's Setup when it
+   * holds exactly one, so absent beside a World means *the World's*; the
+   * session form's *None* beside such a World is sent as `null`, which the
+   * route reads as none.
    */
-  setup?: string;
+  setup?: string | null;
+  /**
+   * ***A World to start in*** — [P16.2](../../../docs/design/workplan/34-p16-world.md),
+   * [P16 §1.3](../../../docs/design/workplan/34-p16-world.md).
+   *
+   * **A default one rung below the Setup's, and the session joins it.** The
+   * route fills `lore` with the World's lorebook members (beside a Setup's,
+   * when there is one) and `treatment` with its treatment when it holds exactly
+   * one — but only where the caller sent nothing, so a caller that sends its
+   * own `lore` and `treatment` is the one deciding. That is how the session
+   * form uses it: it shows the World's contribution as ticked books and a
+   * chosen treatment, lets the person change them, and sends what it shows
+   * beside this. The World's page sends this alone, and the route fills in
+   * everything. A World that is not there is `422 unknown-world`.
+   *
+   * ***And its Setup, when it holds exactly one*** — the owner's answer of
+   * 2026-10-12: with no `setup` sent, the route starts through the World's
+   * sole Setup exactly as if it had been named, the books and treatment above
+   * layered under it as they are under any Setup. So *the World's page sends
+   * this alone* now starts a World holding one Setup through that Setup; the
+   * form chooses the same Setup in its select, and sends it — or `null` for
+   * *None* — so that what it shows is what starts.
+   */
+  world?: string;
   /**
    * Which of the Setup's written openings to begin on — [03 §6], [P15.3].
    * Absent is its primary; `null` is *start cold*; an id names one.
@@ -1637,7 +1861,18 @@ export function createSession(input: NewSession): Promise<{
     // the wire honest about the fact that nothing was chosen.
     ...(input.name === undefined || input.name.trim() === '' ? {} : { name: input.name }),
     ...(input.treatment === undefined ? {} : { treatment: input.treatment }),
-    ...(input.lore === undefined || input.lore.length === 0 ? {} : { lore: input.lore }),
+    /**
+     * ***Empty travels beside a World*** — [P16.2]. Everywhere else an empty
+     * list is left off, because absent means *unset* and the route then has
+     * nothing to fill it from. Beside `world` it does have something: an absent
+     * `lore` is the World's books, so a person who unticked every one of them
+     * would get them all back. There the empty list is the choice, and it is
+     * sent as one ([00 §3.1]'s *prefill, never binding*).
+     */
+    ...(input.lore === undefined ||
+    (input.lore.length === 0 && (input.world === undefined || input.world === ''))
+      ? {}
+      : { lore: input.lore }),
     ...(input.preset === undefined ? {} : { preset: input.preset }),
     /**
      * **`actors: []` because the route's `CastBody` requires both members**, not
@@ -1666,7 +1901,10 @@ export function createSession(input: NewSession): Promise<{
     ...(input.modeConfig === undefined || Object.keys(input.modeConfig).length === 0
       ? {}
       : { modeConfig: input.modeConfig }),
+    // `null` travels — it is *no Setup* beside a World, which would otherwise
+    // supply its own (2026-10-12).
     ...(input.setup === undefined || input.setup === '' ? {} : { setup: input.setup }),
+    ...(input.world === undefined || input.world === '' ? {} : { world: input.world }),
     // `null` travels — it is *start cold*, a choice rather than an absence.
     ...(input.opening === undefined ? {} : { opening: input.opening }),
     // Only a choice somebody made: absent is every member's primary.
@@ -3338,7 +3576,12 @@ export function readTrash(): Promise<{ entries: TrashEntry[]; retentionDays: num
   return request('GET', '/api/me/trash');
 }
 
-export function restoreFromTrash(id: string): Promise<{ restored: boolean }> {
+/**
+ * `notes` — what the restore did that was not asked for, in the house note
+ * shape (2026-10-11, the [P16 audit]): today only a legacy entry brought back
+ * under a new id because its own was held. Absent from an older server.
+ */
+export function restoreFromTrash(id: string): Promise<{ restored: boolean; notes?: ImportNote[] }> {
   return request('POST', '/api/me/trash/restore', { id });
 }
 

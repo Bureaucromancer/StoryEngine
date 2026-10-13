@@ -6,7 +6,7 @@ import { basename, dirname, join } from 'node:path';
 
 import { mediaRowsIn, type PortableSchemaId } from '@storyengine/shared';
 
-import { LibraryError, read, type LibraryContext } from '../library.js';
+import { inObjectTurn, LibraryError, read, type LibraryContext } from '../library.js';
 import {
   ensureDirectory,
   listEntryNames,
@@ -16,7 +16,6 @@ import {
   writeFileBytes,
 } from '../storage/files.js';
 import { listVersions, readVersionPayload } from '../storage/history.js';
-import { userOwner, type LibraryOwner } from '../storage/layout.js';
 import { resolveAssetPath } from '../storage/paths.js';
 
 /**
@@ -103,31 +102,28 @@ export function digestOf(bytes: Uint8Array): string {
   return `sha256:${createHash('sha256').update(bytes).digest('hex')}`;
 }
 
-function ownerOf(row: { owner: string }, handle: string): LibraryOwner {
-  return row.owner === 'system' ? { kind: 'system' } : userOwner(handle);
-}
-
 interface ObjectRow {
-  owner: string;
-  schemaId: string;
-  slug: string;
+  /** The object file's path, as the index holds it — its folder is this one's parent. */
+  path: string;
 }
 
 /**
  * The object's folder, checked to be inside the data directory where it lands,
  * which is the check every read of the object file already makes
  * (`layout.assertReal`). {@link assetFile} then holds the assets to this folder.
+ *
+ * ***The folder the object is in, read off its path*** ([P16 §1.1], 2026-10-10).
+ * It was built from the row's kind and slug, which named the same folder for
+ * every object until a kind had two: a World still in `packages/` would have had
+ * its pictures stored in, read from and swept out of `worlds/<slug>/assets` —
+ * nothing, or **another World's**, made since under the same name.
  */
 async function objectFolder(
   context: LibraryContext,
-  handle: string,
+  _handle: string,
   row: ObjectRow,
 ): Promise<string> {
-  const root = context.layout.objectRoot(
-    ownerOf(row, handle),
-    row.schemaId as PortableSchemaId,
-    row.slug,
-  );
+  const root = context.layout.folderOf(row.path);
   await context.layout.assertReal(root);
   return root;
 }
@@ -150,8 +146,14 @@ async function objectFolder(
  * Rooted at the object and not at `assets`, because a check rooted at a link
  * resolves the root through the link too, and then everything is inside it.
  * An escape is a `PathEscapeError`, which the routes answer `422`.
+ *
+ * ***Exported at [P16.3c]***, for the World file's planner, which copies an
+ * object's pictures into the file beside it: *read*, *stored*, *swept* and now
+ * *published* resolve a row's `ref` through this one function, so a folder
+ * whose `assets` leads elsewhere is refused by the publish as it is by the
+ * other three, rather than copied into a file somebody else downloads.
  */
-async function assetFile(
+export async function assetFile(
   context: LibraryContext,
   handle: string,
   row: ObjectRow,
@@ -199,22 +201,25 @@ export async function copyAssets(
   toId: string,
   inKind?: PortableSchemaId,
 ): Promise<number> {
-  const source = read(context, handle, fromId, inKind);
-  const target = read(context, handle, toId, inKind);
-  if (target.owner === 'system') {
-    throw new LibraryError('read-only', 'System library objects cannot be edited.');
-  }
-  let copied = 0;
-  for (const row of mediaRowsIn(target.body)) {
-    if (['', '.', '..'].includes(basename(row.ref))) continue;
-    const bytes = await readFileBytes(await assetFile(context, handle, source, row.ref));
-    if (bytes === null) continue;
-    const landing = await assetFile(context, handle, target, row.ref);
-    await ensureDirectory(dirname(landing));
-    await writeFileBytes(landing, bytes);
-    copied += 1;
-  }
-  return copied;
+  // In the target's turn, for {@link storeAsset}'s reason.
+  return inObjectTurn(toId, async () => {
+    const source = read(context, handle, fromId, inKind);
+    const target = read(context, handle, toId, inKind);
+    if (target.owner === 'system') {
+      throw new LibraryError('read-only', 'System library objects cannot be edited.');
+    }
+    let copied = 0;
+    for (const row of mediaRowsIn(target.body)) {
+      if (['', '.', '..'].includes(basename(row.ref))) continue;
+      const bytes = await readFileBytes(await assetFile(context, handle, source, row.ref));
+      if (bytes === null) continue;
+      const landing = await assetFile(context, handle, target, row.ref);
+      await ensureDirectory(dirname(landing));
+      await writeFileBytes(landing, bytes);
+      copied += 1;
+    }
+    return copied;
+  });
 }
 
 /** What an upload becomes: a file on disk, and the row a manifest should carry. */
@@ -251,21 +256,32 @@ export async function storeAsset(
   mime: string,
   inKind?: PortableSchemaId,
 ): Promise<StoredAsset> {
-  const row = read(context, handle, id, inKind);
-  if (row.owner === 'system') {
-    throw new LibraryError('read-only', 'System library objects cannot be edited.');
-  }
+  /**
+   * ***In the object's turn, read inside it*** ([P16.0], 2026-10-10, after
+   * review). An object's folder never moved, so storing beside it needed no
+   * turn; the first write to a World still in `packages/` moves its folder, and
+   * an upload racing that save resolved the old folder, then recreated
+   * `packages/<slug>/assets` behind the move and wrote there — a ref the World
+   * would name and never find. Read in the turn, the folder is where the object
+   * is now.
+   */
+  return inObjectTurn(id, async () => {
+    const row = read(context, handle, id, inKind);
+    if (row.owner === 'system') {
+      throw new LibraryError('read-only', 'System library objects cannot be edited.');
+    }
 
-  const digest = digestOf(bytes);
-  const ref = `${ASSETS}/${digest.replace('sha256:', '')}.${EXTENSIONS[mime] ?? 'bin'}`;
+    const digest = digestOf(bytes);
+    const ref = `${ASSETS}/${digest.replace('sha256:', '')}.${EXTENSIONS[mime] ?? 'bin'}`;
 
-  // Written again when it is already there, which is also what renews an
-  // upload's grace in the sweep below.
-  const target = await assetFile(context, handle, row, ref);
-  await ensureDirectory(dirname(target));
-  await writeFileBytes(target, bytes);
+    // Written again when it is already there, which is also what renews an
+    // upload's grace in the sweep below.
+    const target = await assetFile(context, handle, row, ref);
+    await ensureDirectory(dirname(target));
+    await writeFileBytes(target, bytes);
 
-  return { ref, digest, bytes: bytes.length, mime };
+    return { ref, digest, bytes: bytes.length, mime };
+  });
 }
 
 /**

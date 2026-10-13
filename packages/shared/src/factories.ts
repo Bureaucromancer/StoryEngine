@@ -5,7 +5,7 @@ import { uuidv7 } from './ids.js';
 import { type Actor, ACTOR_SCHEMA, CONVENTIONAL_SECTION_IDS } from './schema/actor.js';
 import type { Openings, Provenance } from './schema/common.js';
 import { type Lorebook, LOREBOOK_SCHEMA, type LoreEntry } from './schema/lorebook.js';
-import { type Package, PACKAGE_SCHEMA } from './schema/package.js';
+import { type World, WORLD_SCHEMA } from './schema/world.js';
 import { type Preset, PRESET_SCHEMA } from './schema/preset.js';
 import { type Treatment, TREATMENT_SCHEMA } from './schema/treatment.js';
 import { type Setup, SETUP_SCHEMA } from './schema/setup.js';
@@ -99,26 +99,27 @@ export function newLorebook(name: string): Lorebook {
     name,
     description: '',
     /**
-     * **The widest value in the union, and that is an open question rather
-     * than a considered default** — [26 §B15](../../../docs/design/26-open-questions.md).
+     * ***Linked to nobody — the narrowest value in the union*** —
+     * [26 §B15](../../../docs/design/26-open-questions.md), recommended answer,
+     * owner deferred (overrule it there), built at
+     * [P16.2](../../../docs/design/workplan/34-p16-world.md), 2026-10-10.
      *
-     * It is harmless today because nothing reads `scope`: a lorebook reaches a
-     * session by being selected and by nothing else ([03 §3.4]). It was not
-     * harmless when [P5.7] briefly gave the field behaviour — this default, plus
-     * the SillyTavern importer's identical fallback, is what put every book a
-     * person owned into every session's prompt. Anything that gives `scope` a
-     * consumer again has to decide this line first, because a field nobody sets
-     * should not default to the most permissive answer it can hold.
+     * ~~The widest value in the union, and that is an open question rather
+     * than a considered default~~ — this was `{ kind: 'global' }` until P16.2.
+     * It was harmless while nothing read `scope`: a lorebook reaches a session by
+     * being selected and by nothing else ([03 §3.4]). It was not harmless when
+     * [P5.7] briefly gave the field behaviour — that default, plus the SillyTavern
+     * importer's identical fallback, is what put every book a person owned into
+     * every session's prompt. **A field nobody sets should not default to the
+     * most permissive answer it can hold**, and P16 is the phase that gives
+     * `scope` a reader again — the `world` arm, which waits on 26 §B16 — so the
+     * default was decided first, as the old comment here said it had to be.
      *
-     * *(2026-10-04: decided — 26 §B15 answers `{ kind: 'linked', actorIds: [] }`,
-     * a recommended answer the owner deferred, and
-     * [P16.2](../../../docs/design/workplan/35-p16-world.md) changes this line
-     * with the copy from a World's members, because the `world` scope arm it
-     * lands beside is what gives the field a consumer; the default itself
-     * changes no schema and does not wait on that arm. Until then the value
-     * below is still what ships, and still harmless.)*
+     * *It admits nothing either way.* `linked` with no actors is a book that says
+     * it belongs to nobody in particular, and selection is still what puts a book
+     * in play.
      */
-    scope: { kind: 'global' },
+    scope: { kind: 'linked', actorIds: [] },
     enabled: true,
     scanDepth: 2,
     tokenBudget: 2048,
@@ -285,21 +286,22 @@ export function newPreset(name: string): Preset {
 }
 
 /**
- * An empty package — the sixth kind, which had no factory (F18).
+ * An empty World — the sixth kind, which had no factory as a Package (F18).
  *
- * Empty is the honest default and not a placeholder: a package with no contents
- * is a container that has not been filled, and filling it is the *export* half
- * of P4. What this proves in the round-trip fixtures is the envelope — that a
- * Package survives a write and a read like every other kind — which is the
- * thing all six are checked for. It says nothing about the container's job,
- * because that job does not exist yet.
+ * Empty is the honest default and not a placeholder: a World with no contents
+ * is a set nobody has filled yet, and [P16.1]'s editor is where it gets filled.
+ * What this proves in the round-trip fixtures is the envelope — that a World
+ * survives a write and a read like every other kind — which is the thing all
+ * six are checked for.
  *
- * `version` is the package's own, not a schema version: two people can ship
- * `v2` of the same bundle ([04 §7](../../../docs/design/04-schemas.md)).
+ * `version` is the World's own, not a schema version: two people can ship
+ * `v2` of the same set ([04 §7](../../../docs/design/04-schemas.md)).
+ *
+ * ***Renamed from `newPackage` at [P16.0]***, with the kind.
  */
-export function newPackage(name: string): Package {
+export function newWorld(name: string): World {
   return {
-    schema: PACKAGE_SCHEMA,
+    schema: WORLD_SCHEMA,
     id: uuidv7(),
     name,
     version: '1.0.0',

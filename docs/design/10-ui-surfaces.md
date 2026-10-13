@@ -368,13 +368,13 @@ design note without an owner is precisely the defect
 
 The split is therefore explicit, and it is the last thing this section does:
 
-- **1.0, owned by [P12A](workplan/34-p12a-the-look.md)** — faces, the editable
+- **1.0, owned by [P12A](workplan/35-p12a-the-look.md)** — faces, the editable
   channel HUD, the backdrop's legibility mechanism, the motion vocabulary, the
   section jumps, ~~the story face,~~ and the phone rules below. Each discharges a
   commitment this corpus already made; P12A is where each is sized. *The story
   face left this list on 2026-10-02, at the merge that brought it in: `main`
   had built it the day before ([polish §17](workplan/06-polish.md)), and what
-  [P12A](workplan/34-p12a-the-look.md) keeps of it is the measure check.*
+  [P12A](workplan/35-p12a-the-look.md) keeps of it is the measure check.*
 - **Not 1.0, and not commitments** — the gallery view and per-step setup
   explanation. They are on the feature list ([25](25-roadmap.md))'s priorities,
   and if P12A reaches them they ship early rather than late.
@@ -398,7 +398,7 @@ responsive and genuinely usable, not phone-first.
 | Surface | What it is |
 |---|---|
 | **Play** | Scene, Freeform and later Campaign ([06 §7](06-modes-and-turn-pipeline.md)), plus the affordances that make starting and managing a story quick (§2.2) |
-| **Library** | Actors, lorebooks, treatments, setups, presets, packages — one panel per kind (§5), browse, edit, organise, import, export |
+| **Library** | Actors, lorebooks, treatments, setups, presets, Worlds — one panel per kind (§5), browse, edit, organise, import, export |
 | **Workbench** | Not a surface. An inspector panel that expands over whichever surface you are in — §3 |
 
 Plus the **reading view** (§12) — the story as prose, with the machinery
@@ -1127,7 +1127,7 @@ Where it should differ:
   choice rather than by default. If per-kind panels arrive and the mixed table
   goes, what several kinds show has to be re-answered here.
 - **Links are visible and bidirectional.** From a lorebook: which treatments,
-  actors and packages reference this. From an actor: which lorebooks it links.
+  actors and Worlds reference this. From an actor: which lorebooks it links.
   Missing links show as missing, inline, non-blocking ([00 §3.3](00-stance.md)).
   **Specified in §5.2** — the inbound direction carries a relationship the
   schemas deliberately leave unencoded, so it is not left to the page.
@@ -1186,6 +1186,14 @@ Where it should differ:
   one that does not fold. A stepper is refused on §1.1's grounds — and because
   the steps would be empty, the only decisions being *keep it or not* and, on a
   re-import, *replace or keep both*.
+
+  *(2026-10-10, [P16.3f](workplan/34-p16-world.md): **a World file previews from
+  its manifest**, under the same posture — nothing staged, the commit a second
+  upload. For a large file the client sends only the manifest's own entry, found
+  through the archive's directory, so *what is in this, and what of it do I
+  already have* is answered before the file is sent twice; the look is its own
+  chunk, loaded only when a World file is picked, and an ordinary zip falls back
+  to the folder look if it cannot load.)*
 - **Exchange below the object lives in the editors, not here.** A lorebook's
   entries import and export on their own (§11.2c), because the unit an author
   moves is often smaller than the unit the library browses. The library's job
@@ -1206,6 +1214,22 @@ Where it should differ:
 specified import at length and export not at all, and the surface matched: the
 object detail page carried a comment saying *there is no export path*, and it was
 accurate — nothing in the build downloaded a library object except a `.sepack`.
+
+*(2026-10-11, [P16.3g](workplan/34-p16-world.md): **a third door, Publish…**,
+sits beside Download on every object's page and is reached from a selection on
+the shelves and from a World's own page — [16](16-publish.md)'s closure, reviewed.
+Download stays the object as stored; Publish is what it names, every level, as a
+World file. **Bulk select is built** for it: *Select* beside the search box puts a
+checkbox on each row and *Select all shown*, and a bar says how many are chosen,
+announced as it changes; a World, a shadowed copy and a book play wrote cannot be
+chosen, each saying why to a screen reader. The selection survives a kind switch
+and nothing that changes who is signed in.)* *(Qualified 2026-10-11, the
+[P16](workplan/34-p16-world.md) final audit: ~~on every object's page~~ — on every
+object's page **but a shadowed copy's and a book play wrote**, the same two the
+selection refuses; a World's page has* Publish this world… *in its place. Leaving
+the memory book out of the page's door was the stage's own interpretation, not in
+the plan's list, and it is recorded here so the sentence above is not read as a
+promise the page breaks.)*
 
 That is the wrong kind of quiet for a surface whose whole claim (§2.1) is *the
 library is the model*: these are your objects, in folders you may open in a text
@@ -1257,7 +1281,7 @@ backwards: a writer takes the stored object and produces a document, and nothing
 is kept. The bundle direction is unchanged — [04 §9.1](04-schemas.md)'s
 *export-as-package* is still how a closure travels, and this is how one object
 does. *(2026-10-04: and that door is **Publish** from
-[P16.3](workplan/35-p16-world.md) — [16](16-publish.md), which keeps these two
+[P16.3](workplan/34-p16-world.md) — [16](16-publish.md), which keeps these two
 where they are and sends a single object back to Download when its closure is
 the object alone.)*
 
@@ -1268,7 +1292,10 @@ it and pretending otherwise is how it gets ignored.
 
 [03 §1](03-data-model.md) defines eight persistent kinds. Someone arriving from
 SillyTavern has priors for exactly two of them — a character card and world info
-— and no prior at all for Treatment, Setup, Preset or Package. Every one of those
+— and no prior at all for Treatment, Setup, Preset or ~~Package~~, *and a
+misleading one for World — the Package's name since
+[P16.0](workplan/34-p16-world.md), 2026-10-10 — because SillyTavern's World Info
+spends the word on what is here a lorebook*. Every one of those
 splits is *correct* and none should be undone; the Treatment/Setup split in
 particular is what Marinara's own scenario design identified and never built
 ([04 §7](04-schemas.md)). But correct is not the same as learnable.
@@ -1285,13 +1312,15 @@ while the world lived in the lorebook. And it cost the one property the library
 is actually for: saying plainly what the thing on disk is called.
 
 **So: the panels are named for the kinds.** Actors, Lorebooks, Treatments,
-Setups, Presets, Packages — six panels, no demotions, no presented subset, real
+Setups, Presets, Worlds — six panels, no demotions, no presented subset, real
 names. *(2026-10-04: **Packages becomes Worlds** at
-[P16.0](workplan/35-p16-world.md), because the kind is renamed —
+[P16.0](workplan/34-p16-world.md), because the kind is renamed —
 [15 §3](15-world.md). It is not the *Worlds* this section withdrew above: that
 was a friendlier alias for Treatment, sitting next to *Lorebooks* while the world
 lived in the lorebook; this is a panel named for the kind it shows, which is the
-rule this paragraph states.)* Per [§2.1](#21-the-library-is-the-model-play-is-the-product) the library
+rule this paragraph states.)* *(**2026-10-10: became** — P16.0 landed on branch
+`p16`, and the sixth panel, its route and its editor say Worlds where they said
+Packages.)* Per [§2.1](#21-the-library-is-the-model-play-is-the-product) the library
 is the model, and a model with a friendlier alias for two of its six types is not
 a model.
 
@@ -1335,7 +1364,7 @@ delivered as a view, where it costs no schema.
 **On a lorebook's page, a *Used by* section.** Grouped by kind, treatments first
 and rendered as cards with their `blurb` rather than as table rows, because
 "the three ways to play this world" is the thing a person came to see and a row
-in a list does not read as one. Actors, setups and packages follow as ordinary
+in a list does not read as one. Actors, setups and Worlds follow as ordinary
 rows.
 
 **With a *New treatment on this world* action in that section**, creating a
@@ -1359,6 +1388,16 @@ of one query, alongside the delete confirmation's reference counts
 ([03 §10.1](03-data-model.md)) and the package closure
 ([04 §9.1](04-schemas.md)). Anything that makes the index cheaper or staler is
 therefore a decision about all three at once.
+
+*(2026-10-10, [P16.3b](workplan/34-p16-world.md): **the dependency runs the other
+way now, and the panel says what it always meant to.** The closure is not a
+consumer of the index's query; since P16.3 both read 04 §9.1 through one reader,
+`library/references.ts` — the publish walker directly, the index through it —
+and a test holds the two to the same answer. Until then the index read a narrower
+table of its own, with no arm for an actor, so a lorebook's* Used by *never
+listed the actors that link it, though the paragraph above names them; it does
+now, and a treatment's counts the sessions played under it, and an actor's the
+sessions whose hooks name them.)*
 
 ### 5.3 The Lorebooks panel, and the book as a document
 
@@ -1590,7 +1629,7 @@ table exists. It is schema work, a query and a surface, and it is not this
 section's to unblock.
 
 One addition that costs no field: **a *played alongside* line** — which other
-lorebooks appear beside this one in the same Treatment's or Package's links.
+lorebooks appear beside this one in the same Treatment's or World's links.
 Co-occurrence computed rather than compatibility declared, so it is always
 current and cannot decay, which is why [11 §4.2](11-lorebooks-as-a-format.md)
 refuses the field version. Free once the link table exists, and impossible
@@ -1624,7 +1663,8 @@ Both sources use wizards and both wizards are good. Worth taking:
   shared *after* playing rather than by remembering to record it beforehand. Here
   it is stronger, because the snapshot is a real **Setup** object
   ([04 §7](04-schemas.md)) rather than a text file — editable, re-runnable, and
-  shareable by dropping it in a package.
+  shareable by dropping it in a World (a package, before
+  [P16.0](workplan/34-p16-world.md)).
 
 Where it differs: **the wizard is declared, not coded.** `ModeDefinition.setup`
 ([06 §2](06-modes-and-turn-pipeline.md)) is a schema the shell renders, so an
@@ -2393,7 +2433,7 @@ write path, no assist — is the model for the first pass.
 ### 11.3 Image slots
 
 Wherever an image can appear — actor avatar, sprites, gallery, treatment cover,
-lorebook entry art, package cover — the same four affordances: **upload,
+lorebook entry art, World cover — the same four affordances: **upload,
 generate, crop, replace.**
 
 **Cropping is non-destructive at the editing layer.** Marinara stores a

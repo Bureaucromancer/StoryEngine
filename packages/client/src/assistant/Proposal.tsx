@@ -3,6 +3,8 @@
 
 import { useState, type JSX } from 'react';
 
+import { kindOfDirectory, LIBRARY_DIRECTORIES } from '@storyengine/shared';
+
 import { isLibraryKind, type LibraryKind, type TurnRecord } from '../api.js';
 import { labels } from '../i18n/catalogue.js';
 import { useLibraryObject, useSaveObject, useTranscript } from '../queries.js';
@@ -79,7 +81,15 @@ export function latestProposal(turns: readonly TurnRecord[]): Change | null {
       if (value === null) return null;
       if (typeof value !== 'object') continue;
       const row = value as { kind?: unknown; id?: unknown; changes?: unknown; why?: unknown };
-      if (!isLibraryKind(row.kind) || typeof row.id !== 'string') continue;
+      /**
+       * ***A proposal made before the rename names `packages`*** (2026-10-10,
+       * [P16.0]). The turn record keeps the effect as it was written, and a
+       * World was a Package then, so the folder name is read through the
+       * legacy table to the kind it is now — the same reading the server's
+       * propose step gives a context the panel disclosed before the upgrade.
+       */
+      const kind = typeof row.kind === 'string' ? currentKindOf(row.kind) : null;
+      if (kind === null || typeof row.id !== 'string') continue;
       if (typeof row.changes !== 'object' || row.changes === null) continue;
 
       const changes: Record<string, string> = {};
@@ -88,7 +98,7 @@ export function latestProposal(turns: readonly TurnRecord[]): Change | null {
       }
       if (Object.keys(changes).length === 0) continue;
       return {
-        kind: row.kind,
+        kind,
         id: row.id,
         changes,
         ...(typeof row.why === 'string' ? { why: row.why } : {}),
@@ -294,4 +304,12 @@ function Offer(props: { change: Change; onDone: () => void }): JSX.Element | nul
       </div>
     </section>
   );
+}
+
+/** A folder name, current or legacy, as the kind's current folder — or null. */
+function currentKindOf(folder: string): LibraryKind | null {
+  const schemaId = kindOfDirectory(folder);
+  if (schemaId === null) return null;
+  const kind = LIBRARY_DIRECTORIES[schemaId];
+  return isLibraryKind(kind) ? kind : null;
 }

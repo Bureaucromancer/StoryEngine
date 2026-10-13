@@ -3,10 +3,14 @@
 
 import type { JSX, ReactNode } from 'react';
 
-import { kindOfSchema, type LibraryKind, type LibraryObject } from '../api.js';
+import { worldIdsOf } from '@storyengine/shared';
+
+import { kindOfSchema, LIBRARY_KINDS, type LibraryKind, type LibraryObject } from '../api.js';
+import { SESSION_MEMBER_SCHEMA } from '../editor/members-form.js';
 import { formatCount, formatTimestamp, timestampsOf } from '../format.js';
+import { labels } from '../i18n/catalogue.js';
 import { Badge } from '../ui/Badge.js';
-import { KIND_LABELS, SourceBadge } from './labels.js';
+import { KIND_LABELS, KIND_PLURALS, KIND_WORDS, SourceBadge } from './labels.js';
 
 /**
  * What each kind's panel supplies, which is
@@ -109,12 +113,60 @@ export function tagsOf(object: LibraryObject): string[] {
   return Array.isArray(tags) ? tags.filter((tag) => typeof tag === 'string') : [];
 }
 
-/** `global`, `linked`, or whatever a newer build wrote there. */
+/** `global`, `linked`, `world`, or whatever a newer build wrote there. */
 function scopeKindOf(object: LibraryObject): string | null {
   const scope = field(object, 'scope');
   if (typeof scope !== 'object' || scope === null) return null;
   const kind: unknown = (scope as { kind?: unknown }).kind;
   return typeof kind === 'string' ? kind : null;
+}
+
+/**
+ * ***Which of the scope filter's three a book is*** — [P16.2](../../../../docs/design/workplan/34-p16-world.md),
+ * [26 §B15](../../../../docs/design/26-open-questions.md).
+ *
+ * **`linked` split in two at P16.2, because its meaning did.** Until then a
+ * `linked` book had been linked *to somebody*: the factory wrote `global` and
+ * so did the SillyTavern importer, and `linked` arrived only with actor ids in
+ * it — a character's embedded book. 26 §B15's answer, built at P16.2, moves
+ * both defaults to `{ kind: 'linked', actorIds: [] }`, so from now on most
+ * `linked` books are linked to **nobody** — the narrowest value the union
+ * holds, chosen because a field nobody sets should not default to the widest.
+ * A filter that kept one *Linked* option would put every new book under it
+ * beside the few authored for particular characters, and the one question the
+ * option was worth asking — *which books belong to someone?* — would have no
+ * answer.
+ *
+ * **Three values, not two**, and that is the decision: *Global*, *Linked to
+ * characters* (`linked` with at least one actor id) and *Linked to nobody*
+ * (`linked` with none). Folding *Global* into *Linked to nobody* would be
+ * truer to what either does today — neither admits a book anywhere; selection
+ * does that ([03 §3.4]) — but the filter's options are the stored values a
+ * person can see in *As stored*, and a `global` that answered to *Linked to
+ * nobody* would be the shelf and the file disagreeing about one word. A book
+ * whose `actorIds` is not a list is counted as linked to nobody: it names no
+ * one this build can read. A scope this build does not know matches none of
+ * the three, as it always has.
+ *
+ * ***A fourth, `world`, with the arm*** — [P16.2], [15 §5.3], [26 B16]. The
+ * one arm anything reads: a session started in a World the book names gets it
+ * ticked at the start. *By kind*, whether or not it names a World yet — the
+ * option is the stored word, the rule the three above keep — so a book left
+ * `{ kind: 'world', worldIds: [] }` by somebody who chose the option and never
+ * picked is found here rather than nowhere. **A kind this build does not know
+ * still matches none of them** ([26 B16]'s *open the unions*: kept and
+ * ignored), so it is on the unfiltered shelf and under no option, and carries
+ * no badge, rather than being guessed into one.
+ */
+type ScopeShelf = 'global' | 'linked' | 'nobody' | 'world';
+
+function scopeShelfOf(object: LibraryObject): ScopeShelf | null {
+  const kind = scopeKindOf(object);
+  if (kind === 'global') return 'global';
+  if (kind === 'world') return 'world';
+  if (kind !== 'linked') return null;
+  const actorIds: unknown = (field(object, 'scope') as { actorIds?: unknown }).actorIds;
+  return Array.isArray(actorIds) && actorIds.length > 0 ? 'linked' : 'nobody';
 }
 
 /**
@@ -131,6 +183,25 @@ export function provenanceSourceOf(object: LibraryObject): string | null {
   return typeof source === 'string' ? source : null;
 }
 
+/**
+ * ***A book play wrote*** — a lorebook whose `provenance.source` is
+ * `'session'`: a memory book ([P8.2]), and the client's spelling of shared's
+ * `isWrittenByPlay`, which decides whether it may be published.
+ *
+ * *A lorebook's marking, not any object's* (2026-10-11, the [P16 audit],
+ * privacy finding 2). The shelf's *Memories* badge, the page's *written by
+ * play* alert, its *Publish…* door and the selection's *play* row each read
+ * `provenanceSourceOf(object) === 'session'` on every kind, and a Setup made
+ * from a turn carries that marking — [P15 §0.3]: *the Setup itself may be
+ * "session": only lorebooks are read for that marker*. So such a Setup was
+ * badged *Memories*, told it was a book not meant to be published, and
+ * offered no way to publish it. One predicate here, so the four agree with
+ * each other and with the server's rule.
+ */
+export function writtenByPlay(object: LibraryObject): boolean {
+  return kindOfSchema(object.schema) === 'lorebooks' && provenanceSourceOf(object) === 'session';
+}
+
 function updatedAt(object: LibraryObject): string | null {
   return timestampsOf(object.object).updatedAt;
 }
@@ -144,8 +215,11 @@ function updatedAt(object: LibraryObject): string | null {
  */
 function nameBadges(object: LibraryObject): JSX.Element {
   const enabled = field(object, 'enabled');
-  const linked = scopeKindOf(object) === 'linked';
-  const derived = provenanceSourceOf(object) === 'session';
+  const linked = scopeShelfOf(object) === 'linked';
+  // Only when it names a World — the `Linked` badge's rule, *only when it
+  // names somebody*: a `world` scope naming none reaches no session.
+  const forWorlds = worldIdsOf(field(object, 'scope')).length > 0;
+  const derived = writtenByPlay(object);
 
   return (
     <>
@@ -167,6 +241,14 @@ function nameBadges(object: LibraryObject): JSX.Element {
        * Scope is badged only when it is not `global`, for the same reason:
        * global is the default, almost every imported book is one, and a badge
        * that appears on everything is furniture.
+       *
+       * ***Since [P16.2], only when it names somebody*** — 26 §B15's default
+       * moved to `{ kind: 'linked', actorIds: [] }` for every new book and
+       * every standalone SillyTavern import, so the same argument now moves
+       * the badge: *linked to nobody* is the new default, and badging it would
+       * put *Linked* on nearly every book made from here on. The badge is for
+       * the one case it ever described — a book authored as belonging to
+       * particular characters (`scopeShelfOf`).
        */}
       {/*
        * ***The title said "Active only for the actors it links", which stopped
@@ -185,6 +267,19 @@ function nameBadges(object: LibraryObject): JSX.Element {
       {linked ? (
         <Badge title="Authored as belonging to particular actors. A book is in play only if the session or its treatment names it.">
           Linked
+        </Badge>
+      ) : null}
+      {/*
+       * ***For sessions started in particular worlds*** — [P16.2],
+       * [15 §5.3]. Badged because, unlike `Linked`, it does something — and
+       * the title says exactly what, and what it does not: offered to a session
+       * *at its start*, in one of those worlds, as a tick on the form. Neutral,
+       * like `Linked`, because it is an authored statement and not a state
+       * anybody needs warning of; the word carries it.
+       */}
+      {forWorlds ? (
+        <Badge title="Offered to sessions started in the worlds it names: a session started in one of them gets this book ticked in its lorebooks at the start. No other session gets it unless somebody chooses it.">
+          World
         </Badge>
       ) : null}
       {/*
@@ -336,11 +431,15 @@ const LOREBOOKS: KindPanel = {
     {
       id: 'scope',
       label: 'Scope',
+      // `scopeShelfOf` says why there are three since [P16.2], and four with
+      // the `world` arm.
       optionsFor: () => [
         ['global', 'Global'],
-        ['linked', 'Linked'],
+        ['linked', 'Linked to characters'],
+        ['nobody', 'Linked to nobody'],
+        ['world', 'For worlds'],
       ],
-      matches: (object, value) => scopeKindOf(object) === value,
+      matches: (object, value) => scopeShelfOf(object) === value,
     },
     {
       id: 'enabled',
@@ -365,9 +464,137 @@ const LOREBOOKS: KindPanel = {
     'No lorebooks yet. Import brings them in — from a SillyTavern or Marinara folder, an archive, or a single world-info file.',
 };
 
+/**
+ * A World's member envelopes, read defensively — `scopeKindOf`'s reason: the
+ * list row is whatever the server read off disk, and a member whose `schema`
+ * is not a string is counted as nothing rather than thrown on.
+ */
+function membersOfWorld(object: LibraryObject): { schema: string }[] {
+  const contents = field(object, 'contents');
+  if (!Array.isArray(contents)) return [];
+  return contents.filter(
+    (member): member is { schema: string } =>
+      typeof member === 'object' &&
+      member !== null &&
+      typeof (member as { schema?: unknown }).schema === 'string',
+  );
+}
+
+function sessionCount(object: LibraryObject): number {
+  return membersOfWorld(object).filter((member) => member.schema === SESSION_MEMBER_SCHEMA).length;
+}
+
+/**
+ * *What it holds, by kind* — `2 actors · 1 lorebook · 1 treatment`.
+ *
+ * **Sessions are left out because they have a column of their own**, and the
+ * split is [15 §3.2]'s: a World published without its sessions is *the Rain
+ * City setting* and with them *my six Rain City sessions*, which are two
+ * different answers to *what is this*, and a person scanning the shelf for one
+ * should not have to subtract.
+ *
+ * **Kinds with none are omitted**, and the order is the library's own kind
+ * order rather than the counts', so the same kind sits in the same place on
+ * every row. A member of a kind this build does not know is counted as
+ * *other* rather than dropped: the World carries it verbatim (`world.ts`'s
+ * envelope rule), so a line that hid it would undercount the set somebody is
+ * about to export.
+ *
+ * *A string assembled here rather than in JSX* — `UsedBy.tsx`'s `list`
+ * reason: the separator and the order are the sentence, and a sentence made of
+ * children is one no catalogue can hold.
+ */
+export function membersLine(object: LibraryObject, locale: string | undefined): string {
+  const counts = new Map<LibraryKind, number>();
+  let other = 0;
+  for (const member of membersOfWorld(object)) {
+    if (member.schema === SESSION_MEMBER_SCHEMA) continue;
+    const kind = kindOfSchema(member.schema);
+    if (kind === null) other += 1;
+    else counts.set(kind, (counts.get(kind) ?? 0) + 1);
+  }
+  const parts = LIBRARY_KINDS.flatMap((kind) => {
+    const count = counts.get(kind) ?? 0;
+    if (count === 0) return [];
+    return [`${formatCount(count, locale)} ${count === 1 ? KIND_WORDS[kind] : KIND_PLURALS[kind]}`];
+  });
+  if (other > 0) parts.push(`${formatCount(other, locale)} ${WORLD_WORDS.other}`);
+  return parts.join(' · ');
+}
+
+/** The words the Worlds panel says that are not a kind's. */
+const WORLD_WORDS = labels('library.panel.worlds', {
+  other: 'other',
+  empty:
+    'No worlds yet. A world is a named set of library objects and sessions that you keep together, so new sessions can start in it and it can travel as one file. Make one with New world above, then add its members in its editor — from every kind in your library, and your sessions too.',
+});
+
+/**
+ * Worlds — [P16.1](../../../../docs/design/workplan/34-p16-world.md): the
+ * Package's panel, renamed, and the first that answers what a World *holds*.
+ *
+ * **The two columns are §5.3's test passed by the kind's whole point.** A World
+ * is a set, and the generic table showed its name and its kind, which is to
+ * say nothing about the set: telling *five characters and a lorebook* from *my
+ * six Rain City sessions* meant opening each one. *Members* answers the first,
+ * *Sessions* the second, and they are two columns rather than one line for
+ * [15 §3.2]'s reason, which `membersLine` gives.
+ *
+ * ***Most members* counts everything the World names**, sessions included and
+ * missing members included — it sorts by the size of the set as written, which
+ * is what an export would try to carry, rather than by what this library still
+ * happens to hold.
+ *
+ * **The empty sentence is for somebody who never saw Packages** (AA10): what a
+ * world is, in one clause, and how to make one, in the next. ~~*It does not
+ * promise starting a session in one* — that is [P16.2]'s, not built yet, and a
+ * shelf that invited it would be the blurb's mistake one surface over
+ * (`kinds.tsx` has the argument).~~ ***It does since [P16.2]***, which built
+ * the start — from the World's page and as a choice on the session form — so
+ * the clause the struck sentence held back is now true and said. *Travel as
+ * one file* was already true: the World's page exports it.
+ */
+const WORLDS: KindPanel = {
+  columns: [
+    { id: 'members', header: 'Members', cell: (object, locale) => membersLine(object, locale) },
+    {
+      id: 'sessions',
+      header: 'Sessions',
+      numeric: true,
+      cell: (object, locale) => formatCount(sessionCount(object), locale),
+    },
+    { id: 'source', header: 'Source', cell: (object) => <SourceBadge source={object.source} /> },
+    {
+      id: 'updated',
+      header: 'Updated',
+      cell: (object, locale) => {
+        const stamp = updatedAt(object);
+        return stamp === null ? null : formatTimestamp(stamp, locale);
+      },
+    },
+  ],
+  sorts: [
+    ...COMMON_SORTS,
+    {
+      id: 'members',
+      label: 'Most members',
+      compare: (a, b) => membersOfWorld(b).length - membersOfWorld(a).length,
+    },
+  ],
+  filters: [],
+  get empty() {
+    // A getter, so the catalogue is read when the shelf is drawn rather than
+    // frozen into English when this module loads (`catalogue.test.ts`'s third
+    // caveat).
+    return WORLD_WORDS.empty;
+  },
+};
+
 /** The panel for a kind, or the shared one for a kind that has not chosen. */
 export function panelFor(kind: LibraryKind | undefined): KindPanel {
-  return kind === 'lorebooks' ? LOREBOOKS : GENERIC;
+  if (kind === 'lorebooks') return LOREBOOKS;
+  if (kind === 'worlds') return WORLDS;
+  return GENERIC;
 }
 
 /** The badges a panel adds inside the shared name cell. */
@@ -390,5 +617,6 @@ export function panelNameBadges(
 export function emptyMessage(kind: LibraryKind | undefined): string {
   if (kind === undefined) return GENERIC.empty;
   if (kind === 'lorebooks') return LOREBOOKS.empty;
+  if (kind === 'worlds') return WORLDS.empty;
   return 'There is nothing of this kind in the library yet. Make one above, or import some.';
 }

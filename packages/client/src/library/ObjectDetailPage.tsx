@@ -34,17 +34,21 @@ import { listSessions } from '../api.js';
 import { AsStored } from './AsStored.js';
 import { bookToMarkdown } from './book-document.js';
 import { UsedByPanel } from './UsedBy.js';
-import { provenanceSourceOf } from './panels.js';
+import { provenanceSourceOf, writtenByPlay } from './panels.js';
 import { ByField } from './ByField.js';
+import { contentsShape, membersOf } from '../editor/members-form.js';
+import { WorldMembers } from '../editor/MembersField.js';
 import { CopyToMyLibrary } from './CopyToMyLibrary.js';
 import { DeleteObject } from './DeleteObject.js';
 import { mutable } from './mutable.js';
-import { StartSession } from './StartSession.js';
+import { saveFile } from './save-file.js';
+import { StartInWorld, StartSession } from './StartSession.js';
 import { editorRouteFor } from './fields.js';
 import { LorebookView, lorebookShape } from './LorebookView.js';
 import { labels } from '../i18n/catalogue.js';
 import { KIND_LABELS, ShadowedBadge, SourceBadge } from './labels.js';
 import { sentence } from './note-labels.js';
+import { joinIds } from '../search-lists.js';
 import { fileErrorFor, reasonWords } from './QuarantinePanel.js';
 import { COPY_WORDS, copyText } from '../ui/copy.js';
 
@@ -194,11 +198,22 @@ function ObjectView(props: {
        * phase put on disk. *Recorded rather than quietly deferred* — [P8.2] says
        * the warning lands **with** the book, and this is it landing.
        *
+       * *(2026-10-11, [P16.3g]: there is a publish path now, and it reads the
+       * marking — `isWrittenByPlay` in shared, so `fileSet` leaves such a book
+       * home whatever is ticked and the review says why, and this page offers
+       * no Publish… for it. ~~There is no export path~~ held until then.)*
+       *
        * Neutral rather than warning: nothing is wrong with the book, and colouring
        * a working feature as a fault is the surface arguing with the person — the
        * same rule the `Off` badge follows one file over.
        */}
-      {provenanceSourceOf(object) === 'session' ? (
+      {/*
+       * *A lorebook's marking* (2026-10-11, the [P16 audit], privacy finding
+       * 2): ~~any object marked `session`~~ — a Setup made from a turn
+       * carries it too ([P15 §0.3]), and this alert told it it was a book not
+       * meant to be published. `writtenByPlay` reads the kind.
+       */}
+      {writtenByPlay(object) ? (
         <Alert tone="neutral" className="mb-6">
           This book was written by play rather than by hand. It is personal, it may hold things you
           would not hand to anyone, and it is not meant to be shared or published. Correcting an
@@ -258,7 +273,7 @@ function ObjectView(props: {
       */}
       <UsedByPanel kind={kind} id={object.id} />
 
-      <TakeItWithYou kind={kind} object={object} />
+      <TakeItWithYou kind={kind} object={object} locale={locale} />
 
       <AsStored value={object.object} />
 
@@ -270,6 +285,18 @@ function ObjectView(props: {
          * nothing about it.
          */}
         {kind === 'setups' && !object.shadowed ? <StartSession setupId={object.id} /> : null}
+        {/*
+         * ***A World's page is somewhere to start from too*** — [P16.2]. First
+         * for the Setup's reason; **your own only**, unlike the Setup's, because
+         * starting in a World writes to it — the session joins its `contents`
+         * — and a system World is read-only to every account, so the start
+         * would happen and the joining would not. Not on a shadowed copy,
+         * whose id the route resolves to the winner: a session started there
+         * would take another World's members under this one's heading.
+         */}
+        {kind === 'worlds' && object.source === 'user' && !object.shadowed ? (
+          <StartInWorld worldId={object.id} />
+        ) : null}
         {/*
          * The kind gate comes from the same place the fields do
          * ([polish §1](../../../../docs/design/workplan/06-polish.md)), and it
@@ -339,14 +366,22 @@ function ObjectView(props: {
  * and a format whose target application cannot read its own export back gets
  * that said under it rather than implied away. Aventuras is exactly that case.
  *
- * **Plain anchors**, on the package export's reasoning directly above: these are
- * files, and a file is what a link is for.
+ * ***And a third door since [P16.3g]: Publish***, which is not a row of this
+ * kind at all — it hands over a closure, reviewed, where these hand over one
+ * object ([10 §5.0a], [16 §2]). It is a link to the review's own page rather
+ * than a file, so it navigates where these fetch.
+ *
+ * **Plain anchors**, on the World export's reasoning directly above (the
+ * package export's, until [P16.0] renamed the kind): these are files, and a
+ * file is what a link is for. *(2026-10-11, [P16.3g]: that export is gone —
+ * see the World's door below — and the reasoning stands on its own.)*
  *
  * ***Still anchors, and a plain click is fetched*** (2026-09-28) — gap round
  * A5.4. A link hands the answer to the browser, and these answers say things
  * the page has to: an export names what it left out
- * (`x-storyengine-export-notes`), a package counts what it could not include
- * (`x-storyengine-missing`), and a refusal is a JSON body the browser saved as
+ * (`x-storyengine-export-notes`), a World counted what it could not include
+ * (`x-storyengine-missing`, until [P16.3g] removed that export), and a refusal
+ * is a JSON body the browser saved as
  * the file. The seven export sentences in `note-labels.ts` had never rendered,
  * and a failed download looked like a successful one. So a plain click fetches
  * the same address (`api.takeFile` says why that is not the backups' case),
@@ -354,7 +389,11 @@ function ObjectView(props: {
  * modified click stays the browser's — a new tab, a saved link — and the
  * address stays on the element, where a person copying it expects it.
  */
-function TakeItWithYou(props: { kind: LibraryKind; object: LibraryObject }): JSX.Element {
+function TakeItWithYou(props: {
+  kind: LibraryKind;
+  object: LibraryObject;
+  locale: string | undefined;
+}): JSX.Element {
   const { kind, object } = props;
   const id = encodeURIComponent(object.id);
   const formats = exportFormatsFor(object.schema);
@@ -405,31 +444,35 @@ function TakeItWithYou(props: { kind: LibraryKind; object: LibraryObject }): JSX
   return (
     <section aria-label="Take it with you" className="flex flex-col gap-1">
       {/*
-        ***A bundle that travels*** — [04 §9](../../../../docs/design/04-schemas.md),
-        [P11 §1.9], [P11.10]. [P7B.6](../../../../docs/design/workplan/24-p7b-presets-and-prompts.md)
-        shipped the package editor with *"the honest limit"* written beside it —
-        *the editor lands able to make and describe a bundle and not to send
-        one* — and this is the send. **A plain anchor, because it is a file.**
+        ~~***A bundle that travels*** — [04 §9], [P11 §1.9], [P11.10]: *Export
+        this world*, a plain anchor to `GET /api/library/worlds/:id/export`,
+        with a line under it saying the file was still the Package's
+        `.sepack.json`.~~ ***Removed 2026-10-11, at
+        [P16.3g](../../../../docs/design/workplan/34-p16-world.md)***, with the
+        route and the writer behind it. [16 §6](../../../../docs/design/16-publish.md)
+        names this page as one of Publish's three doors *"where it replaces
+        today's Export this package link"*, and that line said, when it was
+        written, that it was *the one to change* when P16.3 landed its format.
+        It changed by going: a World leaves as its World file now, through the
+        review, and the old envelope is only read ([16 §5.1]).
 
-        *Not on a shadowed copy* (2026-09-27): the route takes an id and
-        nothing narrower, so from this copy's page it would bundle the winner —
-        a different package, under this one's heading. Read-only addresses stop
-        at single objects; a bundle resolves what it names by id anyway.
-
-        *In this section since 2026-09-28*, where the other two doors are, so
-        the one answer the page is showing is under the one link it belongs to.
+        ***Publish this world…***, and how often it has left — [16 §6], [P16.3g].
+        **The World's door**, first in this section where the export link was:
+        the review opens on the World as a starting point, so everything it
+        holds is offered and nothing is kept new ([16 §3]: *publishing from a
+        World creates nothing new*). *Not on a shadowed copy*, for the old
+        link's reason: the review takes an id, which resolves to the winner,
+        so from this copy's page it would publish a different World under this
+        one's heading. The count under it is the account's ledger
+        (`GET /api/publish/records`), which is what [16 §8]'s questions are
+        read from and what [P16.3h]'s diff opens on.
       */}
-      {kind === 'packages' && !object.shadowed ? (
+      {kind === 'worlds' && !object.shadowed ? (
         <span className="flex flex-col">
-          <a
-            href={`/api/library/packages/${id}/export`}
-            className={link.inline}
-            onClick={follow('package')}
-            download
-          >
-            Export this package
-          </a>
-          {answer('package')}
+          <Link to="/library/publish" search={{ world: object.id }} className={link.inline}>
+            {DOOR_WORDS.world}
+          </Link>
+          <PublishedLine worldId={object.id} locale={props.locale} />
         </span>
       ) : null}
 
@@ -456,6 +499,41 @@ function TakeItWithYou(props: { kind: LibraryKind; object: LibraryObject }): JSX
         {answer('download')}
       </span>
 
+      {/*
+        ***Publish…, beside Download and never instead of it*** — [10 §5.0a]'s
+        two doors, [16 §2], [P16.3g]. **Download** is this object as stored;
+        **Publish…** is this object and what it names — its lore, its cast, the
+        books two steps out — reviewed, as one file. They are different
+        promises, so they sit side by side with the line under this one saying
+        which this is; and when the closure turns out to be the object alone,
+        the review says so and offers Download back ([16 §2]: *just the
+        object*).
+
+        *Every kind but a World*, which has its own door above — a World in a
+        selection is a refusal ([P16.3]'s plan, R8), and its page is where it
+        is published from. *Not on a shadowed copy*, whose id resolves to the
+        other file. ***And not on a book play wrote*** — an interpretation, not
+        in the plan's list: such a book stays home whatever is ticked (`fileSet`,
+        [P16.3d]), so from its own page the review could only make a file of
+        nothing, and the alert above already says it *is not meant to be
+        shared or published*. Download stays, as it always has: that is a person
+        copying their own file, not the publish path [08 §2] warns about.
+        *A book, not any object marked so* (2026-10-11, the [P16 audit]): a
+        Setup made from a turn carries the marking and has this door.
+      */}
+      {kind !== 'worlds' && !object.shadowed && !writtenByPlay(object) ? (
+        <span className="flex flex-col">
+          <Link
+            to="/library/publish"
+            search={{ from: joinIds([object.id]) }}
+            className={link.inline}
+          >
+            {DOOR_WORDS.object}
+          </Link>
+          <span className="text-xs text-ink-subtle">{DOOR_WORDS.objectHint}</span>
+        </span>
+      ) : null}
+
       {formats.map((format) => (
         <span key={format.id} className="flex flex-col">
           <a
@@ -476,19 +554,6 @@ function TakeItWithYou(props: { kind: LibraryKind; object: LibraryObject }): JSX
   );
 }
 
-/**
- * What came back, saved — [EntryTravel](../editor/EntryTravel.tsx)'s way, an
- * object URL clicked and revoked, under the name the route gave it.
- */
-function saveFile(file: TakenFile): void {
-  const url = URL.createObjectURL(file.blob);
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = file.fileName ?? '';
-  anchor.click();
-  URL.revokeObjectURL(url);
-}
-
 const TAKE_WORDS = labels('library.take', {
   preparing: 'Preparing the file…',
   gone: 'That is not here any more, so there was nothing to download.',
@@ -497,6 +562,45 @@ const TAKE_WORDS = labels('library.take', {
   unreachable: 'The server could not be reached, so nothing was downloaded.',
   failed: 'That could not be downloaded.',
 });
+
+/**
+ * ***The doors' words*** — [P16.3g]. A table, so the catalogue holds them; the
+ * hint is the half of [10 §5.0a]'s *two promises* a person reads under the
+ * link, and why the second door exists beside the first.
+ */
+const DOOR_WORDS = labels('library.publish-door', {
+  object: 'Publish…',
+  objectHint: 'With what it names — its lore, its cast, and theirs — in one file, reviewed first.',
+  world: 'Publish this world…',
+  never: 'Not published yet.',
+  once: 'Published once, on {date}.',
+  many: 'Published {count} times; the last on {date}.',
+});
+
+/**
+ * ***How often this World has left, and when last*** — the ledger's count
+ * ([16 §8](../../../../docs/design/16-publish.md)), [P16.3g].
+ *
+ * **Quiet while it loads and silent if it fails**: it is a fact about the
+ * World, not a control, and a page that showed an error for a line nobody
+ * asked for would be louder than the line. `count` is every record, so a
+ * World published three hundred times says so though one record is fetched.
+ */
+function PublishedLine(props: { worldId: string; locale: string | undefined }): JSX.Element | null {
+  const records = useQuery({
+    queryKey: ['publish-records', props.worldId],
+    queryFn: () => api.publishRecords(props.worldId),
+  });
+  if (records.data === undefined) return null;
+  const last = records.data.records[0];
+  const line =
+    records.data.count === 0 || last === undefined
+      ? DOOR_WORDS.never
+      : (records.data.count === 1 ? DOOR_WORDS.once : DOOR_WORDS.many)
+          .replace('{count}', String(records.data.count))
+          .replace('{date}', formatTimestamp(last.at, props.locale));
+  return <span className="text-xs text-ink-subtle">{line}</span>;
+}
 
 /**
  * What one link's answer said: why it failed, or what the file does not carry.
@@ -512,10 +616,9 @@ function TakeAnswer(props: {
     return <AlertNote role="alert">{takeFailureLine(props.failure)}</AlertNote>;
   }
   if (props.file === undefined) return null;
-  const lines = [
-    ...props.file.notes.map((note) => sentence(note)),
-    ...(props.file.missing === 0 ? [] : [missingLine(props.file.missing)]),
-  ];
+  // ~~and `missingLine(missing)`~~ — the World export's count, gone with it
+  // ([P16.3g]); the review says what a World file could not carry.
+  const lines = props.file.notes.map((note) => sentence(note));
   if (lines.length === 0) return null;
   return (
     <ul role="status" className="flex flex-col gap-1 text-xs text-ink-subtle">
@@ -537,16 +640,6 @@ function takeFailureLine(failure: unknown): string {
   return TAKE_WORDS.failed;
 }
 
-/**
- * `x-storyengine-missing`, said — [P11.10]'s *reported, not dropped*, which the
- * header was and nothing read.
- */
-function missingLine(count: number): string {
-  return count === 1
-    ? '1 object this package names is not in your library, so the file does not carry it.'
-    : `${String(count)} objects this package names are not in your library, so the file does not carry them.`;
-}
-
 function picturesStayLine(count: number): string {
   return count === 1
     ? 'Its picture stays behind: the file names it and does not carry it.'
@@ -566,7 +659,7 @@ const SINGULAR: Readonly<Record<LibraryKind, string>> = labels('library.kind.sin
   treatments: 'treatment',
   setups: 'setup',
   presets: 'preset',
-  packages: 'package',
+  worlds: 'world',
 });
 
 /**
@@ -608,6 +701,23 @@ function ObjectBody(props: {
 
   if (props.kind === 'lorebooks' && lorebookShape(object.object) === null) {
     return <LorebookBody object={object} search={search} locale={props.locale} />;
+  }
+  /*
+   * ***A World's members, resolved*** (2026-10-11, the [P16 audit]): ~~its
+   * `contents` as stored~~, through `ByField`, which resolves nothing — a
+   * deleted member read like a present one. They are drawn by their current
+   * names now, with the editor's *Missing* (`MembersField.tsx`'s
+   * `WorldMembers`); a `contents` the list could not walk keeps the stored
+   * drawing (`contentsShape`).
+   */
+  const body = object.object;
+  if (props.kind === 'worlds' && contentsShape(body['contents']) === null) {
+    return (
+      <>
+        <ByField schemaId={object.schema} value={body} omit="contents" />
+        <WorldMembers members={membersOf(body)} />
+      </>
+    );
   }
   return <ByField schemaId={object.schema} value={object.object} />;
 }

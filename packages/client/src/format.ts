@@ -213,3 +213,21 @@ function numberFormatterFor(locale: string | undefined, options: Intl.NumberForm
     return new Intl.NumberFormat(undefined, options);
   }
 }
+
+/**
+ * A size in bytes, at the unit its magnitude deserves — *48 KB*, *1.4 MB*.
+ *
+ * ***Moved here from `settings/Backups.tsx` at [P16.3g](../../../docs/design/workplan/34-p16-world.md)***,
+ * where it was written for the backups list and borrowed by the import panel.
+ * The review vocabulary (`library/note-labels.ts`) needed it for the World
+ * file's notes, which carry a size as `bytes`, and importing the settings page
+ * from there was a cycle (`Backups` → `ImportBackup` → `note-labels`). A
+ * formatter belongs with the formatters anyway; the name is kept so its callers
+ * read as they did.
+ */
+export function megabytes(bytes: number): string {
+  if (bytes < 1024) return `${String(bytes)} bytes`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+}

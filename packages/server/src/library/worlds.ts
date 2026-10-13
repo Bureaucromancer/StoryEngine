@@ -1,0 +1,289 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 StoryEngine contributors
+
+import {
+  LEGACY_PACKAGE_SCHEMA,
+  LOREBOOK_SCHEMA,
+  type PortableObjectEnvelope,
+  SETUP_SCHEMA,
+  TREATMENT_SCHEMA,
+  WORLD_SCHEMA,
+  type World,
+  worldIdsOf,
+} from '@storyengine/shared';
+
+import type { IndexedObject } from '../index-db/query.js';
+import { LibraryError, type LibraryContext, list, read, update } from '../library.js';
+
+/**
+ * ***Membership, written in one place*** —
+ * [P16 §1.2](../../../../docs/design/workplan/34-p16-world.md),
+ * [15 §3.2](../../../../docs/design/15-world.md).
+ *
+ * **A World's `contents` is the only place membership is written**, and that
+ * includes sessions: a session member is an envelope like any other,
+ * `{ schema: 'storyengine.session/1', id, name }`, and the session carries no
+ * World of its own. [15 §3.2] argues it — two records of one membership is a
+ * query that has to agree with another query ([00 §2.8]) — and P16 §1.2 adds
+ * the reason it matters here: a field on the session would be accrual's key
+ * answered by accident, and accrual is not this phase's.
+ *
+ * **The reverse view is a query, and it is the client's**: a session's *In
+ * these Worlds* is the Worlds whose `contents` name it, read off the same list
+ * of Worlds its *Add to a World* control offers — one fetch for both, and a
+ * fine cost for a panel (P16 §1.2). A library object's is *Used by*, which the
+ * index's link table already answers.
+ *
+ * So everything that adds a member comes through {@link addMembers}: the
+ * editor's picker writes the whole object, as every editor does, but *Add to a
+ * World* from a session's page or list, and a session started in a World
+ * ([P16.2]), each add one envelope to a set somebody else may be editing — and
+ * a read-modify-write done in a browser is one that loses a member to a second
+ * tab. Done here, it is the library's ordinary hash-checked write, retried on
+ * the one refusal that a retry answers.
+ */
+
+export interface MemberEnvelope {
+  schema: string;
+  id: string;
+  name?: string;
+}
+
+/** How many times a stale read is re-read before the refusal is the caller's. */
+const ATTEMPTS = 3;
+
+/**
+ * Adds members to a World that does not already hold them, and answers the
+ * World as stored afterwards.
+ *
+ * **Idempotent by id**: a member already in `contents` is left where it is,
+ * under the name it was added with, and adding nothing new writes nothing — the
+ * library's no-op rule one level up, so *Add to a World* pressed twice is one
+ * member and one history entry. New members go at the end, in the order given.
+ *
+ * **A World is not a member of a World** ([15 §3.1]): a set of sets is a
+ * question nobody has asked, and refusing it at the door that writes membership
+ * means the picker's refusal is not the only one. Refused under either of the
+ * World's schema ids since 2026-10-11 (the [P16 audit]). A file that arrives
+ * holding a World inside a World ~~is the importer's to carry, as the envelope
+ * rule says, and~~ is not written through here — *and since [P16.3e] the
+ * importer does not carry it either: the landing names no nested World
+ * (`import.world.nestedWorld`).*
+ *
+ * ***One of two doors, said so it is not read as the only one*** (2026-10-11,
+ * the review of the audit's fixes). The World's own create and update —
+ * `POST`/`PUT /library/worlds`, the editor's whole-object write, and a hand
+ * edit the watcher indexes — write whatever `contents` they are given, a
+ * World under either schema id included: nothing in `library.ts` or the
+ * route reads `contents`, and the schema takes any envelope. That door is
+ * left open on purpose. The editor's picker never offers a World
+ * (`MembersField.tsx` filters the kind out), so only a hand-built request or
+ * a hand-edited file reaches it; refusing there would refuse *every* save of
+ * a World that already holds one — a Package nested before P16.0, its first
+ * move into `worlds/` included, and every `addMembers` call on it, which
+ * writes the whole list — over an entry nothing acts on. *Nothing acts on it*
+ * is what holds the line: the walker excludes a nested World
+ * (`nested-world`, under both ids), the writer carries none, and the landing
+ * names none. So the refusal here is the one at the door a person's *Add to a
+ * World* uses, and the rest are filters downstream.
+ *
+ * ***A first write, if the World is still under its old name.*** Adding a
+ * member is an ordinary `update`, so a Package not yet moved moves now
+ * ([P16 §1.1] lists *a member added* among the writes that do it).
+ */
+export async function addMembers(
+  context: LibraryContext,
+  handle: string,
+  worldId: string,
+  members: readonly MemberEnvelope[],
+): Promise<{ contentHash: string; object: unknown; written: boolean }> {
+  for (const member of members) {
+    /*
+     * ***Under either of its names*** (2026-10-11, the [P16 audit]): a World
+     * is also `storyengine.package/1`, the id it had before P16.0, and an
+     * envelope under that id was written here with a `200` — a World inside
+     * a World by the one door that refuses it, which the walker then excluded
+     * as `nested-world` and the landing filtered. The walker's `isWorld` and
+     * the landing's `isWorldSchema` read both names; so does this.
+     */
+    if (member.schema === WORLD_SCHEMA || member.schema === LEGACY_PACKAGE_SCHEMA) {
+      throw new LibraryError('invalid', 'A World holds library objects and sessions, not Worlds.');
+    }
+    if (member.id === worldId) {
+      throw new LibraryError('invalid', 'A World cannot be a member of itself.');
+    }
+  }
+
+  for (let attempt = 1; ; attempt += 1) {
+    const current = read(context, handle, worldId, WORLD_SCHEMA);
+    const world = current.body as World;
+    const held = new Set(world.contents.map((member) => member.id));
+    const added: PortableObjectEnvelope[] = [];
+    for (const member of members) {
+      if (held.has(member.id)) continue;
+      held.add(member.id);
+      added.push({
+        schema: member.schema,
+        id: member.id,
+        ...(member.name === undefined ? {} : { name: member.name }),
+      });
+    }
+    if (added.length === 0) {
+      return { contentHash: current.contentHash, object: current.body, written: false };
+    }
+
+    try {
+      const stored = await update(
+        context,
+        handle,
+        worldId,
+        { ...world, contents: [...world.contents, ...added] },
+        current.contentHash,
+        undefined,
+        WORLD_SCHEMA,
+      );
+      return { contentHash: stored.contentHash, object: stored.object, written: true };
+    } catch (error) {
+      // Somebody saved the World between the read and the write — another tab,
+      // the editor, a hand edit. Their change is kept and this one is applied
+      // on top of it, which is what *add* means; anything else is the caller's.
+      if (error instanceof LibraryError && error.code === 'stale' && attempt < ATTEMPTS) continue;
+      throw error;
+    }
+  }
+}
+
+/**
+ * ***What a World contributes to a session started in it*** —
+ * [P16 §1.3](../../../../docs/design/workplan/34-p16-world.md), [P16.2].
+ *
+ * **Read once, at creation, and copied** — never a query that re-decides each
+ * turn, which is what separates this from [P5.7]'s reversed scope rule: a World
+ * is a subset somebody named, and what it contributes becomes the session's own
+ * data, on disk and editable ([00 §3.1]'s *prefill, never binding*).
+ *
+ * - **Its lorebook members**, in the order the World holds them, for
+ *   `session.lore` — **and, after them, every lorebook this person can read
+ *   whose own scope names the World** (`LoreScope`'s `world` arm, built at
+ *   [P16.2] once [26 B16] was answered), ordered by name. Membership is the
+ *   curator's statement and the arm the author's ([15 §5.3]); both contribute,
+ *   and both land in the same list, where the person sees them and can drop
+ *   either before the session starts. *Read here, once, by copying* — the arm
+ *   is never consulted again, so a book scoped to a World after a session
+ *   started in it reaches that session only by being chosen there.
+ * - **Its treatment members**, all of them, for the form to offer; and the
+ *   one to use when the caller chose none — **only when there is exactly one**,
+ *   because picking the first of several would be the server choosing a story
+ *   on somebody's behalf.
+ * - ***Its Setup members, and the one to start through*** — **the owner's
+ *   answer of 2026-10-12**: *"Use the World's Setup when it holds exactly
+ *   one."* [04 §9](../../../../docs/design/04-schemas.md) and
+ *   [03 §7.2](../../../../docs/design/03-data-model.md) say a World holding a
+ *   Setup is started *through* it — "that is the whole mechanism" — and
+ *   [P16.2] built this contribution from the World's books and treatment and
+ *   never read a Setup member, which the final audit recorded as open (04 §9,
+ *   03 §7.2, [15 §5.3](../../../../docs/design/15-world.md), and P16's *Owed*
+ *   list). Answered: `setups` is every Setup member in the World's order, and
+ *   `setup` is the one `POST /sessions` starts through when the caller names
+ *   none — **only when there is exactly one**, the treatment's rule and for
+ *   its reason, since the first of several would be the server choosing which
+ *   game somebody plays.
+ *
+ * Members are taken as the World names them, by id: a member since deleted is
+ * a dangling id in `session.lore`, which the retriever already reports every
+ * turn rather than refusing at the door ([00 §3.3]).
+ *
+ * ***A sole Setup that no longer resolves is still the World's sole Setup***
+ * (2026-10-12, decided with the owner's answer) — the treatment's rule,
+ * mirrored. A World whose one treatment was deleted still names it, and the
+ * session is started naming it: the id dangles in `session.treatment`, visibly,
+ * and nothing refuses. So `setups` keeps a dangling member, and `setup` names
+ * it when it is the only one — this reads no Setup, exactly as it reads no
+ * treatment — and the *count* is of members, not of what resolves, so a World
+ * holding two Setups of which one is gone does not quietly promote the other to
+ * *the only one*. **What differs is what a session can hold**: a treatment is
+ * a link, and a dangling link is a session missing a book; a Setup is copied,
+ * and there is nothing to copy. So the route starts the session without it —
+ * the World's books and treatment, which is what this start was before the
+ * answer — and says so in the log, rather than refusing the whole start: the
+ * caller asked for *this World*, which is still there, and not for a Setup by
+ * name, whose absence is what `unknown-setup` refuses. The member stays visible
+ * where members are shown — the World's page marks it *Missing*, and the
+ * session form names it as not in the library rather than offering it.
+ *
+ * ***Each id once*** (2026-10-12), for the treatments as well as the Setups.
+ * Membership is a set that happens to have an order (`addMembers` keeps one of
+ * each), and the session form already reads it that way (`world-start.ts`,
+ * `membersOfSchema`) — so a hand-edited World naming one treatment twice was a
+ * World with one treatment to the form and none to this function. A count that
+ * decides *the only one* has to be a count of members, not of lines.
+ */
+export interface WorldContribution {
+  world: { id: string; name: string };
+  lore: string[];
+  treatments: string[];
+  treatment: string | null;
+  setups: string[];
+  setup: string | null;
+}
+
+export function worldContribution(
+  context: LibraryContext,
+  handle: string,
+  worldId: string,
+): WorldContribution {
+  const current = read(context, handle, worldId, WORLD_SCHEMA);
+  const world = current.body as World;
+  const membersOf = (schema: string): string[] => [
+    ...new Set(world.contents.filter((m) => m.schema === schema).map((m) => m.id)),
+  ];
+  const members = membersOf(LOREBOOK_SCHEMA);
+  const scoped = booksScopedTo(context, handle, current.id).map((row) => row.id);
+  const lore = [...new Set([...members, ...scoped])];
+  const treatments = membersOf(TREATMENT_SCHEMA);
+  const setups = membersOf(SETUP_SCHEMA);
+  return {
+    world: { id: current.id, name: current.name },
+    lore,
+    treatments,
+    treatment: treatments.length === 1 ? (treatments[0] ?? null) : null,
+    setups,
+    setup: setups.length === 1 ? (setups[0] ?? null) : null,
+  };
+}
+
+/**
+ * ***Every lorebook this person can read whose own scope names the World***,
+ * ordered by name — `LoreScope`'s `world` arm read from the World's end.
+ *
+ * **One query, two readers, and that is why it is a function** ([P16.3a],
+ * 2026-10-10). A World's session start copies these books into the new
+ * session's lore ({@link worldContribution}, [P16.2]), and a World's publish
+ * reaches them as [04 §9.1](../../../../docs/design/04-schemas.md)'s row 12 —
+ * the owner's answer at P16.3's plan, so that a World published and imported
+ * starts sessions with the books it starts them with here. Two spellings of the
+ * filter would be two answers to *which books belong with this World*, and the
+ * publish is the one a person cannot check afterwards on somebody else's
+ * install.
+ *
+ * - **Readable, not owned**: the person's own books and the system library's,
+ *   as `list` merges them. A system book is off by default in the review
+ *   ([P16.3]'s decisions), which is the walker's to say, not this filter's.
+ * - **Not shadowed**: a copied folder is one object held twice, and the winner
+ *   is the one every by-id read answers with.
+ * - **By name**, so the order is a fact about the books rather than about where
+ *   they sit on disk; `list`'s own `name, path` order breaks ties, since the
+ *   sort is stable.
+ */
+export function booksScopedTo(
+  context: LibraryContext,
+  handle: string,
+  worldId: string,
+): IndexedObject[] {
+  return list(context, handle, LOREBOOK_SCHEMA)
+    .filter(
+      (row) =>
+        !row.shadowed && worldIdsOf((row.body as { scope?: unknown }).scope).includes(worldId),
+    )
+    .sort((a, b) => a.name.localeCompare(b.name));
+}

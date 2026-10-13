@@ -32,7 +32,7 @@ continuity half — accrual and the story bible — waits for real play, and
 whether that is still 4.0 is for the design step to say. The line above is not
 re-cut until then.)* *(2026-10-04: the design step said, in
 [15](../15-world.md). **The set half is 1.0's** — the kind, membership,
-contribution and transport, at [P16](35-p16-world.md), §0.5 below. **The
+contribution and transport, at [P16](34-p16-world.md), §0.5 below. **The
 continuity half keeps 4.0's place** as its latest home, gated on evidence rather
 than on the number ([15 §4.3](../15-world.md)), so the line is not re-cut and
 Campaign's gate below is unchanged.)*
@@ -130,7 +130,7 @@ not all make the same promise.
 
 The design says it should not: Campaign's state lives in channels the mode
 declares, and nothing it needs touches Actor, Lorebook, Treatment, Setup or
-Package — *World, from [P16.0](35-p16-world.md), the same kind renamed*. If it turns out to need a schema change, the mode contract or the data
+Package — *World, from [P16.0](34-p16-world.md), the same kind renamed*. If it turns out to need a schema change, the mode contract or the data
 model was wrong — and finding that out at 5.0 is exactly what the stability
 tiers exist to prevent. The same held for Messages when it had a release, and
 holds again if it ever gets one.
@@ -161,11 +161,27 @@ schema, and the touch is named in advance**: a third arm on `LoreScope`, read at
 session creation, additive under [04 §2](../04-schemas.md). *A check with an
 unstated exception is a check that gets waived the first time it fires*, which is
 why the exception is in the check rather than beside it. **It runs at 1.0, at
-[P16](35-p16-world.md)'s exit, as a test** — P16 §1.6 pins the four untouched
+[P16](34-p16-world.md)'s exit, as a test** — P16 §1.6 pins the four untouched
 schema artefacts and the lorebook's outside `LoreScope` — and it runs again for
 the continuity half whenever that is built, against the same five schemas. How the
 arm itself lands inside `storyengine.lorebook/1` is
 [26 B16](../26-open-questions.md)'s question, which is the owner's.
+
+***Answered 2026-10-10, at [P16.2](34-p16-world.md), on branch `p16` — it
+passes.*** `packages/shared/src/schema/world-release-check.test.ts` pins the
+actor, treatment, setup and preset artefacts by content as they stood at
+`ad47e39` (alpha 6), and the lorebook's with `properties.scope` taken out; it
+holds `LoreScope` to the two arms `/1` shipped with plus, at most, the named
+`world` arm; and it holds the emitted set to those five and the World's. All
+seven cases pass with P16.0 to P16.2 built: **no other portable schema changed,
+and the one exception is unused** — the `world` arm waits on B16, so the lorebook
+artefact is byte-identical too. The World's own artefact replaced the Package's
+([P16 §1.1](34-p16-world.md)) and is the one it does not pin.
+*(Later the same day, the owner answered B16 — open the unions — and the arm
+landed: **it still passes, and the exception is now used, exactly as named.**
+The lorebook artefact differs from its pinned form inside `LoreScope` only, by
+the `world` arm and the open arm that is how the arm lands; the test admits
+those two shapes and nothing else beside the arms `/1` shipped with.)*
 
 > **Write at 2.0 may change internal-tier shapes and may not break portable
 > ones.**
@@ -208,7 +224,7 @@ Everything the tier returns was *removed* rather than stubbed, which is what
 makes this checkable: `PlotHook.requires` and `onFire` come back as optional
 fields, `Goal.completion` gains a third variant, and `rules` is a new optional
 collection on Package and Treatment ([02 §2.2](../02-infinite-worlds.md)) — *on
-World and Treatment, since Package is World from [P16.0](35-p16-world.md)*.
+World and Treatment, since Package is World from [P16.0](34-p16-world.md)*.
 Adding an optional field and adding a variant are both additive
 ([04 §2](../04-schemas.md)). If the tier turns out to need a *breaking* change to
 Actor, Lorebook, Treatment, Setup or Package, then §0.4 performed a deletion
@@ -341,7 +357,7 @@ no predicate language to express.
 
 **So what a rules-less Campaign cannot do is let somebody else author one.**
 Every authored quest completes narratively or manually; a shipped Package — *a
-World, from [P16.0](35-p16-world.md)* — can
+World, from [P16.0](34-p16-world.md)* — can
 declare a Corruption channel but not state a rule about it — which is exactly the
 gap [02 §2](../02-infinite-worlds.md) names as the tier's reason to exist. That
 is a real hole, and it is a hole in the *authoring* story rather than in
@@ -442,7 +458,7 @@ pass*** ([15](../15-world.md), [26 B17](../26-open-questions.md)).
 The kind, membership, contribution and transport — Package renamed World as a
 migration, a durable set of references with sessions among the members, a new
 session prefilled from its World, and [16](../16-publish.md)'s publish flow with
-the reader beside it — at [P16](35-p16-world.md). Two arguments moved it, and
+the reader beside it — at [P16](34-p16-world.md). Two arguments moved it, and
 neither is the one the other four rest on. **None of it needs play**: a set with
 a name is worth something before the first session, which is the half of 4.0's
 gate that was never true. **And it was already half built**: Package was a
@@ -451,7 +467,7 @@ set either way, and shipping it under the name that lets it be read at session
 creation costs a rename now rather than a migration of files people hold later.
 *What it costs is R4's corpus*, as [10 §1.3](../10-ui-surfaces.md) cost it
 before: [P11](28-p11-implementation.md)'s R4 reads these documents, so it waits on
-P16 as it waits on [P12A](34-p12a-the-look.md). The continuity half stays at 4.0
+P16 as it waits on [P12A](35-p12a-the-look.md). The continuity half stays at 4.0
 (§0).
 
 ### 0.6 The authoring tier, and why it is not called "authored rules"
@@ -1638,11 +1654,49 @@ nothing did.
 browser ([26 D3](../26-open-questions.md)) and Tailscale ([26 D1](../26-open-questions.md)),
 both moved to the roadmap.
 
+### P16 — World
+
+***Written 2026-10-04, the day [15](../15-world.md) was rewritten under the
+owner's decision of 2026-10-03, and ~~it is the last phase before beta is said~~.***
+Skeleton: [P16](34-p16-world.md). ~~It runs after P12A rather than before it, and
+its §0.1 says why rather than leaving the filing to imply it: P12A is ready and
+unblocked, this phase's `LoreScope` arm waits on an owner's answer
+([26 B16](../26-open-questions.md)), the rename's deadline binds both phases
+alike, and surfaces built after the look are built to it.~~ *(2026-10-12: it ran
+before P12A instead — opened on 2026-10-10 at the owner's word, which its
+document's opening note records against §0.1's reasons — and merged on 2026-10-12,
+also at the owner's word, with [sitting AA](05-manual-testing.md)'s rows 1–4
+unwalked: **merged, not closed**, under [manual testing §0](05-manual-testing.md)'s
+rule that a person walks the critical list before a phase closes. This entry moved
+above P12A's the same day, as the phase's document moved from 35 to 34.)*
+
+**Why there is a phase here at all is P12A's reason again.** [15](../15-world.md)
+put membership, contribution and transport into the 1.0 corpus, beta is a
+completeness gate against that corpus ([releases §0](04-repo-and-releases.md)),
+and R4 reads it — so writing the note moved the gate, and this phase puts it
+back. **R4 waits on it as on P12A**; R1, R2, R3, R5 and R6 do not.
+
+**Four stages**: the kind, Package renamed World as a migration that reads both
+names, with installs' existing folders and the frozen `.sepack` format covered;
+membership, with an editor that is a picker and sessions among the members;
+contribution, a new session in a World copying its books into `session.lore` and
+reading `LoreScope`'s new `world` arm once, at creation; and
+[16](../16-publish.md)'s publish flow with the reader beside it.
+
+**What it is not** is the continuity: world-scoped memory, cross-session hook
+suppression and the story bible stay designed and unscheduled, gated on PLAYABLE
+having produced sessions worth putting in a World
+([15 §4.3](../15-world.md)), and P16 §4 says which tests would reopen them.
+
+**Its gate is [sitting AA](05-manual-testing.md)** — five rows, registered with
+the phase, the second list here written before its code, and the first sitting
+past Z.
+
 ### P12A — The look
 
 ***Written 2026-09-22 at the same sitting as [10 §1.3](../10-ui-surfaces.md), and
 it is the phase between P12 and the beta declaration.*** Skeleton:
-[P12A](34-p12a-the-look.md). *Written as P11A, on a branch cut before
+[P12A](35-p12a-the-look.md). *Written as P11A, on a branch cut before
 [P12](29-p12-implementation.md) existed, and renamed when P12 — backups, which
 has no row in this section — merged first on 2026-09-23. Filed at 33
 ~~since~~ *from* 2026-10-02, after [P13](30-p13-aventuras-import.md),
@@ -1652,8 +1706,11 @@ before it; ~~it is still the last phase before beta is said~~.* *(2026-10-03: an
 at 34 since then, behind [P15](33-p15-setup-from-a-turn.md) — make a setup from
 here — which has no row here either, was built while this phase had not opened,
 and merged first; the same reasoning, one more phase.)* *(2026-10-04: and no
-longer the last before beta — [P16](35-p16-world.md), World, runs after it, below,
-for reasons its own §0.1 gives; both are before beta, and R4 waits on both.)*
+longer the last before beta — [P16](34-p16-world.md), World, ~~runs after it, below,
+for reasons its own §0.1 gives~~; both are before beta, and R4 waits on both.)*
+*(2026-10-12: P16 ran first instead, at the owner's word of 2026-10-10, and merged
+first, so it sits above this entry as its document sits at 34, ahead of this
+phase's 35. P12A is the phase in front of us, and the last before beta again.)*
 
 **Why there is a phase after the beta-hardening phase**, since that reads as a
 contradiction and the answer is mechanical. A directive to push the client
@@ -1689,38 +1746,6 @@ on [25](../25-roadmap.md) rather than in a stage, which is the same discipline
 **Its gate is [sitting T](05-manual-testing.md)** — six rows, registered before
 the phase opened, and the first list here that could be written that early
 because the claims were written before the code.
-
-### P16 — World
-
-***Written 2026-10-04, the day [15](../15-world.md) was rewritten under the
-owner's decision of 2026-10-03, and it is the last phase before beta is said.***
-Skeleton: [P16](35-p16-world.md). It runs after P12A rather than before it, and
-its §0.1 says why rather than leaving the filing to imply it: P12A is ready and
-unblocked, this phase's `LoreScope` arm waits on an owner's answer
-([26 B16](../26-open-questions.md)), the rename's deadline binds both phases
-alike, and surfaces built after the look are built to it.
-
-**Why there is a phase here at all is P12A's reason again.** [15](../15-world.md)
-put membership, contribution and transport into the 1.0 corpus, beta is a
-completeness gate against that corpus ([releases §0](04-repo-and-releases.md)),
-and R4 reads it — so writing the note moved the gate, and this phase puts it
-back. **R4 waits on it as on P12A**; R1, R2, R3, R5 and R6 do not.
-
-**Four stages**: the kind, Package renamed World as a migration that reads both
-names, with installs' existing folders and the frozen `.sepack` format covered;
-membership, with an editor that is a picker and sessions among the members;
-contribution, a new session in a World copying its books into `session.lore` and
-reading `LoreScope`'s new `world` arm once, at creation; and
-[16](../16-publish.md)'s publish flow with the reader beside it.
-
-**What it is not** is the continuity: world-scoped memory, cross-session hook
-suppression and the story bible stay designed and unscheduled, gated on PLAYABLE
-having produced sessions worth putting in a World
-([15 §4.3](../15-world.md)), and P16 §4 says which tests would reopen them.
-
-**Its gate is [sitting AA](05-manual-testing.md)** — five rows, registered with
-the phase, the second list here written before its code, and the first sitting
-past Z.
 
 ---
 
@@ -1873,10 +1898,32 @@ bar nobody owns is a wish.
 | 6 | **Upgrade tested, not assumed** | The tarball's upgrade path *is* re-running the install script, which is why that script is written to be idempotent and leaves the data directory alone. **Walking it is a person's** — a previous release, with data, upgraded — and it is a gate row rather than a check. |
 | 7 | **Backup and restore actually exercised** | Built and tested at [P11.11](28-p11-implementation.md): `tools/backup.mjs`, and a restore test whose load-bearing assertion is that the index is **rebuilt rather than carried**. The live half — restore into a running install and watch a search answer — is [testing](03-testing.md)'s. |
 
+***And one schema change owed before beta, which no phase carries — added
+2026-10-11, at [P16](34-p16-world.md)'s final audit, and owned here.***
+[26 B16](../26-open-questions.md) was answered on 2026-10-10 — **open the
+unions** — and P16.2 opened `LoreScope`, the one union it needed. **The other
+three arms already added to closed unions stay closed**: `MediaRole`'s
+`background` in `storyengine.actor/1`, and the preset block source's
+`{ of: 'state' }` and `{ of: 'setup' }` in `storyengine.preset/0`. B16's answer
+says they open under the same rule, *owed before beta*, and the only places that
+said so were [P16 §1.3](34-p16-world.md) — "a change of their own", in a phase
+that closes without it — and B16's own entry; nothing after P16, P12A included,
+named it. **So it is a pre-beta change of its own, on this list**: each of the
+three unions gains an open arm, an arm a build does not know kept and ignored, as
+`LoreScope`, `ActorRole` and `CallKind` do. **It re-pins the actor and preset
+artefacts** in `packages/shared/src/schema/world-release-check.test.ts`, which
+pins both as they stood at `ad47e39` — so opening either union fails that test
+by design, and the change says why beside the new pin, as P16.2's arm did for the
+lorebook. *Due before the release that would freeze the closed shapes* — beta,
+or an alpha cut first: every build that writes native actors and presets inside
+a `.seworld` and refuses, whole, a file using an arm it lacks is one more build
+the opening cannot help.
+
 ### What is left is two rows and a person
 
 Rows 2 (the container half) and 6 are the whole of the remainder, and neither is
-code. **Both want a machine with a container daemon and a previous release
+code. *(2026-10-11: and the unions owed above, which is code — the only item on
+this list that is.)* **Both want a machine with a container daemon and a previous release
 installed on it**, which is the same sitting twice, and
 [P11 §3](28-p11-implementation.md) carries them — row 9 for the first, and the
 critical list its close builds for the second.

@@ -73,6 +73,43 @@
               }
             }
           }
+        },
+        {
+          "type": "object",
+          "required": [
+            "kind",
+            "worldIds"
+          ],
+          "properties": {
+            "kind": {
+              "const": "world",
+              "type": "string"
+            },
+            "worldIds": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "kind"
+          ],
+          "properties": {
+            "kind": {
+              "not": {
+                "enum": [
+                  "global",
+                  "linked",
+                  "world"
+                ]
+              },
+              "type": "string"
+            }
+          }
         }
       ]
     },

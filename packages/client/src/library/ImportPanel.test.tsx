@@ -7,7 +7,7 @@ import userEvent from '@testing-library/user-event';
 import type { JSX } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { ImportPreview } from '@storyengine/shared';
+import type { ImportPreview, ImportPreviewWorld } from '@storyengine/shared';
 
 import { api, uploadFailure, type LibraryObject } from '../api.js';
 import { useLibrary } from '../queries.js';
@@ -1109,5 +1109,244 @@ describe('a folder with chats in it', () => {
     render(mount());
 
     expect(screen.getAllByText(/comes later/)).toHaveLength(1);
+  });
+});
+
+/**
+ * ***A World's file, looked at and then landed*** — [P16.3f]. The look is the
+ * manifest's: the panel sends the head of the file — never the archive — and
+ * renders what comes back by kind, with what is here, what dangles and the
+ * sessions; and after the word it leads with the World that landed.
+ */
+describe('a World’s file', () => {
+  /** A stored zip whose first member is the manifest, and a card after it. */
+  function worldFile(): File {
+    const encoder = new TextEncoder();
+    const name = encoder.encode('storyengine-world.json');
+    const manifest = encoder.encode('{"schema":"storyengine.world-file/1"}');
+    const local = new Uint8Array(30 + name.length);
+    const view = new DataView(local.buffer);
+    view.setUint32(0, 0x04034b50, true);
+    view.setUint32(18, manifest.length, true);
+    view.setUint32(22, manifest.length, true);
+    view.setUint16(26, name.length, true);
+    local.set(name, 30);
+    const rest = new Uint8Array(4096).fill(7);
+    return new File([local, manifest, rest], 'rain-city.seworld');
+  }
+
+  const WORLD: ImportPreviewWorld = {
+    kind: 'world',
+    format: 'world-file',
+    origin: 'world',
+    writtenBy: { version: '1.0.0-alpha.7', at: '2026-10-11T09:00:00.000Z' },
+    world: { id: 'w-1', name: 'Rain City', description: 'A port that is always wet.', here: false },
+    objects: [
+      {
+        schema: 'storyengine.lorebook/1',
+        id: 'b-1',
+        name: 'Harbour',
+        member: true,
+        kind: 'lorebooks',
+        here: 'here',
+      },
+      {
+        schema: 'storyengine.actor/1',
+        id: 'a-1',
+        name: 'Vera',
+        member: true,
+        kind: 'actors',
+        here: 'new',
+      },
+      {
+        schema: 'storyengine.lorebook/1',
+        id: 'b-2',
+        name: 'Lighthouse',
+        member: false,
+        kind: 'lorebooks',
+        here: 'new',
+      },
+    ],
+    sessions: [
+      {
+        id: 's-1',
+        name: 'Night one',
+        turns: 12,
+        pictures: 2,
+        attachments: 1,
+        mode: 'chat',
+        here: false,
+      },
+    ],
+    leftBehind: [
+      {
+        schema: 'storyengine.lorebook/1',
+        id: 'b-3',
+        name: 'Tides',
+        reason: 'unchecked',
+        required: true,
+        from: ['t-1'],
+        resolvesHere: false,
+      },
+    ],
+    requires: {
+      modes: [{ id: 'scene', minVersion: '9.0.0', here: false }],
+      extensions: [],
+      capabilities: [],
+    },
+    history: false,
+    omitted: [],
+  };
+
+  const PREVIEWED: ImportPreview = {
+    source: 'rain-city.seworld',
+    disposition: 'converted',
+    notes: [],
+    advisories: [],
+    object: WORLD,
+    reimport: 'unknown',
+  };
+
+  const input = (): HTMLInputElement =>
+    document.querySelector<HTMLInputElement>('input[type="file"]')!;
+
+  it('sends the head of the file, not the archive, and renders the look by kind', async () => {
+    const preview = vi.spyOn(api, 'importFilePreview').mockResolvedValue({ preview: PREVIEWED });
+    const file = worldFile();
+    render(mount());
+
+    await userEvent.upload(input(), file);
+
+    expect(
+      await screen.findByText(
+        /It would land as a world called “Rain City”, with 3 objects and 1 session\./,
+      ),
+    ).toBeTruthy();
+    expect(preview).toHaveBeenCalledTimes(1);
+    const sent = preview.mock.calls[0]![0];
+    expect(sent.name).toBe('rain-city.seworld');
+    expect(sent.size).toBe(30 + 'storyengine-world.json'.length + 37);
+    expect(sent.size).toBeLessThan(file.size);
+
+    // By kind, in the library's order, each row's name and what it is here —
+    // once the look's own chunk has arrived (`ImportWorldLoad.tsx`).
+    await screen.findByText('Harbour');
+    const headings = [
+      ...document.querySelectorAll('section[aria-label="What this would import"] h5'),
+    ].map((one) => one.textContent);
+    expect(headings).toEqual(
+      expect.arrayContaining(['A world: “Rain City”', 'Actors', 'Lorebooks', 'Sessions']),
+    );
+    expect(headings.indexOf('Actors')).toBeLessThan(headings.indexOf('Lorebooks'));
+    expect(screen.getByText('Harbour').parentElement?.textContent).toContain('already here');
+    expect(screen.getByText('Lighthouse').parentElement?.textContent).toContain('beside the world');
+    // The session, with how much of it there is.
+    expect(screen.getByText('Night one')).toBeTruthy();
+    expect(screen.getByText('12 turns, 3 pictures')).toBeTruthy();
+    // What dangles, and that it was required.
+    expect(screen.getByText('Left behind by its sender, and not in your library')).toBeTruthy();
+    expect(screen.getByText('Tides').parentElement?.textContent).toContain('required');
+    // What it asks of this install.
+    expect(screen.getByText(/asks for the scene mode, version 9\.0\.0 or later/)).toBeTruthy();
+  });
+
+  it('asks replace or keep both because something is here, and sends the answer with the word', async () => {
+    vi.spyOn(api, 'importFilePreview').mockResolvedValue({ preview: PREVIEWED });
+    const commit = vi.spyOn(api, 'importFile').mockResolvedValue({
+      item: { source: 'library/worlds/rain-city/world.json', disposition: 'converted', notes: [] },
+      notes: [],
+      jobId: 'job-7',
+      report: {
+        jobId: 'job-7',
+        source: 'storyengine-world',
+        items: [
+          {
+            source: 'library/worlds/rain-city/world.json',
+            disposition: 'converted',
+            objectId: 'w-1',
+            notes: [
+              {
+                key: 'import.world.landed',
+                params: { world: 'Rain City', members: 3, sessions: 1 },
+                level: 'info',
+              },
+            ],
+          },
+        ],
+        counts: { converted: 1 },
+      },
+      world: { id: 'w-1', name: 'Rain City', members: 3, sessions: 1, dangling: 1 },
+    });
+    render(mount());
+
+    await userEvent.upload(input(), worldFile());
+    const choice = await screen.findByLabelText('What to do with what is already here');
+    await userEvent.selectOptions(choice, 'keep-both');
+    await userEvent.click(screen.getByRole('button', { name: /^import$/i }));
+
+    // The archive goes whole on the word, with the choice made.
+    await waitFor(() => {
+      expect(commit).toHaveBeenCalledTimes(1);
+    });
+    expect(commit.mock.calls[0]![0].size).toBeGreaterThan(4096);
+    expect(commit.mock.calls[0]![1]).toBe('keep-both');
+    // And the review leads with the World that landed, and a way to it.
+    expect(
+      await screen.findByText(/A world named “Rain City” landed, naming 3 objects and 1 session\./),
+    ).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Open it' }).getAttribute('href')).toBe(
+      '/library/worlds/w-1',
+    );
+    expect(screen.getByText('One thing this world names is not in your library.')).toBeTruthy();
+  });
+
+  /**
+   * ***A slicer that does not arrive is no head*** (2026-10-11, the P16.3f
+   * review). It is fetched when any zip is picked — a backup, a SillyTavern
+   * folder, a `.charx` as much as a World — so a tab opened before an upgrade,
+   * whose chunk is gone, ~~showed the browser's raw import error and no Import
+   * button for every archive~~ falls back to the folder look every zip had
+   * before this stage, which never touched the network.
+   */
+  it('looks at a zip as a folder when the slicer cannot be fetched', async () => {
+    vi.doMock('./world-head.js', () => {
+      throw new TypeError('Failed to fetch dynamically imported module: /assets/world-head.js');
+    });
+    try {
+      const preview = vi.spyOn(api, 'importFilePreview');
+      render(mount());
+
+      await userEvent.upload(input(), worldFile());
+
+      expect(await screen.findByText('Everything inside would be imported.')).toBeTruthy();
+      expect(screen.getByRole('button', { name: /^import$/i })).toBeTruthy();
+      expect(screen.queryByText(/Failed to fetch/)).toBeNull();
+      expect(preview).not.toHaveBeenCalled();
+    } finally {
+      vi.doUnmock('./world-head.js');
+    }
+  });
+
+  it('asks nothing more of a file none of which is here', async () => {
+    vi.spyOn(api, 'importFilePreview').mockResolvedValue({
+      preview: {
+        ...PREVIEWED,
+        object: {
+          ...WORLD,
+          objects: WORLD.objects.map((one) => ({ ...one, here: 'new' as const })),
+          sessions: [{ ...WORLD.sessions[0]!, turns: 1, pictures: 1, attachments: 0 }],
+        },
+      },
+    });
+    render(mount());
+
+    await userEvent.upload(input(), worldFile());
+
+    expect(await screen.findByRole('button', { name: /^import$/i })).toBeTruthy();
+    // The look itself has arrived (its chunk is lazy), and asks nothing.
+    expect(await screen.findByText('Harbour')).toBeTruthy();
+    expect(screen.queryByLabelText('What to do with what is already here')).toBeNull();
+    // One of each, said as one (the review: *1 turns, 1 pictures*).
+    expect(screen.getByText('1 turn, 1 picture')).toBeTruthy();
   });
 });

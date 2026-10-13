@@ -44,6 +44,7 @@ import type { LibraryContext } from './library.js';
 import { registerAdminRoutes } from './routes/admin.js';
 import { registerAuthRoutes } from './routes/auth.js';
 import { registerImportRoutes } from './routes/import.js';
+import { registerPublishRoutes } from './routes/publish.js';
 import { registerLibraryRoutes } from './routes/library.js';
 import { registerBackupRoutes } from './routes/backups.js';
 import { registerMeRoutes } from './routes/me.js';
@@ -1619,6 +1620,9 @@ export async function buildApp(
       registerTagRoutes(api, services);
       registerLibraryRoutes(api, services);
       registerImportRoutes(api, services);
+      // Publish — the review, the World file and its ledger ([P16.3d]), beside
+      // import because it is that door's mirror ([16 §5.1]).
+      registerPublishRoutes(api, services);
       registerSearchRoutes(api, services);
       registerSessionRoutes(api, services);
       // Hide and unhide — P14 §1.6's one gesture that is not a turn ([P14.4]).

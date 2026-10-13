@@ -231,8 +231,23 @@ correct, and would turn this route into a way to read the install's rule.
 ## Library
 
 `:kind` is a **folder name**, not a schema id: `actors`, `lorebooks`, `treatments`,
-`setups`, `presets`, `packages`. An unknown kind is `404` and the message lists
+`setups`, `presets`, `worlds`. An unknown kind is `404` and the message lists
 the known ones.
+
+***`worlds` was `packages` until [P16.0](design/workplan/34-p16-world.md)***
+(2026-10-10), when the kind was renamed — `storyengine.package/1` became
+`storyengine.world/1`, the folder `library/worlds/`, the file `world.json`.
+**The old segment is not kept**: `/api/library/packages/*` is the unknown-kind
+`404` above, because the only caller was the client that ships with this server
+([P16 §1.1](design/workplan/34-p16-world.md)). The old *data* is kept: a World
+still stored as `library/packages/<slug>/package.json` is listed, read and
+written under `worlds` like any other — its first write moves the folder to
+`worlds/`, under a fresh slug if a World already holds its own, and keeps the id
+([03 §5.1](design/03-data-model.md)) — and a body that says
+`storyengine.package/1`, sent to `POST` or `PUT` under `worlds`, is accepted as a
+World and written as `storyengine.world/1`. **Reads answer the new id**: a body
+is upgraded at every door it comes in through, so a `GET` returns
+`storyengine.world/1` for a file that still says otherwise on disk.
 
 **And it is checked.** Posting an object to the wrong kind is `400`, naming both
 what you sent and where you sent it — both halves came from the caller, so
@@ -564,6 +579,36 @@ or no field, is the default, which writes none. The same before-the-file rule
 applies. Every other kind of upload ignores it — **including an Aventuras
 story file**, below, which brings its story whatever the field says.
 
+**A World file (`.seworld`), and a `.sepack.json`** —
+[P16.3e](design/workplan/34-p16-world.md). A zip holding
+`storyengine-world.json` anywhere is a World file, swept as a root
+(`report.source` `storyengine-world`): its objects in the manifest's order, then
+anything in it the manifest does not list (`import.world.unlisted`), then its
+sessions, then the World, which names ~~exactly what landed~~ *the members that
+landed — what the walk brought beside them (a treatment's books, a hook's actors)
+lands loose in the library and is not added to the World (corrected 2026-10-11,
+the [P16](design/workplan/34-p16-world.md) final audit)* — merged into a World
+already here, never shrinking it. An object is checked against the manifest's
+hash and refused alone when it does not match (`import.world.damaged`), as is
+one whose body's id is not its manifest row's; a file
+that names a member twice, lists a file or id twice, or carries a manifest of
+another schema or a later version is refused whole, before anything is written.
+An object whose id another account on this install holds lands under a new id,
+and the references to it follow; reading your own file back is `unchanged`.
+~~**Sessions are `recorded` and not yet landed** (`import.world.sessionsNotTaken`)
+— that is P16.3f's.~~ ***Sessions land since [P16.3f](design/workplan/34-p16-world.md)***
+— each as a session of yours, its turns keeping their ids unless another account
+on this install holds them, when they are re-keyed; one already here takes only
+what is new — turns, pictures of turns it has, goals — and is `unchanged` when
+there is none; a document sharing no turn with the session it was matched to is
+refused (`import.world.sessionUnrelated`). A landed session is quiet: it does not
+start the summariser on your connections, which builds on the first turn played.
+It arrives unarchived. The answer carries `world` — the World's id and name and
+how many objects and sessions it names — for the panel's *Open it*. A `.sepack.json`, P11.10's export, is read by the same reader
+as a World with no pictures (`import.world.noPortrait` on an actor that lands on
+the blank card). A landed zip's read budget is the larger of 256 MiB and four
+times the bytes received, since a World file's members are read more than once.
+
 **An Aventuras story file (`.avt`)** — [P13.15](design/workplan/30-p13-aventuras-import.md) —
 is recognised by its contents, whatever it is called: a JSON object whose
 `story` is an object and whose `entries` is an array, which is what
@@ -689,6 +734,18 @@ change underneath, and the commit's answer is the real one.
 **A file this cannot identify is `200`, not `4xx`.** A file is a fact about the
 world rather than a malformed request, which is the shape `/import/file` already
 takes.
+
+**A World file previews from its manifest** —
+[P16.3f](design/workplan/34-p16-world.md). The answer's `world` is the World
+look: what the file carries by kind, each object as `new`, `here` or `built-in`
+for this account — **an id only another account holds previews as `new`**, so a
+preview never says what someone else has — its sessions with their turns and
+pictures, what it names that stays unresolved here, and what it requires that
+this install lacks. A whole archive is opened and classified first, as the commit
+will; the client, for a large one, sends only the manifest's own local entry,
+found through the archive's directory wherever it sits and stored or deflated, and
+the server reads that slice, inflating at most the manifest's ceiling. A
+`.sepack.json` previews the same way. Like every preview here, it writes nothing.
 
 **The commit is a second upload of the same bytes to `/import/file`**, not a
 `POST` of the object this returns. There is no staging area: nothing is written
@@ -1151,8 +1208,10 @@ copy's page offered the winner's bytes under the loser's name.
 
 **The primitive, and it converts nothing.** Everything under `/export/` below is
 a *writer*, and a writer loses something by definition; this loses nothing
-because nothing is converted. It carries no `x-storyengine-missing`: a package
-resolves references and can come up short, and an object is just itself.
+because nothing is converted. It carries no `x-storyengine-missing`: ~~a World's
+export resolves references and can come up short~~ *a publish resolves references
+and can come up short (the World export that did is removed)*, and an object is
+just itself.
 
 Until this route existed, nothing in the build downloaded a library object except
 a `.sepack` — a strange absence in a surface whose whole claim
@@ -1204,21 +1263,84 @@ build, which is what `export/writers.test.ts` asserts and the first real exercis
 [00 §2.4](design/00-stance.md)'s *nothing is lost and re-export is possible* has
 had.
 
-### `GET /api/library/packages/:id/export`
+### ~~`GET /api/library/worlds/:id/export`~~ — removed
 
-**A package with the objects it names, as a `.sepack`** → `200`,
-`application/json`, as `<package name>.sepack.json`. The contents are resolved
+***Removed at [P16.3g](design/workplan/34-p16-world.md), 2026-10-11.*** A World
+travels as a World file through [Publish](#publish), which walks every level, can
+carry pictures and sessions, and is reviewed first; `404` now. A `.sepack.json`
+this route wrote is still read, as a World, by `POST /api/import/file`. *What it
+was, for the record:*
+
+**A World with the objects it names, as a `.sepack`** → `200`,
+`application/json`, as `<World name>.sepack.json`. The contents are resolved
 and carried whole, so the file works on an install that has none of them.
 
+***At this address from [P16.0](design/workplan/34-p16-world.md)***
+(2026-10-10); it was `GET /api/library/packages/:id/export`, which is not kept.
+**The file is unchanged**: still P11.10's frozen `storyengine.package-export/1`
+envelope — `schema`, `exportedBy`, a `manifest` of the World's id, name, version
+and contents, and the `objects` — with the same `.sepack.json` name.
+[P16.3](design/workplan/34-p16-world.md) defines the World's own format once,
+writes it, and reads this one beside it; renaming the envelope at the rename and
+reshaping it at P16.3 would be two formats written in one phase
+([P16 §1.1](design/workplan/34-p16-world.md)). *No build reads a `.sepack.json`
+yet* — the import panel does not take one.
+
 **What it could not include is counted in `x-storyengine-missing`**: an id the
-package names and the library no longer has is left out of the file, and the
+World names and the library no longer has is left out of the file, and the
 header says how many — *reported, not dropped*, in a header for the notes'
-reason above. The detail page says the count under its *Export this package*
-link; before 2026-09-28 nothing read it.
+reason above. The detail page says the count under its *Export this world*
+link (*Export this package* until P16.0); before 2026-09-28 nothing read it.
 
 The id alone: no `?source=&slug=`, so the page offers this only on the copy
-an id resolves to. `404 {"error":"not-found"}` for a package that is not
-there.
+an id resolves to. `404 {"error":"not-found"}` for a World that is not
+there — and, since 2026-10-10, for an id that is some other kind: the writer
+reads its id with no kind, so an actor's id here exported the actor as a bundle
+of nothing.
+
+### `POST /api/library/worlds/:id/members`
+
+**Adds members to a World** — [P16.1](design/workplan/34-p16-world.md) →
+`200 {contentHash, object}`, the World as stored afterwards, as `PUT` answers.
+
+```json
+{ "members": [
+    { "schema": "storyengine.lorebook/1", "id": "0199…", "name": "The Docks" },
+    { "schema": "storyengine.session/1",  "id": "0199…", "name": "A night out" }
+] }
+```
+
+**The door for a gesture made from outside the World's own editor** — *Add to
+a world* on a session's page or in the session list. The editor writes the whole
+World through `PUT` like every editor; this one adds, so it needs no `If-Match`:
+there is no version of the World the caller could have been wrong about. It is
+the library's ordinary hash-checked write, read and retried on the server when
+somebody else saved in between.
+
+- **Idempotent by id.** A member the World already holds is left where it is,
+  under the name it was added with; adding nothing new writes nothing and takes
+  no history entry. New members go at the end, in the order given.
+- **A member is an envelope**, `{schema, id, name?}`, of any library kind — and
+  a session, as `storyengine.session/1`, which the envelope admits because its
+  `schema` is a string and never a kind
+  ([P16 §1.2](design/workplan/34-p16-world.md)). An id that resolves to nothing
+  is kept, as every reference here is: it dangles visibly rather than blocking.
+- **Not a World, and not itself** — `400 {"error":"invalid"}`. A World does not
+  hold a World ([15 §3.1](design/15-world.md)). *Under either schema id since
+  2026-10-11, the [P16](design/workplan/34-p16-world.md) final audit:
+  `storyengine.package/1` is refused as `storyengine.world/1` is — until then an
+  envelope under the legacy id was written with a `200`, which this sentence did
+  not say.* This route is the only door that refuses one: a World's own `POST`
+  and `PUT` are left open on purpose, since refusing there would refuse every
+  save of a World that already holds one, and the publish walker, the World
+  file's writer and its reader each leave a nested World out.
+- `404 {"error":"not-found"}` for a World that is not there, or an id of
+  another kind. A World still stored under its old name moves on this write, as
+  on any first write.
+
+**Membership lives on the World alone**: a session carries no World, and the
+reverse view — *In these worlds* on a session's page — is the client reading
+the Worlds whose `contents` name it, from `GET /api/library/worlds`.
 
 ### `GET /api/library/:kind/:id/avatar`
 
@@ -1235,7 +1357,7 @@ object's `contentHash`: the two differ, and the digest is the right one because
 a picture does not change when the prose beside it does.
 
 **Any kind, unlike `/avatar`.** [04 §3](design/04-schemas.md) puts `media` on
-treatments, lorebooks and packages as well as on actors, so the route is keyed
+treatments, lorebooks and Worlds as well as on actors, so the route is keyed
 the same way the rest of the library is.
 
 - `404` when the object has no entry with that id.
@@ -1370,6 +1492,133 @@ a destructive act on something the user liked"*). Another picture of the turn is
 the illustrate route, which makes a sibling.
 
 ---
+
+## Publish
+
+***Built at [P16.3d](design/workplan/34-p16-world.md), 2026-10-10.*** Publish
+is [16](design/16-publish.md)'s flow: from one object, a selection of them, or a
+World, the closure [04 §9.1](design/04-schemas.md)'s table reaches, reviewed, and
+written as a World file — `storyengine.world-file/1`, a stored zip named
+`<name>.seworld` ([16 §5.2](design/16-publish.md)). Two requests: a **preview**
+that writes nothing, and a **confirm** that walks the library again, as it is
+then, and returns the file. The client's review (P16.3g) is the only caller so
+far, ~~and until it is built `GET /api/library/worlds/:id/export` stays~~ *and the
+World export it replaced is removed (P16.3g, 2026-10-11)*.
+
+The start is the same shape on both:
+
+```json
+{ "kind": "objects", "ids": ["0199…", "0199…"] }
+{ "kind": "world", "id": "0199…" }
+```
+
+One id is an **object** start, two or more a **selection**; a World is started
+from by its own shape and never named in a selection
+(`422 {"error":"world-in-selection"}`). Both bodies are closed: an unknown key —
+a misspelt `reviewed` included — is a `400` naming it, since an ignored key that
+quietly switched off a check is worse than a refusal.
+
+### `POST /api/publish/preview`
+
+**What would leave, and why** → `200` `PublishPreview`, writing nothing: not the
+library, not the index, not the ledger, not a scratch file left behind.
+
+- `closure` — every node the walk reached, every edge that reached it (each with
+  its rule from the table, the field it was read from, and whether it resolved
+  by id or by name), missing references as nodes, and each found object's and
+  session's facts: its entries, pictures and their bytes, versions, a session's
+  turns and attachments. History is measured as though asked for, so the choice
+  can say what it adds. *Since [P16.3h](design/workplan/34-p16-world.md)*, a
+  session's facts carry a `digest` of what it would send, and `closure.world`
+  an `about` hash of the World's description, pictures and requirements — what
+  the re-publish diff compares with the ledger's last record.
+- `reviewed` — a hash of what the review was drawn from. Sent back with the
+  confirm, it is how a change made in between is reported (below).
+- `suggestedName` — the World's own for a World start, an object's for an object
+  start, and for a selection the names of its first three starting points *that
+  the default ticks carry* (2026-10-11, the [P16](design/workplan/34-p16-world.md)
+  final audit: until then every starting point, an unticked one included); the
+  review recomputes it with the same rule as the ticks move, until the person
+  types a name; `justTheObject`, true when an object start's closure is the
+  object alone ([16 §2](design/16-publish.md) sends that one to *Download*);
+  `sameAs`, for a selection, the Worlds that already hold exactly it;
+  `modeVersions`, this install's version of each mode the closure needs, `null`
+  for one it does not have; `previous`, for a World start, the ledger's last
+  record of publishing it, which the diff opens on.
+- An object of yours is on by default; a system object, a session, and ~~an object
+  play wrote~~ a lorebook play wrote — a memory book, which stays home whatever is
+  ticked — are off. *(Corrected 2026-10-11, the
+  [P16](design/workplan/34-p16-world.md) final audit: the rule held any kind marked
+  as written by a session, so a Setup made from a turn never travelled; it is
+  lorebooks only now, and that Setup is an object of yours like any other.)*
+
+`404 {"error":"not-found"}` for a start that is not there — a lone id, a World,
+or a selection none of whose ids resolve. A selection with *some* missing is a
+preview with those as missing nodes.
+
+### `POST /api/publish`
+
+**The file** → `200`, `application/zip`, as an attachment named by the World or
+the selection, with `content-length`.
+
+```json
+{ "start": { "kind": "world", "id": "0199…" },
+  "choices": { "ticked": { "0199…": true, "0199…": false },
+               "history": false, "keep": "world", "name": "Rain City" },
+  "reviewed": "sha256:…" }
+```
+
+`ticked` overrides the defaults by id; an id the walk no longer reaches is
+ignored and a new one takes its default, because the confirm walks the library
+afresh. ~~`keep` and `name` are read only for a selection: `"world"` (the default)~~
+*`history` and `keep` are required — a body without either is `400`, and
+`"world"` is what the review defaults to, not the route (corrected 2026-10-11, the
+[P16](design/workplan/34-p16-world.md) final audit). `keep` is read only for a
+selection:* `"world"` keeps the selection as a World of that name — **the one write a publish makes to
+the library**, created only once the file is planned, so a refusal leaves none —
+and `"snapshot"` keeps nothing. A World start never changes its World, and an
+object start writes nothing at all. *When no World names the file — a snapshot,
+or an object start — `name`, sent and valid, names it (since 2026-10-11: the
+review offers a snapshot's name as* The file's name*); otherwise it is named from
+the starting points that travel, by `suggestedName`'s rule over what is ticked.*
+
+Headers: `x-storyengine-world`, the World this publish created;
+`x-storyengine-missing`, how many references could not be carried;
+`x-storyengine-review-drift: 1` when `reviewed` was sent and the library has
+changed since — the file is what the library is *now*, and the header says it is
+not what was reviewed; `x-storyengine-export-notes`, the notes, base64 JSON,
+capped at 3 KiB — warnings first, then a `publish.file.moreInManifest` count — so
+that a file missing many pictures does not trip a proxy's header limit; the
+manifest inside the file carries them all.
+
+Refusals: `404` as the preview's; `409 {"error":"publish.changed"}`, naming the
+file and any World this publish kept, when something it is copying changed
+between planning and writing — the file is never written half; `422` for
+`world-in-selection`, `invalid-name`, or `publish.tooLarge` (more entries or
+bytes than a World file holds, said before anything is written); `507` when the
+disk cannot hold the file, before writing it or while doing so. **A failure after
+a selection's World was kept, other than the `409`, moves that World to the
+trash**, so the only refusal that leaves one is the one that names it.
+
+**Each publish that delivered a file is a line in the account's ledger**,
+`users/<handle>/publishes.jsonl` ([22 §9](design/22-internal-contracts.md)) —
+written when a `200`'s file has been sent to its end, never for a refusal or a
+download abandoned part-way.
+
+### `GET /api/publish/records`
+
+**What this account has published** → `200 {count, records}`, newest first.
+`?world=<id>` narrows to one World's; `?limit=` is 1 to 200, 20 by default, and
+`count` is every matching record. A record names what left — each object with
+its stored hash, each session with ~~its head and when it was last changed~~ *its
+head, its turn count and a `digest` of what it sent, and the World's name,
+`version` and an `about` hash (corrected 2026-10-11, the
+[P16](design/workplan/34-p16-world.md) final audit: since
+[P16.3h](design/workplan/34-p16-world.md) a session is compared by `digest`, head
+and time only for a line written before there was one)* — which is what
+re-publishing compares against. Its `at` is when the confirm planned the file —
+the manifest's `exportedBy.at` — and the line is written once the file has
+finished sending ([22 §9](design/22-internal-contracts.md)).
 
 ## Tags
 
@@ -1548,6 +1797,12 @@ going back never destroys what you were on. Restoring the state you are already
 on is a no-op and records nothing. → `200 { contentHash, object }`, the same
 shape as `PUT`, so a client treats it exactly as a save.
 
+**A version is restored under the object's own id**, whatever id the version
+records (2026-10-11, the [P16](design/workplan/34-p16-world.md) final audit). A
+legacy World re-minted on its way out of the trash keeps versions that hold its
+old id; restored as recorded, each was `400` *An object cannot change its id*. A
+`PUT` that changes the id is still refused.
+
 ### `PATCH /api/library/:kind/:id/history/:versionId`
 
 Body `{ reason?, pinned? }` — rename an entry, or pin it so retention pruning
@@ -1672,7 +1927,7 @@ render a wizard for a mode nobody chose.
 
 ### `POST /api/sessions` · `GET /api/sessions?archived=true`
 
-`{ name?, mode?, modeConfig?, preset?, cast?, treatment?, lore?, setup?, opening?, openings?, hooks? }`
+`{ name?, mode?, modeConfig?, preset?, cast?, treatment?, lore?, setup?, world?, opening?, openings?, hooks? }`
 → `201 { session, activeJob? }`, and a list. **`archived` is the string `"true"`,
 not a boolean** — see the note under the turn routes.
 
@@ -1735,6 +1990,45 @@ cannot reach a running game — the same asymmetry the preset has. `422
 unknown-setup` when there is no such Setup: a dangling *treatment* or *lorebook*
 is a session missing a book and is accepted, but a dangling Setup is a session
 that would be created as something other than what was asked for.
+
+**`world` is a World to start in** — [P16.2](design/workplan/34-p16-world.md),
+[P16 §1.3](design/workplan/34-p16-world.md). Its contribution is a **default one
+rung below the Setup's**, read once here and copied:
+
+- **`lore`** — when the request sends none — is the Setup's books and the World's
+  lorebook members together, the World's in the order it holds them, and **then
+  every lorebook you can read whose own scope names the World** (`{ kind:
+  "world", worldIds }`), ordered by name. They are a union rather than a choice,
+  since all of them are simply the session's books.
+- **`treatment`** — when neither the request nor the Setup names one — is the
+  World's treatment member **only when it holds exactly one**; with several, none
+  is chosen, because the first would be the server picking a story. A form offers
+  them.
+- **The hooks those carry** join the pool as every carrier's do, with their ids.
+- **`setup`** — when the request sends none — is the World's Setup member **when
+  it holds exactly one** (2026-10-12, the owner's answer): the session starts
+  through it exactly as if `setup` had named it, held to every check a named
+  Setup is, and the two bullets above then add under it. With several, none is
+  chosen. **`setup: null`** says *no Setup*, the World's included. A sole Setup no
+  longer in the library is started without and logged (`world.setupMissing`),
+  never refused; an `opening` sent with a World alone takes that Setup's opening.
+  The World is read before the opening is checked, so a stray opening beside a
+  World that is not there answers `unknown-world`.
+
+**A request that sends `lore` or `treatment` gets what it sent**: a form that
+offered a World's books and had one unticked sends the rest, and the World does
+not put it back — *prefill, never binding* ([00 §3.1](design/00-stance.md)). What a
+World contributes lands in `session.lore`, on disk and editable, and **nothing
+reaches the prompt that is not selected there**: a book's `world` scope is read
+once, here, to copy it, and no scope admits a book to a session afterwards.
+
+**The session then joins the World** — `{schema: "storyengine.session/1", id,
+name}` appended to its `contents`, the one place membership is written (the
+session carries no World). A World that cannot take the write in that moment — a
+system one, one deleted since it was read — costs the membership, which is
+logged, and not the session, which already exists. `422 unknown-world` when there
+is no such World, for the Setup's reason: it decides what the session starts
+with.
 
 **A Setup's opening is the session's first turn**, since P15.3
 ([03 §6](design/03-data-model.md),
@@ -2410,7 +2704,15 @@ being made when the session goes writes nothing, and a restore that finds a
 folder without a `session.json` in its place moves that aside into the trash.
 A restore (`POST /api/me/trash/restore`) indexes what it puts back before it
 answers, so a restored session is found by search again and a restored object
-reads at once. `{ id }` names an entry as `GET /api/me/trash` lists it; one that
+reads at once, and answers `200 {restored: true, notes}`. ***`notes` since
+2026-10-11*** (the [P16](design/workplan/34-p16-world.md) final audit), in the
+import review's `{key, params, level}` shape, worded by the client: today one,
+`trash.restore.reminted` (`warn`, params `name` and the new `id`) — a Package
+trashed before [P16.0](design/workplan/34-p16-world.md) whose id is in use on this
+install again comes back as a World under a new id, beside the one holding it,
+rather than as a second object claiming the id. Ids are the install's, so it can
+fire when **another account** holds the id, and the note names no holder; a
+restore with nothing to say answers `notes: []`. `{ id }` names an entry as `GET /api/me/trash` lists it; one that
 is not an address is `400 invalid`, one no longer there is `404 not-found`, and
 one whose place is taken is `409 occupied`. ***Anything else is a `500` and is
 logged*** (2026-09-27): every failure used to be *not an address in the trash*,
@@ -4358,7 +4660,7 @@ proof obligation arriving for free.
 | 422 | `unknown-input-kind` | A turn submission whose `input.kind` is not one this session's mode declares ([06 §1], [P7.9]). Carries `accepted`, the mode's list. **A refusal rather than a coercion to `do`**, because the kinds change what the prompt says — narrating a `think` as a `do` would put the player's private thought in the scene, which is the one failure the kind exists to prevent |
 | 404 | `no-session` / `no-such-hook` / `no-such-object` | Promoting a pooled hook out of a session ([03 §4.1]): the session is gone, this pool has no hook with that id, or the library object being promoted to has been deleted. **Three answers rather than one**, because they send a person to three different places and the union of them helps nobody |
 | 409 | `already-there` | The promotion target already carries a hook with this id. **Never a second copy and never a fresh id** — [15 §5](design/15-world.md) makes the id the only thing that links two firings of one hook across sessions, so re-minting it is the move that cannot be undone |
-| 404 | `no-such-channel` | A channel write to a key this session's mode does not enable ([06 §4.1], [P7.9]). The registry is process-wide and a session is not: a channel owned by a *mode* belongs to a session playing it, and one owned by a *package* — cast, hooks, goals, lore, suggestions — is available everywhere. *Package* here is a first-party engine namespace (`storyengine.cast` and its siblings), never the library kind, which becomes a World ([06 §4.1] separates the two, 2026-10-04). **A 404 rather than a 422**, because *that exists but not for you* would leak which modes the build ships from a session route |
+| 404 | `no-such-channel` | A channel write to a key this session's mode does not enable ([06 §4.1], [P7.9]). The registry is process-wide and a session is not: a channel owned by a *mode* belongs to a session playing it, and one owned by a *package* — cast, hooks, goals, lore, suggestions — is available everywhere. *Package* here is a first-party engine namespace (`storyengine.cast` and its siblings), never the library kind, which ~~becomes~~ is a World since [P16.0](design/workplan/34-p16-world.md) ([06 §4.1] separates the two, 2026-10-04). **A 404 rather than a 422**, because *that exists but not for you* would leak which modes the build ships from a session route |
 | 503 | `setup-required` | No accounts exist yet |
 | 500 | `internal` | Something the server did not expect. The message is deliberately uninformative — the detail is in the log, where it can name a filesystem path safely |
 

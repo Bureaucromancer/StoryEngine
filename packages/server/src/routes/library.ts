@@ -9,18 +9,19 @@ import {
   exportFormat,
   isKnownSchema,
   LIBRARY_DIRECTORIES,
-  type ImportNote,
   type PortableSchemaId,
   type TagList,
+  upgradeLegacySchema,
 } from '@storyengine/shared';
 
 import { type AppServices, requireAccount } from '../app.js';
 import { resolveObjectTags } from '../tags/resolve.js';
 import { usedBy } from '../index-db/links.js';
-import { exportPackage } from '../packaging/export.js';
 import { writerFor } from '../export/writers.js';
 import { assistField } from '../library/assist.js';
+import { addMembers } from '../library/worlds.js';
 import { disconnectSignal } from './disconnect.js';
+import { encodeNotes } from './headers.js';
 import { copyAssets, storeAsset, sweep } from '../library/assets.js';
 import { sniff } from '../auth/avatars.js';
 import { readOnePart } from './import.js';
@@ -382,42 +383,78 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
   );
 
   /**
-   * ***A package, with the objects it names*** — [04 §9], [P11 §1.9], [P11.10].
+   * ~~***A World, with the objects it names*** — [04 §9], [P11 §1.9], [P11.10]:
+   * `GET /library/worlds/:id/export`, P11.10's frozen
+   * `storyengine.package-export/1` envelope as `<name>.sepack.json`, one level
+   * deep, with `x-storyengine-missing` counting what it could not include.~~
    *
-   * **`.sepack` is this stage's rather than a stage of its own**, and §1.9's
-   * argument was not scheduling: an envelope is one of [19 §3]'s four
-   * consequences — free while the format is written, expensive afterwards — and
-   * a second one written later is two formats forever.
-   *
-   * *`missing` travels in a header rather than in the body*, because the body is
-   * the file: a person downloading a bundle gets the bundle, and a stale
-   * reference is something the **surface** tells them about. A field inside the
-   * document would be a note to the importer about the exporter's library.
+   * ***Removed 2026-10-11, at [P16.3g](../../../../docs/design/workplan/34-p16-world.md)***,
+   * with its writer (`packaging/export.ts`) and `packFileName`. A World leaves
+   * as its World file now — `POST /api/publish`, every level of the closure,
+   * reviewed ([16 §5]) — and the client's *Export this world* link gave way
+   * to *Publish this world…* in the same change, which was the condition the
+   * plan set for the route going: its only caller was the client that ships
+   * with this server ([P16 §1.1]'s line for every route the rename moved).
+   * **The format is still read**: `PackageExport` and `PACKAGE_EXPORT_SCHEMA`
+   * stay in `shared` for `import/world/legacy.ts`, because files alpha 5 and
+   * alpha 6 handed out hold it ([16 §5.1]). [P16 §6]'s open question —
+   * whether an old address should keep answering — is answered here for this
+   * one: nothing outside this repository called it, and a door that writes a
+   * format nothing should write any more is a door to close.
    */
-  app.get(
-    '/library/packages/:id/export',
-    { schema: { params: Type.Object({ id: Type.String({ minLength: 1 }) }) } },
+
+  /**
+   * ***Add to a World*** — [P16.1](../../../../docs/design/workplan/34-p16-world.md),
+   * [P16 §1.2](../../../../docs/design/workplan/34-p16-world.md).
+   *
+   * **The door for a gesture made from somewhere else** — *Add to a World* on a
+   * session's page or in the session list — rather than for the World's own
+   * editor, which writes the whole object through `PUT` as every editor does.
+   * The difference is who holds the World: the editor read it and owns the
+   * hash it presents, and a button on a session page did neither, so a
+   * read-modify-write in the browser would lose whatever a second tab saved in
+   * between. Here it is the library's own hash-checked write, retried on a
+   * stale read, and **idempotent by id** — a member already held is not added
+   * twice, and adding nothing new writes nothing (`library/worlds.ts`).
+   *
+   * No `If-Match`, deliberately: an add does not overwrite anything the caller
+   * read, so there is no version of the World for it to have been wrong about.
+   * It answers the World as stored afterwards, as `PUT` does.
+   */
+  app.post(
+    '/library/worlds/:id/members',
+    {
+      schema: {
+        params: Type.Object({ id: Type.String({ minLength: 1 }) }),
+        body: Type.Object({
+          members: Type.Array(
+            Type.Object({
+              schema: Type.String({ minLength: 1, maxLength: 200 }),
+              id: Type.String({ minLength: 1, maxLength: 200 }),
+              name: Type.Optional(Type.String({ maxLength: 500 })),
+            }),
+            { minItems: 1, maxItems: 500 },
+          ),
+        }),
+      },
+    },
     async (request, reply) => {
       const account = await requireAccount(request, reply);
       if (!account) return;
-
-      const result = exportPackage(
-        { library: services.library, build: services.build },
-        account.handle,
-        (request.params as { id: string }).id,
-      );
-      if (result === null) {
-        return reply.code(404).send({ error: 'not-found', message: 'That package is not there.' });
+      try {
+        const stored = await addMembers(
+          services.library,
+          account.handle,
+          (request.params as { id: string }).id,
+          (request.body as { members: { schema: string; id: string; name?: string }[] }).members,
+        );
+        return await reply
+          .header('etag', stored.contentHash)
+          .send({ contentHash: stored.contentHash, object: stored.object });
+      } catch (error) {
+        respondToLibraryError(error, reply);
+        return;
       }
-
-      return reply
-        .header('content-type', 'application/json; charset=utf-8')
-        .header('x-storyengine-missing', String(result.missing.length))
-        .header(
-          'content-disposition',
-          `attachment; filename="${packFileName(result.exported.manifest.name)}"`,
-        )
-        .send(result.exported);
     },
   );
 
@@ -569,8 +606,9 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
          * A treatment's cast points at actors, and [00 §3.3] is the standing
          * answer for one that does not resolve: visible, non-blocking, never
          * fatal. So a dangling ref costs a line in the notes rather than the
-         * download — which is the same posture `exportPackage` takes when it
-         * reports `missing` instead of refusing.
+         * download — which is the same posture `exportPackage` took when it
+         * reported `missing` instead of refusing (removed at [P16.3g]; the
+         * World file's `leftBehind` is that posture's heir).
          */
         const written = writer(row.body, (refId) => {
           try {
@@ -1061,7 +1099,7 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
    * moment somebody edited a line of the character's description.
    *
    * *Any kind, unlike `/avatar`*: [04 §3] puts `media` on treatments, lorebooks
-   * and packages too, and a route that named actors would grow a second arm for
+   * and Worlds too, and a route that named actors would grow a second arm for
    * the first one of those to carry a picture. **[P9] is the next consumer** —
    * a rendition's asset needs serving the same way, and `MediaSelection`'s two
    * arms are already the one shape both go through.
@@ -1256,7 +1294,13 @@ function objectFromBody(body: unknown): unknown {
   if (typeof body !== 'object' || body === null) return null;
   const inner: unknown = (body as { object?: unknown }).object;
   const object: unknown = inner ?? body;
-  return typeof object === 'object' && object !== null ? object : null;
+  // ***A body in a kind's old name is that kind, from the door in*** —
+  // [P16 §1.1]. `create` and `update` upgrade too, and this is the door in
+  // front of them: the create route's own "is this a schema I know" check ran
+  // first and answered a `storyengine.package/1` body *unrecognised*, so a
+  // Package somebody had downloaded before the rename could be saved over a
+  // World with `PUT` and not posted as one.
+  return typeof object === 'object' && object !== null ? upgradeLegacySchema(object) : null;
 }
 
 /**
@@ -1382,15 +1426,10 @@ export function respondToLibraryError(error: unknown, reply: FastifyReply): void
 }
 
 /**
- * A `.sepack` filename — [P11.10], and `fileNameFor`'s rules in `sessions.ts`.
- *
- * ASCII only, because `content-disposition` is latin-1 by specification; the
- * extension is the one [04 §9] names and the one an importer will look for.
- */
-/**
- * A download filename, by `packFileName`'s rules and for its reason.
- *
- * ASCII only, because `content-disposition` is latin-1 by specification. The
+ * A download filename — ASCII only, because `content-disposition` is latin-1
+ * by specification. *(It shared its rules with `packFileName`, the `.sepack`
+ * name, until [P16.3g] removed that export; `shared`'s `worldFileName` keeps
+ * the same rules for a World file.)* The
  * extension is the format's rather than fixed, since the next writer added may
  * not be JSON.
  */
@@ -1402,30 +1441,6 @@ function downloadName(name: string, extension: string): string {
     .replace(/^-+|-+$/g, '')
     .slice(0, 60);
   return `${slug === '' ? 'object' : slug}${extension}`;
-}
-
-/**
- * What an export did not carry, as a header.
- *
- * **Base64 of the JSON, because a header is latin-1 and a note's params are
- * whatever an object is called** — a treatment named *Café* would otherwise put
- * bytes in a header that no specification says how to read. The body is the
- * file ([P11.10]'s rule for `x-storyengine-missing`), so the notes cannot ride
- * inside it, and dropping them would leave the only surface that can tell
- * somebody what they lost with nothing to say.
- */
-function encodeNotes(notes: readonly ImportNote[]): string {
-  return Buffer.from(JSON.stringify(notes), 'utf8').toString('base64');
-}
-
-function packFileName(name: string): string {
-  const slug = name
-    .normalize('NFKD')
-    .replace(/[^\p{ASCII}]/gu, '')
-    .replace(/[^A-Za-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 60);
-  return `${slug === '' ? 'package' : slug}.sepack.json`;
 }
 
 /**

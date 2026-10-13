@@ -138,6 +138,53 @@ export async function writeFileBytes(path: string, bytes: Uint8Array): Promise<v
   await writeFile(path, bytes);
 }
 
+/** How much text {@link writeNewTextFile} gathers before one write: few writes, little held. */
+const TEXT_BATCH_BYTES = 1024 * 1024;
+
+/**
+ * ***A new file, written from text a piece at a time*** — [P16.3c], added
+ * 2026-10-10 after its review — and its size in UTF-8 bytes.
+ *
+ * For a document too large to be one string: the World file stages each
+ * session's export through this, a turn per piece, so a plan holds one turn's
+ * JSON rather than every transcript at once, and a transcript past V8's
+ * string limit is still a file. Pieces are batched to about a megabyte per
+ * write. **`wx`**, so it never writes over a file — the caller names a path
+ * nothing else holds — and not atomic, for `writeFileBytes`'s reason: what it
+ * writes is scratch, and a torn one is a file the caller's hash check refuses.
+ * The caller hashes the pieces as it yields them, if it wants a hash, since
+ * hashing a string's UTF-8 is hashing these bytes.
+ */
+export async function writeNewTextFile(path: string, pieces: Iterable<string>): Promise<number> {
+  await ensureDirectory(dirname(path));
+  const handle = await open(path, 'wx');
+  let size = 0;
+  try {
+    let batch: Buffer[] = [];
+    let held = 0;
+    const flush = async (): Promise<void> => {
+      const bytes = Buffer.concat(batch, held);
+      let at = 0;
+      while (at < bytes.byteLength) {
+        at += (await handle.write(bytes, at, bytes.byteLength - at)).bytesWritten;
+      }
+      size += bytes.byteLength;
+      batch = [];
+      held = 0;
+    };
+    for (const piece of pieces) {
+      const bytes = Buffer.from(piece, 'utf8');
+      batch.push(bytes);
+      held += bytes.byteLength;
+      if (held >= TEXT_BATCH_BYTES) await flush();
+    }
+    if (held > 0) await flush();
+  } finally {
+    await handle.close();
+  }
+  return size;
+}
+
 export async function fileExists(path: string): Promise<boolean> {
   return (await statFile(path)) !== null;
 }

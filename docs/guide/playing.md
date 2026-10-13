@@ -16,8 +16,10 @@ the assistant is in [Modes](modes.md); pictures are in [Pictures](pictures.md).
 
 **Play**, in the header, lists your sessions, most recently changed first — renaming a
 session, archiving it or changing one of its settings moves it to the top as a turn
-does. Each row has the session's name — *Untitled session* if it has none — and
-**Rename**.
+does. Each row has the session's name — *Untitled session* if it has none —
+**Rename**, and **Add to a world…**, which lists your worlds that do not already hold
+the session and adds it to the one you choose: the session becomes a member of that
+world, beside its books and characters, and nothing about the session changes.
 
 - The mode chips over the list narrow it to **Scenes**, **Freeform** or **Assistant**
   sessions (**All sessions** shows every one); **Select several** picks more than one.
@@ -54,6 +56,9 @@ can step between, and a group gets one opening message from each member.
 The disclosure under the start form summarises its choices — *Nothing chosen yet —
 the mode default, and no lorebooks* — and opens to:
 
+- **Start in a world** — one of your worlds, or **No world**. See
+  [Starting in a world](#starting-in-a-world); it fills in the lorebooks and the
+  treatment below, for you to change. Shown only when you have a world.
 - **Start from a setup** — one of the setups in your library, or **None — choose
   everything below**. See [Starting from a setup](#starting-from-a-setup); choosing
   one replaces every control below.
@@ -64,7 +69,7 @@ the mode default, and no lorebooks* — and opens to:
   nothing until the selection changes, so in each one pick another option and then
   the one you want — even when it was already showing. Until you do, **Start** is
   refused with *That is not what this mode asked for.*
-- **Treatment** — the world and story this session is in, with its framing,
+- **Treatment** — the setting and story this session is in, with its framing,
   lorebooks and plot hooks. See [Concepts](concepts.md#the-library).
 - **Preset** — how prompts are put together: the mode's own, or one from your library.
   The session keeps its own **copy**, so editing the library preset later does not
@@ -83,6 +88,44 @@ needs a name first. It keeps the mode and its answers, the treatment, the preset
 the persona and the lorebooks — not the characters or their openings. To keep a point
 in a story you are already playing, use
 [Make a setup from here](#make-a-setup-from-here) instead.
+
+### Starting in a world
+
+Pick it in **Start in a world**. Its lorebooks are ticked under **Lorebooks**, after
+any you had already ticked and in the order the world holds them, then every lorebook
+of yours whose **Scope** is for this world, by name (see
+[The book's settings](lorebooks-and-memory.md#the-books-settings)); and its treatment
+is chosen if it holds exactly one; if it holds several, they are listed first and
+none is chosen — you pick. **All of it is yours to change before Start**: untick a
+book and it stays unticked, choose another treatment or **None**, and the session
+starts with what the form shows. A book the world names that is no longer in your
+library is listed as *(not in your library)*. Choosing another world, or **No
+world**, takes back only what the previous world filled in.
+
+The new session **joins the world** — it appears among the world's members, and its
+page says **In these worlds**. What it copied is now the session's own: editing the
+world afterwards changes nothing in a session already started. A lorebook is in a
+session because the session's list names it: a book's scope can put it in the start
+form, and from then on it is the list that counts.
+
+With a **setup** chosen as well, the setup decides, and the world adds under it: its
+lorebooks join the setup's, and its treatment is used only if the setup names none.
+The form says which.
+
+A world's own page has **Start a session in this world**, which starts and opens it
+in one step with the world's lorebooks, every lorebook of yours whose scope is for this
+world, its treatment when it holds exactly one — and **its setup when it holds exactly
+one**, which the session starts from as if you had chosen it; and **Choose first…**,
+which opens this form with the world already picked.
+
+**A world with one setup starts from it.** Picking the world in **Start in a world**
+chooses that setup in **Start from a setup** when you have not chosen one, and says
+why; choose **None** there to start without it. A world with several setups lists
+them first and chooses none. A setup the world names that is no longer in your library
+is named, not offered, and the session starts without it. Changing the world takes
+back only a setup the world chose; one you picked yourself — even the world's own —
+stays. **Start a session** on a setup's own page starts from the setup alone: that
+session does not join any world or take its lorebooks.
 
 ### Starting from a setup
 
@@ -122,7 +165,8 @@ or Marinara chat as a new session — see
 
 ## The play page
 
-From the top: the session's name and **Rename**; a strip of the story's state where
+From the top: the session's name, **Rename** and **Add to a world…**, and under them
+**In these worlds** when any world names the session; a strip of the story's state where
 the mode keeps one; the **Cast**; for a Scene chat, **How this chat plays**; the lore
 panel (*Retrieving from …*); the session panel (*Prompted with …*); goals; plot
 hooks; Freeform's dials; picture controls; the **transcript**; and at the bottom the
@@ -224,7 +268,7 @@ some.
 **Continue from here** keeps the history behind a turn; **Make a setup from here**
 condenses it away. It saves the point you are at as a setup in your library — a
 starting place you can begin from again and again, or hand to someone else in a
-package, without the turns that led there. It is offered on every turn, beside
+world, without the turns that led there. It is offered on every turn, beside
 **Continue from here**.
 
 It opens a dialog that drafts four things, each with one model call (on the model set

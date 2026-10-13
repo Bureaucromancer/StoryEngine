@@ -11,7 +11,7 @@ import {
   type SessionContext,
   sessionStamp,
 } from '../sessions/store.js';
-import { listDirectoryNames } from '../storage/files.js';
+import { listDirectoryNames, statFile } from '../storage/files.js';
 import { type Layout, type LibraryOwner, SYSTEM_OWNER, userOwner } from '../storage/layout.js';
 import { PathEscapeError } from '../storage/paths.js';
 import { ingestFile, ownerKey, recordUnusableName } from './ingest.js';
@@ -96,37 +96,51 @@ export async function rebuild(
 
   for (const owner of await libraryOwners(layout)) {
     for (const schemaId of Object.keys(LIBRARY_DIRECTORIES) as PortableSchemaId[]) {
-      const kindRoot = layout.kindRoot(owner, schemaId);
-      for (const slug of await listDirectoryNames(kindRoot)) {
-        result.scanned += 1;
+      // The kind's current folder and any it had before a rename — a World's
+      // `packages/` ([P16 §1.1]) — because a rebuild that walked only `worlds/`
+      // would drop every Package made before P16.0 from the index the first
+      // time anybody rebuilt it, and *rebuild equals incremental* would stop
+      // holding the moment the watcher indexed one.
+      for (const kindRoot of layout.kindRoots(owner, schemaId)) {
+        for (const slug of await listDirectoryNames(kindRoot)) {
+          result.scanned += 1;
 
-        // A folder whose *name* this build refuses — `con`, a trailing space —
-        // is one skipped object, not the end of the scan (F22). The names are
-        // legal on the filesystem that produced them, and hand-made folders are
-        // the point of this storage model, so a rebuild that aborted on one
-        // would leave the whole library unindexed because of a single
-        // directory.
-        //
-        // **It is recorded rather than merely counted** — [P6B.1]. The skip
-        // used to be silent, and its only trace was a number in a return value
-        // nobody stored, so the folder was indistinguishable from a folder that
-        // was not there. That is the same complaint F20 answered for a file
-        // that will not parse, and it takes the same answer: a `file_error`
-        // row. The watcher now applies this rule too, through the same
-        // function, so the two producers can no longer disagree about it.
-        let objectFile: string;
-        try {
-          objectFile = layout.objectFile(owner, schemaId, slug);
-        } catch (error) {
-          if (!(error instanceof PathEscapeError)) throw error;
-          recordUnusableName(db, layout, owner, schemaId, slug, error, now);
-          result.skipped += 1;
-          continue;
+          // A folder whose *name* this build refuses — `con`, a trailing space —
+          // is one skipped object, not the end of the scan (F22). The names are
+          // legal on the filesystem that produced them, and hand-made folders
+          // are the point of this storage model, so a rebuild that aborted on
+          // one would leave the whole library unindexed because of a single
+          // directory.
+          //
+          // **It is recorded rather than merely counted** — [P6B.1]. The skip
+          // used to be silent, and its only trace was a number in a return
+          // value nobody stored, so the folder was indistinguishable from a
+          // folder that was not there. That is the same complaint F20 answered
+          // for a file that will not parse, and it takes the same answer: a
+          // `file_error` row. The watcher now applies this rule too, through
+          // the same function, so the two producers can no longer disagree
+          // about it.
+          let candidates: string[];
+          try {
+            // The name rule, asked of the builder every other path into a
+            // folder goes through — the watcher's way, so the two producers
+            // refuse the same names ([P6B.1]) — and then the files this folder
+            // could hold, which for a legacy one are not where `objectFile` points.
+            layout.objectFile(owner, schemaId, slug);
+            candidates = layout.objectFilesIn(kindRoot, schemaId, slug);
+          } catch (error) {
+            if (!(error instanceof PathEscapeError)) throw error;
+            recordUnusableName(db, layout, owner, schemaId, slug, error, now, kindRoot);
+            result.skipped += 1;
+            continue;
+          }
+
+          for (const objectFile of await objectFilesPresent(candidates)) {
+            const outcome = await ingestFile(db, layout, objectFile, now);
+            if (outcome.kind === 'indexed') result.indexed += 1;
+            else result.skipped += 1;
+          }
         }
-
-        const outcome = await ingestFile(db, layout, objectFile, now);
-        if (outcome.kind === 'indexed') result.indexed += 1;
-        else result.skipped += 1;
       }
     }
 
@@ -233,4 +247,32 @@ export async function deriveSession(
  */
 export async function libraryOwners(layout: Layout): Promise<LibraryOwner[]> {
   return [SYSTEM_OWNER, ...(await layout.userHandlesOnDisk()).map((handle) => userOwner(handle))];
+}
+
+/**
+ * ***Which of a folder's candidate object files to read*** — [P16 §1.1].
+ *
+ * One candidate, for every kind but the World, is read whether or not it is
+ * there, which is the scan as it was before P16.0: a folder with no object in it
+ * is read, found empty, and counted skipped. Two — a World's current name and its
+ * old one — are each read only if present, so a folder holding one of them is
+ * one object rather than one object and one miss; and when neither is there,
+ * the current name is read, so the empty folder is the same one skip.
+ *
+ * A stat that fails for any reason but absence counts as present, so the
+ * ingest reads it and records why it could not.
+ */
+async function objectFilesPresent(candidates: readonly string[]): Promise<string[]> {
+  if (candidates.length <= 1) return [...candidates];
+  const present: string[] = [];
+  for (const candidate of candidates) {
+    let facts: Awaited<ReturnType<typeof statFile>> | 'unknown';
+    try {
+      facts = await statFile(candidate);
+    } catch {
+      facts = 'unknown';
+    }
+    if (facts !== null) present.push(candidate);
+  }
+  return present.length > 0 ? present : candidates.slice(0, 1);
 }
