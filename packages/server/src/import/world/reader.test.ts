@@ -20,6 +20,7 @@ import {
   type ImportReport,
   LEGACY_PACKAGE_SCHEMA,
   LOREBOOK_SCHEMA,
+  type ModelRole,
   newActor,
   newLoreEntry,
   newLorebook,
@@ -323,6 +324,32 @@ async function imported(
   on: TestServer = server,
 ): Promise<ImportReport> {
   const outcome = await importFile(handle, path, onConflict, on);
+  if (!outcome.ok) throw new Error(`the sweep refused: ${outcome.refusal}`);
+  return outcome.report;
+}
+
+/**
+ * The file swept as `imported` sweeps it, **with the account's roles answered
+ * by the test** (2026-10-13) — what the routes hand every sweep
+ * (`rolesOf`), so a capability's check can be met and missed without a
+ * connection on disk.
+ */
+async function importedWithRoles(
+  handle: string,
+  path: string,
+  roles: () => Promise<ReadonlySet<ModelRole>>,
+): Promise<ImportReport> {
+  const source = await openLandedZip(server.services, path);
+  if (!source.ok) throw new Error(`the archive refused: ${source.refusal}`);
+  opened.push(source.source);
+  const outcome = await sweep({
+    library: server.services.library,
+    sessions: server.services.sessions,
+    handle,
+    tags: server.services.tags,
+    files: source.source,
+    roles,
+  });
   if (!outcome.ok) throw new Error(`the sweep refused: ${outcome.refusal}`);
   return outcome.report;
 }
@@ -1140,8 +1167,16 @@ describe('what the World’s row says', () => {
    * ***`requires` is a warning, never a block*** ([04 §9]): a mode the file
    * asks for that this install does not have, or has older, is said once —
    * and the World lands anyway. A mode it has, new enough, says nothing.
+   *
+   * ***Once per mode, at the strictest version asked*** — re-pinned
+   * deliberately on 2026-10-13, with the owner's *build the promise*: the
+   * missing mode is asked for twice, at 1.0.0 and at 2.0.0, and is said once,
+   * at 2.0.0. Until then each entry was said as it came, so a file naming a
+   * requirement twice said it twice; the list is kept to one entry per id
+   * now (`wellFormedRequires`), and the default mode asked at 999 and at 0 is
+   * the strictest of the two, unmet.
    */
-  it('warns of a mode this install lacks or has older, and lands the World anyway', async () => {
+  it('warns of a mode this install lacks or has older, once, and lands the World anyway', async () => {
     const sent = await author();
     const path = await publish(sent.world.id);
     const edited = await rezip(path, (members) =>
@@ -1150,6 +1185,7 @@ describe('what the World’s row says', () => {
           { id: 'storyengine.no-such-mode', minVersion: '1.0.0' },
           { id: DEFAULT_MODE_ID, minVersion: '999.0.0' },
           { id: DEFAULT_MODE_ID, minVersion: '0.0.0' },
+          { id: 'storyengine.no-such-mode', minVersion: '2.0.0' },
         ];
       }),
     );
@@ -1158,10 +1194,10 @@ describe('what the World’s row says', () => {
 
     const landed = worldRow(report)!;
     expect(landed.disposition).toBe('converted');
-    expect(landed.notes.filter((note) => note.key === 'import.world.requiresMode')).toEqual([
+    expect(landed.notes.filter((note) => note.key.startsWith('import.world.requires'))).toEqual([
       {
         key: 'import.world.requiresMode',
-        params: { mode: 'storyengine.no-such-mode', minVersion: '1.0.0' },
+        params: { mode: 'storyengine.no-such-mode', minVersion: '2.0.0' },
         level: 'warn',
       },
       {
@@ -1173,12 +1209,133 @@ describe('what the World’s row says', () => {
   });
 
   /**
+   * ***Every kind of requirement, said*** — 2026-10-13, the owner's answer to
+   * *"Build the promise, or narrow the notes"*. A capability is a model role
+   * (the lead's decision, 04 §9): one that resolves for the account says
+   * nothing, one that does not is `requiresCapability`, and a string that is
+   * no role is `requiresCapabilityUnknown` — named, never passed. Every
+   * extension is `requiresExtension`, since this build loads none. Each id is
+   * said once, an extension at the strictest version asked.
+   */
+  it('says each unmet capability and extension once, and nothing of a role that resolves', async () => {
+    const sent = await author();
+    const path = await publish(sent.world.id);
+    const edited = await rezip(path, (members) =>
+      withManifest(members, (manifest) => {
+        manifest.requires.capabilities = ['prose', 'image', 'audio', 'image'];
+        manifest.requires.extensions = [
+          { id: 'dice', minVersion: '0.1.0' },
+          { id: 'dice', minVersion: '0.2.0' },
+        ];
+      }),
+    );
+    let asked = 0;
+
+    const report = await importedWithRoles('amy', edited, () => {
+      asked += 1;
+      return Promise.resolve(new Set(['prose' as const]));
+    });
+
+    expect(asked).toBe(1);
+    const landed = worldRow(report)!;
+    expect(landed.disposition).toBe('converted');
+    expect(landed.notes.filter((note) => note.key.startsWith('import.world.requires'))).toEqual([
+      { key: 'import.world.requiresCapability', params: { capability: 'image' }, level: 'warn' },
+      {
+        key: 'import.world.requiresCapabilityUnknown',
+        params: { capability: 'audio' },
+        level: 'warn',
+      },
+      {
+        key: 'import.world.requiresExtension',
+        params: { extension: 'dice', minVersion: '0.2.0' },
+        level: 'warn',
+      },
+    ]);
+  });
+
+  /**
+   * ***The roles are asked only of a file that names a capability*** — the
+   * check reads every connection and binding file the account has, and a file
+   * asking for none has nothing to check them against.
+   */
+  it('asks nothing of the account’s roles for a file that names no capability', async () => {
+    const sent = await author();
+    const path = await publish(sent.world.id);
+    let asked = 0;
+
+    await importedWithRoles('amy', path, () => {
+      asked += 1;
+      return Promise.resolve(new Set<never>());
+    });
+
+    expect(asked).toBe(0);
+  });
+
+  /**
+   * ***A file with no World says it too*** (2026-10-13). A Setup published on
+   * its own is a file of one object — `world: null` — whose manifest carries
+   * the mode the Setup plays; until this the warning was the World row's, and
+   * the reader returned before it when there was none, so a Setup for a mode
+   * this install lacks arrived without a word. The manifest's own row says it.
+   */
+  it('warns from the manifest of a file with no World', async () => {
+    const library = server.services.library;
+    const elsewhere = {
+      ...newSetup('From a newer build'),
+      mode: { id: 'storyengine.no-such-mode', config: null },
+    };
+    await create(library, 'ned', elsewhere, SETUP_SCHEMA);
+    const confirmed = await confirmPublish(
+      {
+        library,
+        sessions: server.services.sessions,
+        build: { version: '1.0.0-alpha.7', commit: 'abc1234' },
+        freeBytes: () => Promise.resolve(null),
+        now: () => new Date(AT),
+      },
+      'ned',
+      { kind: 'objects', ids: [elsewhere.id] },
+      { ticked: {}, history: false, keep: 'world' },
+    );
+    if ('refusal' in confirmed) throw new Error(`the publish refused: ${confirmed.refusal}`);
+    const path = join(scratch, 'setup-alone.seworld');
+    await copyFile(confirmed.path, path);
+    await confirmed.space.dispose();
+
+    const report = await imported('amy', path);
+
+    expect(worldRow(report)).toBeUndefined();
+    const manifestRow = report.items.find((row) => row.source === WORLD_FILE_MANIFEST);
+    expect(manifestRow?.notes).toEqual([
+      {
+        key: 'import.world.requiresMode',
+        params: { mode: 'storyengine.no-such-mode', minVersion: '0.0.0' },
+        level: 'warn',
+      },
+    ]);
+    // Said once, on that row, and the Setup itself came in anyway.
+    expect(keys(report).filter((key) => key === 'import.world.requiresMode')).toHaveLength(1);
+    expect(own('amy', SETUP_SCHEMA)).toHaveLength(1);
+  });
+
+  /**
    * ***Nothing a manifest says can throw after the first write*** (the P16.3e
    * review): `requires` is read by the World's row, last, and a `null` in
    * `modes` — which the manifest reader checks only as an array — threw there
    * with every object already in: a 500, a half-import, nothing recorded.
+   *
+   * ***And what was dropped is said*** — re-pinned deliberately on
+   * 2026-10-13, with the owner's *build the promise*. This pinned that the
+   * malformed entries vanished without a word — the reason 04 §9's *"with the
+   * warning"* was struck — and pinned only the mode's note. Now the whole of
+   * what the row says about `requires` is pinned: the mode, the one
+   * capability that survived (`cap.real`, no model role, so said as one this
+   * build cannot check), and **one** note counting the six entries dropped —
+   * four of `modes` (`null`, `7`, an entry with no version, a string), the
+   * extension `null` and the capability `null`.
    */
-  it('lands the World when `requires` holds what is not a requirement', async () => {
+  it('lands the World when `requires` holds what is not a requirement, and says how much it dropped', async () => {
     const sent = await author();
     const path = await publish(sent.world.id);
     const edited = await rezip(path, (members) =>
@@ -1195,13 +1352,19 @@ describe('what the World’s row says', () => {
     expect(worldRow(report)?.disposition).toBe('converted');
     expect(own('amy', WORLD_SCHEMA)).toHaveLength(1);
     expect(
-      worldRow(report)?.notes.filter((note) => note.key === 'import.world.requiresMode'),
+      worldRow(report)?.notes.filter((note) => note.key.startsWith('import.world.requires')),
     ).toEqual([
       {
         key: 'import.world.requiresMode',
         params: { mode: 'storyengine.no-such-mode', minVersion: '1.0.0' },
         level: 'warn',
       },
+      {
+        key: 'import.world.requiresCapabilityUnknown',
+        params: { capability: 'cap.real' },
+        level: 'warn',
+      },
+      { key: 'import.world.requiresDropped', params: { count: 6 }, level: 'warn' },
     ]);
   });
 

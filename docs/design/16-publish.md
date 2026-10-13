@@ -203,9 +203,17 @@ itself says these and a walker is where they would be lost:
   today says it in a count under the link.
 
 **`requires` is derived where it can be.** A Setup names a concrete mode, so
-`requires.modes` is populated from it rather than typed by hand; extension and
-capability requirements come from what the collected objects actually reference.
-An author can add to the list and should rarely need to.
+`requires.modes` is populated from it rather than typed by hand; ~~extension and
+capability requirements come from what the collected objects actually reference~~.
+An author can add to the list and should rarely need to. *(2026-10-13: **only
+modes are derived**, and the build never derived more — `derivedRequires` in
+`packaging/confirm.ts` answers none for the other two, because no portable field
+names an extension or a capability, and so nothing a collected object references
+can be one. The struck clause described a derivation that does not exist. An
+extension or a capability is in a file only when the World's author wrote it into
+`requires`, and no editor offers that field. What a capability string means — a
+model role, checked against the account's — is [04 §9](04-schemas.md)'s, dated
+the same day.)*
 
 ## 5. The review, which is the surface
 
@@ -353,6 +361,16 @@ import review beside the frozen `.sepack.json`. What the reader decides:
   pictures or requirements, and reading it must not erase them.
 - The manifest's notes are taken only in the writer's own vocabulary, so a file
   cannot put words of its own into the import review.
+- ***What the file asks for is said*** *(2026-10-13, the owner's answer to
+  "Build the promise, or narrow the notes": build it — [04 §9](04-schemas.md)
+  has the vocabulary).* Each unmet requirement in the manifest's `requires` is
+  one warning on the import — a mode absent or older, a capability whose model
+  role does not resolve for the importing account or that names no role, every
+  extension, since this build loads none — and one more counts the malformed
+  entries dropped. Each id is said once. A World says them on its row; **a file
+  with no World says them on the manifest's**, where before it said nothing. The
+  look before commit answers each capability *met*, *not met* or *cannot be
+  checked*.
 - ***Sessions*** ([P16.3f](workplan/34-p16-world.md)). A session lands as a session
   of the importer's own, its turns keeping their ids unless another account on the
   install holds them — then they are re-keyed, deterministically per account, and

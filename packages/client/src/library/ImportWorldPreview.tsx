@@ -15,6 +15,7 @@ import { Alert } from '../ui/Alert.js';
 import { Badge } from '../ui/Badge.js';
 import { control } from '../ui/classes.js';
 import { Note } from '../ui/Text.js';
+import { roleLabel } from '../settings/roleWords.js';
 import { KIND_LABELS } from './labels.js';
 import { sentence } from './note-labels.js';
 
@@ -78,8 +79,18 @@ const WORDS = labels('import.world-preview', {
   required: 'required',
   modeMissing:
     'It asks for the {mode} mode, version {minVersion} or later, which this install does not have. It comes in anyway; what needs that mode may not play.',
-  extensions: 'It asks for extensions this build cannot check for: {list}.',
-  capabilities: 'It asks for: {list}.',
+  // ~~'It asks for extensions this build cannot check for: {list}.'~~ — none
+  // is available in this build at all, which is the truer sentence
+  // (2026-10-13, the owner's *build the promise*).
+  extension:
+    'It asks for the {extension} extension, version {minVersion} or later. This build loads no extensions, so it is not available here. It comes in anyway; what needs it may not work.',
+  // ~~'It asks for: {list}.'~~ — each capability answered (2026-10-13): the
+  // vocabulary is the model roles, said in Settings' words for each.
+  capabilitiesHeading: 'What it needs from your models',
+  capabilityMet: 'set for you',
+  capabilityMissing:
+    'not set for you — it comes in anyway, and what needs it goes without until one is chosen in Settings',
+  capabilityUnknown: 'this build cannot check for this — it comes in anyway',
   history: 'Each object’s version history comes with it.',
   noHistory: 'Each object comes as it is now, without its version history.',
   conflict: 'Some of this is already in your library.',
@@ -210,16 +221,41 @@ export function ImportWorldPreview(props: {
           {WORDS.modeMissing.replace('{mode}', mode.id).replace('{minVersion}', mode.minVersion)}
         </Alert>
       ))}
-      {world.requires.extensions.length > 0 ? (
-        <Note>
-          {WORDS.extensions.replace(
-            '{list}',
-            world.requires.extensions.map((one) => `${one.id} ${one.minVersion}`).join(', '),
-          )}
-        </Note>
-      ) : null}
+      {/* ***Each extension, as not available*** (2026-10-13): this build
+          loads none, so every one a file names is a warning, as a missing mode
+          is — and said as unavailable, never as looked for and not found. */}
+      {world.requires.extensions.map((one) => (
+        <Alert key={one.id} tone="warning">
+          {WORDS.extension
+            .replace('{extension}', () => one.id)
+            .replace('{minVersion}', () => one.minVersion)}
+        </Alert>
+      ))}
+      {/* ***Each capability answered*** (2026-10-13) — met, not met, or not
+          checkable, one row each, in the role's own words where it is one.
+          A list rather than an alert per row: a met one is not a warning, and
+          the rows that are say so in their own words. */}
       {world.requires.capabilities.length > 0 ? (
-        <Note>{WORDS.capabilities.replace('{list}', world.requires.capabilities.join(', '))}</Note>
+        <div className="flex flex-col gap-1">
+          <h5 className="font-medium text-ink">{WORDS.capabilitiesHeading}</h5>
+          <ul className="flex flex-col">
+            {world.requires.capabilities.map((one) => (
+              <li
+                key={one.id}
+                className="flex flex-wrap items-center gap-2 border-t border-line py-1"
+              >
+                <span className="text-ink">{roleLabel(one.id)}</span>
+                {one.here === true ? (
+                  <Badge>{WORDS.capabilityMet}</Badge>
+                ) : (
+                  <span className="text-xs text-warn-ink">
+                    {one.here === false ? WORDS.capabilityMissing : WORDS.capabilityUnknown}
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
       ) : null}
 
       {world.omitted.length > 0 ? (

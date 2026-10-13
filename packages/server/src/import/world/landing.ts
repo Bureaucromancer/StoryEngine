@@ -10,15 +10,14 @@ import {
   type PortableSchemaId,
   type Provenance,
   SESSION_SCHEMA,
+  type UnmetRequirement,
   WORLD_SCHEMA,
   type World,
 } from '@storyengine/shared';
 
-import { compareVersions } from '../../build-info.js';
 import type { IndexedObject } from '../../index-db/query.js';
 import { LibraryError, read, type LibraryContext } from '../../library.js';
 import { addMembers } from '../../library/worlds.js';
-import { modeById } from '../../mode-registry.js';
 import type { BlobStore } from '../../storage/card/envelope.js';
 import { identifyNative, type ConflictPolicy } from '../identity.js';
 import type { Arrival } from './plan.js';
@@ -90,7 +89,13 @@ import type { Arrival } from './plan.js';
  * **`requires` is a warning, never a block** ([04 §9]): a mode the file asks
  * for that this install does not have, or has older, is said once per mode,
  * and the World lands anyway — what needs the mode may not play, and the
- * person can see why.
+ * person can see why. ***And since 2026-10-13, every unmet requirement***
+ * (the owner's answer, *build the promise*): a capability whose role does not
+ * resolve for this account, one this build cannot check, every extension —
+ * none is loaded in this build — and how many malformed entries the reader
+ * dropped. *Decided by the reader, from the manifest, before the first
+ * write* (`requiresNotes`, below, and `payload.unmet`), so this row only says
+ * them, and a file with no World says them on the manifest's row instead.
  */
 
 /**
@@ -148,8 +153,14 @@ export interface WorldLanding {
   arrival: Arrival;
   /** The file's `contents`, in its order, nested Worlds included — they are filtered here. */
   entries: readonly WorldLandingEntry[];
-  /** The manifest's `requires`: stored ∪ derived ([P16.3]'s plan, R12) — the warning's source. */
-  requires: World['requires'];
+  /**
+   * ~~The manifest's `requires`: stored ∪ derived ([P16.3]'s plan, R12) — the
+   * warning's source.~~ ***What the manifest's `requires` asks that this
+   * install does not have, already said*** (2026-10-13) — `requiresNotes`
+   * over the reader's check, made before anything was written, so the World's
+   * row repeats it and reads nothing a file says after the first write.
+   */
+  unmet: readonly ImportNote[];
   /**
    * ***How many of the file's `leftBehind` resolve to nothing here*** —
    * [16 §5.1]'s *what dangles*, counted by the preview's own reading
@@ -247,7 +258,7 @@ export async function landWorld(
     members += 1;
   }
 
-  notes.push(...requiresNotes(payload.requires));
+  notes.push(...payload.unmet);
   if ((payload.dangling ?? 0) > 0) {
     notes.push({
       key: 'import.world.dangling',
@@ -447,45 +458,57 @@ function localWorld(library: LibraryContext, handle: string, id: string): World 
 }
 
 /**
- * ***A mode the file needs and this install cannot offer*** — absent, or older
- * than the file asks for. One warning per mode; extensions and capabilities
- * have no registry here to ask, and the file's manifest names them for the
- * preview ([P16.3f]).
+ * ***What a file asks of this install that it does not have, as notes*** —
+ * one per unmet requirement (`unmetRequirements`, `requires.ts`), and one for
+ * the malformed entries dropped. **Each is a warning, never a block** (04 §9):
+ * the objects land anyway, and the row says what may not play.
+ *
+ * ~~One warning per mode; extensions and capabilities have no registry here to
+ * ask, and the file's manifest names them for the preview ([P16.3f]).~~
+ * ***Every kind, since 2026-10-13*** — the owner's answer to *"Build the
+ * promise, or narrow the notes"*, and the lead's decisions under it:
+ *
+ * | Key | When |
+ * |---|---|
+ * | `import.world.requiresMode` | a mode absent, or older than asked |
+ * | `import.world.requiresCapability` | a model role that does not resolve for this account |
+ * | `import.world.requiresCapabilityUnknown` | a capability this build cannot check — not a model role |
+ * | `import.world.requiresExtension` | every extension: this build loads none, so none is here |
+ * | `import.world.requiresDropped` | once, with how many malformed entries were dropped |
+ *
+ * *Each id once*: the reader keeps the manifest's lists to one entry per id
+ * (`wellFormedRequires`), so a requirement a file names twice is said once.
  */
-function requiresNotes(requires: World['requires']): ImportNote[] {
-  const notes: ImportNote[] = [];
-  const modes: unknown[] = Array.isArray(requires.modes) ? requires.modes : [];
-  for (const wanted of modes) {
-    // A hand-made manifest's `modes` can hold anything, `null` included — and
-    // this runs after every object was written, so a throw here was a
-    // half-import with no report (the P16.3e review). The reader keeps the
-    // list to records at its survey; this does not trust that it did.
-    if (!isRecord(wanted)) continue;
-    if (typeof wanted['id'] !== 'string' || typeof wanted['minVersion'] !== 'string') continue;
-    const mode = wanted['id'];
-    const minVersion = wanted['minVersion'];
-    if (modeIsHere(mode, minVersion)) continue;
-    notes.push({
-      key: 'import.world.requiresMode',
-      params: { mode, minVersion },
+export function requiresNotes(unmet: readonly UnmetRequirement[], dropped: number): ImportNote[] {
+  const notes: ImportNote[] = unmet.map((one): ImportNote => {
+    if (one.kind === 'mode') {
+      return {
+        key: 'import.world.requiresMode',
+        // A manifest's modes always carry a version (the reader drops one
+        // without); `''` is only the type's other arm, never a file's.
+        params: { mode: one.id, minVersion: one.minVersion ?? '' },
+        level: 'warn',
+      };
+    }
+    if (one.kind === 'capability') {
+      return {
+        key: one.checkable
+          ? 'import.world.requiresCapability'
+          : 'import.world.requiresCapabilityUnknown',
+        params: { capability: one.id },
+        level: 'warn',
+      };
+    }
+    return {
+      key: 'import.world.requiresExtension',
+      params: { extension: one.id, minVersion: one.minVersion },
       level: 'warn',
-    });
+    };
+  });
+  if (dropped > 0) {
+    notes.push({ key: 'import.world.requiresDropped', params: { count: dropped }, level: 'warn' });
   }
   return notes;
-}
-
-/**
- * Whether this install has a mode, at this version or later — the warning's
- * test, and the preview's (`preview.ts`), so the look before commit and the
- * row after it cannot disagree about a requirement.
- */
-export function modeIsHere(mode: string, minVersion: string): boolean {
-  const have = modeById(mode)?.definition.version;
-  return have !== undefined && (compareVersions(have, minVersion) ?? -1) >= 0;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function dispositionOf(outcome: string): ImportItemReport['disposition'] {

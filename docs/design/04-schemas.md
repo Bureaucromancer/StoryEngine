@@ -2144,7 +2144,9 @@ format and the frozen package one~~ *the reader is built at
 [P16.3e](workplan/34-p16-world.md) (2026-10-10), for the World file and the
 frozen `.sepack.json` through one path; [16 §5.2](16-publish.md) records what it
 decides*.
-A malformed `requires` entry is dropped ~~with the warning~~, never a block. `requires` is checked at import and produces a
+A malformed `requires` entry is dropped ~~with the warning~~ *with the warning
+(restored 2026-10-13: the import says how many it dropped,
+`import.world.requiresDropped`)*, never a block. `requires` is checked at import and produces a
 clear warning with a degraded-start option rather than a hard block where
 possible.
 
@@ -2158,7 +2160,38 @@ which is why *with the warning* is struck above. **No degraded-start option exis
 anywhere.** Whether the reader should warn about extensions and capabilities, say
 what it dropped, and offer a degraded start — or this paragraph and
 [03 §7.2](03-data-model.md)'s should be narrowed to what was built — is the
-owner's.
+owner's. ***Answered by the owner, 2026-10-13: build the promise*** — the
+paragraph above stands as written, and the build meets it:
+
+- **The capability vocabulary is the model roles** — *the lead's decision of
+  2026-10-13, open to the owner's reversal.* A `requires.capabilities` string
+  that is one of the roles ([20 §5.1](20-tech-stack.md): `prose`, `fast`,
+  `reasoning`, `vision`, `image`, `video`, `speech`, `embedding`) is met when
+  that role resolves for the account — its own bindings over the install's,
+  against the connections it may use, as Settings' *Which models your stories
+  use* resolves it. **Any other string cannot be checked**: it is named, and
+  treated as not known to be met, never passed. *Why the roles*: nothing had
+  defined a vocabulary — the only strings ever written were test fixtures — and
+  the roles are the one enumerated set of what an install can do, and the one a
+  person can change; 03 §7.2's *"an image connection"* is the `image` role. An
+  extension's own manifest `capabilities` ([23](23-extensions.md)) are what an
+  extension asks the host for, and a different vocabulary.
+- **Extensions are unmet by construction.** This build loads no extensions and
+  has no registry to ask, so every extension a World names is said as *not
+  available in this build* — never as looked for and missing.
+- **The import says each unmet requirement**, one note per id (a requirement
+  named twice is one, a mode at the strictest version asked): a mode absent or
+  older (`import.world.requiresMode`), a role that does not resolve
+  (`requiresCapability`), a capability that cannot be checked
+  (`requiresCapabilityUnknown`), every extension (`requiresExtension`), and how
+  many malformed entries were dropped (`requiresDropped`) — **from the
+  manifest, so a file with no World says them too**, on the manifest's own row:
+  a Setup published alone carries its mode in its manifest, and until this
+  arrived without a word. The look before commit answers each capability *met*,
+  *not met* or *cannot be checked*, and each extension as not available.
+- *Publishing still derives modes only* ([16 §4](16-publish.md), dated there):
+  a capability or an extension is in a file only when its author wrote it into
+  the World's `requires`, by hand, since no editor offers the field.
 
 ### 9.1 One action produces a package
 

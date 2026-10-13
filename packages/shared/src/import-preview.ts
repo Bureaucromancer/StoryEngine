@@ -142,12 +142,30 @@ export interface ImportPreviewWorld {
   sessions: ImportPreviewWorldSession[];
   /** What the carried things name and the file does not carry — and whether each resolves here. */
   leftBehind: (LeftBehind & { resolvesHere: boolean })[];
+  /**
+   * ***What the file asks of this install, each answered*** — 04 §9, and the
+   * owner's answer of 2026-10-13 (*build the promise*). Each list is the
+   * manifest's, kept to its shape and **each id once** — a requirement named
+   * twice is one requirement, and a mode's is the strictest version asked.
+   */
   requires: {
     /** `here`: this install has the mode, at that version or later. */
     modes: { id: string; minVersion: string; here: boolean }[];
-    /** No registry here to ask; named, so a person knows to look. */
+    /**
+     * ~~No registry here to ask; named, so a person knows to look.~~ ***None
+     * is available in this build*** (2026-10-13): it loads no extensions, so
+     * every one a file names is one this install does not have — said as that,
+     * never as checked and missing.
+     */
     extensions: { id: string; minVersion: string }[];
-    capabilities: string[];
+    /**
+     * ~~`string[]`, copied verbatim~~ — ***each answered*** (2026-10-13, the
+     * lead's decision that the vocabulary is the model roles, open to the
+     * owner's reversal): `here: true` is a role (`MODEL_ROLES`) that resolves
+     * for this account, `false` one that does not, and **`null` a string this
+     * build cannot check** — not a role, so nothing here knows what it means.
+     */
+    capabilities: { id: string; here: boolean | null }[];
   };
   /** Whether the sender carried each object's version history. */
   history: boolean;

@@ -1515,7 +1515,12 @@ no surface of its own:
   same note): the reader built at P16.3e warns about **modes only** — "this wants
   Campaign ≥ 2" is said, "an image connection" is not, since nothing is asked
   about extensions or capabilities — drops a malformed entry without a word, and
-  offers no degraded start.
+  offers no degraded start. ***Answered by the owner, 2026-10-13: build the
+  promise***, and the bullet stands as written. "An image connection" is said
+  now: a capability is a model role (the lead's decision, [04 §9](04-schemas.md)
+  records it), checked against what resolves for the account, so `image` unbound
+  is warned about on import — as is a capability no role names, an extension
+  (none is loaded in this build), and a dropped entry, counted.
 - **No production settings, in either object.** No connection ids, no keys, no
   endpoint URLs, no per-install toggles — enforced by there being nowhere to put
   them ([00 §3.2](00-stance.md)).
