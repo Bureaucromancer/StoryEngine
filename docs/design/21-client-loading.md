@@ -12,6 +12,10 @@ first `lazy()`, recorded at [§7.2](#72-the-first-lazy-boundary-the-setup-wizard
 Everything else here is still exploration, and §6's baseline was never taken.*
 *2026-10-07: a second — the changelog and its renderer, at
 [§7.3](#73-the-changelog-leaves-the-entry-and-takes-its-renderer-2026-10-07).*
+*2026-10-13: a third and a fourth — the publish review, a route of its own, at
+[§7.4](#74-the-publish-review-is-a-route-of-its-own-2026-10-11) (2026-10-11, not
+recorded here then), and the administration half of Settings, at
+[§7.5](#75-the-administration-half-of-settings-is-a-chunk-of-its-own-2026-10-13).*
 
 **The planning assumption is continued growth.** The client has reached this
 size with much of the intended application still ahead of it. Modes, richer
