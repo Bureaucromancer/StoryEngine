@@ -1,6 +1,6 @@
 # 35 — P12A implementation plan: the look, and the sentence it has to put back
 
-**Status: skeleton, written 2026-09-22**, the day
+**Status: ~~skeleton~~ *opened 2026-10-13 on branch `p12a` (the note below)*; written 2026-09-22**, the day
 [10 §1.3](../10-ui-surfaces.md) was written. ~~Nothing is built.~~ *Part of it
 is, since 2026-10-01 — see the note on [polish §17](06-polish.md) below.* Format follows
 [P1](07-p1-implementation.md); citations follow the corpus convention.
@@ -128,6 +128,20 @@ worse, not better* — the budget test's raise note says by how much — so the
 remedy is the one that moves a whole surface, and a raise is the other honest
 answer, with a measured reason, as every earlier raise had.
 
+***Opened 2026-10-13, by the owner's word*** — *"do P12A now"* — on the bare
+branch `p12a`, cut from `main` at `e460b637` (P16 and
+[26 B20](../26-open-questions.md) merged, alpha 6 the last tag). P16's two
+follow-ups the owner asked for the same day — travelling renditions without their
+connection id, and the degraded start [04 §9](../04-schemas.md) promises — were
+being built on `p16` at the time and reach this branch through `main`. **The
+skeleton below was written three weeks and four phases ago**, so the first thing
+done was the audit §0.2 asks to be read before costing anything, again: five
+read-only reports against `e460b637`, one per group of stages. What they found
+that changes a stage is **§0.4**, with the decision each finding forces. Those
+decisions are the lead's, dated, and open to the owner's reversal, as
+[P16](34-p16-world.md)'s were; none of them edits a stage's text or a row of §3,
+which stay as written beside them.
+
 ---
 
 ## 0. What this document is, and what writing it cost
@@ -172,6 +186,8 @@ cheaper or dearer than it looks:
 1. **The appearance layer cannot express most of what the direction asks for.**
    `index.css` defines two radii and both are `var(--radius-md)`; there are **no
    shadow tokens, no motion tokens, ~~no typeface tokens~~ and no spacing scale**.
+   *(2026-10-13, §0.4: the spacing scale was never asked for by P12A.0 and is not
+   built — Tailwind's `--spacing` is the scale.)*
    *(The typeface half is stale since 2026-10-01: [polish §17](06-polish.md)
    added `--font-ui` and `--font-story`. The rest of this sentence still held
    at the merge of 2026-10-02.)*
@@ -227,8 +243,175 @@ friction to route around.
   face at P12A.1 and nothing else.~~ *It has the story face already —
   [polish §17](06-polish.md), 2026-10-01 — so this phase changes nothing in it.*
 - **Not a mobile-first pass.** [10 §1](../10-ui-surfaces.md)'s 1.0 bar —
-  responsive and genuinely usable — is unchanged. P12A.7 enforces two rules that
+  responsive and genuinely usable — is unchanged. ~~P12A.7~~ *P12A.8 (2026-10-13,
+  §0.4)* enforces two rules that
   were already written, which is a different thing from designing a phone layout.
+
+### 0.4 What the audit of 2026-10-13 found, and what each finding decides
+
+*Read against `e460b637`. Each finding is the code's, cited where it stands; each
+decision is the lead's, and the stage that carries it says so in its record in
+§2.*
+
+**Across the phase.**
+
+- **The client entry is the budget every stage spends**, and the figure in the
+  note above (312.35) is stale: the last measured build was **312.91** of 317, and
+  B20 and P16's two follow-ups land on top of it. *Decided*: the named remedy —
+  the admin half of Settings behind one `lazy()`, with the publish review's chunk
+  boundary and off-the-entry check — is built **first**, as its own commit before
+  P12A.0, because every stage after it is client work and the alternative is a
+  raise at each. `Connections.tsx` holds both halves (`MyConnections` is the
+  user's), so the split moves the admin components out of it rather than the file
+  whole ([21 §7.4](../21-client-loading.md): a module the entry reads pulls its
+  whole file onto a preloaded chunk).
+- **A UI stage needs a build before the suite**, as §0.2 says: the
+  `tailwind-utilities` and entry-budget tests read `dist/`. Every stage's gate
+  here is `pnpm build` and then the suite.
+
+**P12A.0 — the tokens.**
+
+- *Found*: two radii, both `--radius-md`; no shadow, motion, scrim or spacing
+  token; three raw `shadow-lg`s (all overlays); **21 raw `rounded-md`** and six
+  `rounded-full`; media on three radii; **no lint for any of them**. Tailwind 4
+  resolves `duration-<name>` from `--transition-duration-*` (a `--duration-*`
+  token emits nothing) and **inlines shadow geometry**, so a dark shadow must
+  carry its colour through a `--color-*` token. `theme.test.ts` single-sources
+  colours only, and `contrast.test.ts` cannot read a `color-mix()` token and
+  requires exactly two dark blocks.
+- *Decided*: **the radii differ** — control, panel and media — which is a visible
+  change to every panel at once, made in the token and nowhere else; that is
+  what *"no surface changes in this stage"* is taken to allow, and the raw
+  `rounded-md`s move onto the token their element is. The elevation pair's colour
+  is one `--color-shadow`, aliased per theme. Motion is two durations and two
+  easings under Tailwind's own namespaces, and one `prefers-reduced-motion`
+  block zeroes every duration — `--default-transition-duration` included, which
+  is what `reveal` spends today. A source scan beside the `opacity-0` one refuses
+  raw `shadow-*`, `rounded-{sm,md,lg,xl,…}`, `duration-*`, `ease-*`, `animate-*`
+  and `transition*` outside the recipes. **No spacing scale**: §0.2's first fact
+  lists one as missing and the stage never asked for it; Tailwind's
+  `--spacing` is the scale, and §0.2's line gets a dated note rather than a token
+  nobody spends.
+
+**P12A.1 — the measure.**
+
+- *Found*: the story's measure is **45em whatever the face** — `max-w-reading`
+  (48rem) less the column's padding, at `text-story` 1rem — which in a text serif
+  is roughly **90–100 characters a line**. Nothing in the corpus gives a target,
+  so *"the measure still holds"* could not be checked until one is written down.
+- *Decided*: the target is **about 70 characters of the story face**, the
+  middle of the range typographers cite, and it is held **in `ch` on the prose
+  itself**, so the measure follows the face rather than the column: a
+  `--container-story` step, spent by the story recipe beside `font-story`. The
+  column stays 48rem for the composer and the HUD. The check is two tests that
+  can run without a browser — the recipe spends the step, and every `text-story`
+  element carries it — and a person's look on a second platform, which §3.1
+  already files as a standing row.
+
+**P12A.2 — the backdrop.**
+
+- *Found*: §0.2's fourth fact holds — an in-flow `<img>` with the widget label as
+  its `alt`. **No path chooses a backdrop by hand**, while
+  `renditions/backdrop.ts`, the Aventuras import and a user-facing import
+  sentence all say one can be. The server already admits a person's write to
+  `se.backdrop` through the channel route, and serves both arms of
+  `MediaSelection`. With *Stage a backdrop* on, a person's pick is overwritten by
+  the next reuse or generation.
+- *Decided*: **choose from what the session already uses** — the background
+  renditions it holds, and the pictures on its treatment, lorebooks and their
+  entries, setup, cast and Worlds — written through the existing channel route as
+  a person's effect, so it lands on the record and rewinds with the tree. **No
+  new arm of `MediaSelection`** (a schema change under live sessions, which
+  `sdk/src/media.ts` calls a migration) and **no upload into a session**: a new
+  picture goes into a library object first, through the galleries that exist.
+  **Choosing one turns *Stage a backdrop* off**, in the same act and said in the
+  same sentence, so a pick holds without a new rule in the runner; turning
+  staging back on hands the choice back to the story. **Off** is *No backdrop*:
+  the selection cleared and staging off, which leaves no frame. The scrim's floor
+  is computed for **`ink-subtle`**, not only `ink`, because the player's line is
+  set in it — about 0.81 opacity in both themes by the audit's arithmetic — and
+  `contrast.test.ts` learns to composite a `color-mix()` token over the worst
+  pixel.
+
+**P12A.3 — faces.**
+
+- *Found*: chat turns have drawn names and faces since P14.5 (`play/Portrait.tsx`),
+  so §0.2's third fact is half stale; **a second spelling of initials exists**
+  (`Portrait`'s `initialOf` beside `auth/tile.ts`); and **the common no-picture
+  case draws an empty circle**, because a card made in the editor is a 1×1
+  transparent PNG that the avatar route serves with a 200. `CastRow` has the
+  actor's id but not the content hash `avatarUrl` needs (the library query
+  supplies it). The player's own line has an `input.actorId` that **turns
+  played in the client never set**, and chat draws today's persona on yesterday's
+  lines. Mentions render a bare `<mark>` and lose their span before rendering.
+- *Decided*: the avatar route answers **404 for a blank card**, so every face
+  falls back the same way; **one face component** in `ui/`, on `auth/tile.ts`'s
+  spelling generalised (two initials by grapheme, a hue from the immutable id),
+  replaces `Portrait`'s; the client **sends `input.actorId`** from the persona
+  it plays, and a past line draws the face its record names and **no face when
+  it names none** — today's persona on an old line is a claim the record never
+  made. A mention becomes a control that opens the actor it matched, with the
+  name it matched by and the correction that exists: the actor's aliases, which
+  is what decided the match. **No new route.**
+
+**P12A.4 — the HUD.**
+
+- *Found*: §1.4's question has a split answer. **The write is complete** — the
+  channel route appends a person's effect to the record — but **the HUD cannot
+  use it**: an entry carries only its rendered text, and a mode's `hud`-region
+  contributions are rendered nowhere. There is no non-modal popover in `ui/`.
+- *Decided*: a HUD entry carries its value and how it is edited, beside its text,
+  so the strip can write without per-channel code in the client; a `ui/Popover`
+  is built once, here, and P12A.3's mention uses it. *Each widget opens in place
+  and writes through the route that exists.*
+
+**P12A.5 — the column.**
+
+- *Found*: not seven disclosures but **five, among up to thirteen blocks**
+  above the prose — P14's chat settings and mode actions, P16's World controls
+  and the scene toggles arrived after §0.2. **The workbench has no session
+  subject** (§1.3 says it does). **§1.3's move of the hooks contradicts
+  [10 §10.1](../10-ui-surfaces.md)**, which puts *Commit* and *Save this to…* on
+  the play surface. `PlayPage.test.tsx` is 2,606 lines now and asserts nothing
+  about where a panel sits; the *reachable before, reachable after* claim needs
+  the real router and shell.
+- *Decided*: **10 §10.1 wins** — it is the design authority, and §1.3 called
+  itself a proposal — so the hooks stay on the play surface as a HUD item that
+  opens in place, beside the cast, the state and the goal. The configuration
+  panels move into a **Session** section of the workbench's play subject, and
+  [10 §3](../10-ui-surfaces.md)'s *honest residue* — rewrite the section when a
+  second non-reader subject arrives — is honoured with a dated note there. The
+  reachability test is new, in `dock.test.tsx`'s setup, and lists every control
+  by its accessible name.
+
+**P12A.6 — motion.** *Found*: still one transition, `reveal`, at Tailwind's
+default and with no reduced-motion arm; the Send acknowledgement polish §11 built
+has no motion; a mount-time animation would fire for every turn on load.
+*Decided*: turn arrival animates only the turn that just finished (the reducer
+knows its id); each motion is a recipe in `ui/classes.ts` spending P12A.0's
+tokens; and the test is new — §2's *"the same test"* reads `hover:none`, not
+reduced motion.
+
+**P12A.7 — editors.** *Found*: no section carries an id, and only `LoreEntry`'s
+schema has banners, so chips from `groupsOf` would be empty for five kinds of
+six; `EditorFrame`'s docstring refuses a prop that some kind cannot answer.
+*Decided*: a `JumpSection` that registers with the frame replaces the
+`<section>`/`h2` pairs, so a chip cannot point at nothing; a jump into a closed
+`<details>` opens it. The header's image is an answer every kind can give, and
+*none* is an answer.
+
+**P12A.8 — the phone.** *Found*: five breakpoint uses; **no essential action is
+hover-only** — every `reveal` carries a focus arm and a `hover:none` arm — but
+explanations that live only in a `title` are invisible on a phone (the rule
+`ClosureList.tsx` already states), and the assistant panel has no phone arm.
+*Decided*: the audit's list is the stage's work list, and its test refuses an
+`invisible`/`group-hover` reveal outside the recipe and a control whose only
+explanation is a `title`.
+
+*Smaller slips, noted where they stand*: §0.3 says *"P12A.7 enforces two
+rules"* (it is P12A.8); §5 says *"When S has results"* (the sitting is T); the
+*never tabs* rule is [10 §1.3](../10-ui-surfaces.md)'s and 10 §3's, not
+[10 §11.2d](../10-ui-surfaces.md)'s.
 
 ---
 
@@ -534,5 +717,5 @@ so**, because an owned commitment that quietly does not ship is the exact defect
 
 **The risk that is not in the stage list** is that a look phase has no natural
 end. The defence is the gate: six rows, five of them about whether a specific
-written claim holds, and none of them asking whether it is beautiful. **When S
-has results, the phase closes**, and R4 can read a corpus the build matches.
+written claim holds, and none of them asking whether it is beautiful. **When ~~S~~
+*T (2026-10-13, §0.4)* has results, the phase closes**, and R4 can read a corpus the build matches.
