@@ -3,11 +3,16 @@
 
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { deflateSync } from 'node:zlib';
+
+import encodeChunks from 'png-chunks-encode';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { newActor, newLorebook } from '@storyengine/shared';
+import { ACTOR_SCHEMA, newActor, newLorebook } from '@storyengine/shared';
 
+import { create } from '../library.js';
+import { makePng } from '../storage/card/test-png.js';
 import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
 
 /**
@@ -330,14 +335,66 @@ describe('the editor’s save path keeps its promises', () => {
     expect(final.object['fromTheFuture']).toEqual({ keep: 'me' });
   });
 
-  it('serves the avatar with the card’s bytes', async () => {
+  /**
+   * ***A card with a picture is served; a blank one is not*** (2026-10-13,
+   * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.3).
+   *
+   * This test said *serves the avatar with the card's bytes* of an actor made
+   * through the API, whose card is the 1×1 transparent blank — so it held the
+   * very answer that drew every portrait-less face as an empty circle. Both
+   * halves now: the blank is `404`, so a face falls back to its tile on the one
+   * signal an `<img>` has; a real picture is still the card's bytes, `200`; and
+   * the download beside it still hands over the blank card whole, because the
+   * card is the file and only *show me the picture* has no answer.
+   */
+  it('serves the avatar with the card’s bytes when the card has a picture', async () => {
+    // The second is the blank's own header — one pixel, eight-bit, with alpha —
+    // over an opaque red pixel: the blank is the build's own picture, not every
+    // picture of its shape.
+    const header = new Uint8Array(13);
+    new DataView(header.buffer).setUint32(0, 1);
+    new DataView(header.buffer).setUint32(4, 1);
+    header.set([8, 6], 8);
+    const opaque = Uint8Array.from(
+      encodeChunks([
+        { name: 'IHDR', data: header },
+        { name: 'IDAT', data: new Uint8Array(deflateSync(Uint8Array.from([0, 200, 0, 0, 255]))) },
+        { name: 'IEND', data: new Uint8Array(0) },
+      ]),
+    );
+    for (const [name, pixels] of [
+      ['Lund', makePng(4, 7)],
+      ['Mara', opaque],
+    ] as const) {
+      const actor = newActor(name);
+      const pictured = await create(server.services.library, 'ned', actor, ACTOR_SCHEMA, {
+        cardPixels: pixels,
+      });
+      const avatar = await server.request({
+        method: 'GET',
+        url: `/api/library/actors/${actor.id}/avatar`,
+      });
+      expect(avatar.status, name).toBe(200);
+      expect(avatar.headers['content-type'], name).toBe('image/png');
+      expect(avatar.headers['etag'], name).toBe(pictured.contentHash);
+    }
+  });
+
+  it('answers not-found for a blank card, and still downloads it whole', async () => {
     const created = await createActor();
     const avatar = await server.request({
       method: 'GET',
       url: `/api/library/actors/${created.id}/avatar`,
     });
-    expect(avatar.status).toBe(200);
-    expect(avatar.headers['content-type']).toBe('image/png');
+    expect(avatar.status).toBe(404);
+    expect(avatar.body.error).toBe('not-found');
+
+    const download = await server.request({
+      method: 'GET',
+      url: `/api/library/actors/${created.id}/download`,
+    });
+    expect(download.status).toBe(200);
+    expect(download.headers['content-type']).toBe('image/png');
   });
 
   /**

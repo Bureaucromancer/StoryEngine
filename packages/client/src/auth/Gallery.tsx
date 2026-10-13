@@ -6,8 +6,8 @@ import { useState, type JSX } from 'react';
 import type { GalleryEntry } from '../api.js';
 import { useGallery } from '../queries.js';
 import { Button } from '../ui/Button.js';
+import { drawnTile } from '../ui/tile.js';
 import { LoginForm } from './forms.js';
-import { drawnTile } from './tile.js';
 
 /**
  * The second front door — [12](../../../../docs/design/12-account-gallery.md),
@@ -149,7 +149,7 @@ function Tile(props: { entry: GalleryEntry; onPick: () => void }): JSX.Element {
  * two nested elements do not.
  */
 function DrawnFace(props: { handle: string; displayName: string }): JSX.Element {
-  const tile = drawnTile(props);
+  const tile = drawnTile({ id: props.handle, name: props.displayName });
   return (
     <span
       aria-hidden="true"

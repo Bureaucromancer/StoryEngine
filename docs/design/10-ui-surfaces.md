@@ -309,7 +309,13 @@ project already committed to:
   claim**, rendered, and §13.1 already marks that claim by confidence and offers
   to correct it. This is the largest felt difference between the two clients and
   the one place where ours can be better than theirs, because a wrong face is a
-  link into the cast panel (§13.2) rather than a decoration.
+  link into the cast panel (§13.2) rather than a decoration. *(2026-10-13,
+  [P12A](workplan/35-p12a-the-look.md) P12A.3: built in the four places
+  [P12A §1.1](workplan/35-p12a-the-look.md) names — every cast row, the
+  player's own line, what a mention opens, and an actor's library row, page and
+  editor header — on one face that falls back to a drawn tile, since most
+  actors have no portrait. The player's face is the link into the cast panel
+  this sentence asks for; §13.1 and §13.2 say what each opens.)*
 - **World state as a strip of widgets you can edit in place.** Marinara's
   roleplay HUD shows location, time and stats along the top, each opening an
   editable popover. That is [00 §3.6](00-stance.md)'s *shown and correctable* in
@@ -2857,6 +2863,24 @@ span model generalises to any entity type and should be built so that it can,
 but shipping actor mentions first keeps the surface honest — actors are where
 the identity failures actually hurt.
 
+***Linked, 2026-10-13*** — [P12A](workplan/35-p12a-the-look.md) P12A.3, under
+its §0.4. From [P7.7](workplan/23-p7-implementation.md) a `matched` mention was
+highlighted and not linked: the span's target was dropped by the client before
+the mark was drawn, so the transcript could say *the engine knows this name*
+and not *as whom*. The span travels with its mark now, and a mark is a control
+opening a small card beside it — non-modal, closed by Escape or a press outside
+— that says **who the engine matched**, with their face; **the words it matched
+by**; ***Open*** them, the actor's editor; and **the correction that exists**:
+the matcher marks a name because it is the actor's name or one of their
+aliases, so the card says so and links to the editor's *Aliases* field, which
+the link lands on. That is this section's merging half made correctable from
+where it shows — two different people opening the same card is the merge, and
+the card is one press from the field that caused it. *What it is not yet*:
+spans are fixed when a turn is extracted, so a changed alias marks the turns
+after it and moves no mark already drawn; there is no route to correct one
+stored span, and **no new route** was built for it. `explicit` and `proposed`
+still do not ship, so the card speaks only for the certain arm.
+
 ### 13.2 The cast panel
 
 Aventuras' character panel, adopted along with its state tracking, which the
@@ -2922,6 +2946,25 @@ it:
 Read-only, the panel is a complaint the user cannot act on. Editable, it is the
 repair surface for exactly the failures §13.1 makes visible — which is why the
 two belong in one section rather than as unrelated features.
+
+***Faces, and who you play, 2026-10-13*** —
+[P12A](workplan/35-p12a-the-look.md) P12A.3, under its §0.4. **Every row draws
+the actor's face**, which until then only a chat's did: a row is a claim that
+this person is in the story, and an actor with no portrait gets a drawn tile —
+two initials, a colour from its id — rather than an empty circle, the avatar
+route answering `404` for a card with no picture so that every face falls back
+the same way. **And the panel says who you play**, with a choice and a button
+that writes the persona through `PUT /cast`. Since P12A.3 a move is sent with the
+persona it is played as and its line draws that face from its own record — no
+face where the record names nobody, rather than today's persona on yesterday's
+line — so the persona became a claim the transcript shows, and the face on the
+player's line is the link into this panel that §1.3 asks of a wrong face: it
+hands *You play* the keyboard. Changing it is the *"explicit act"*
+[06 §8](06-modes-and-turn-pipeline.md) asks a mid-session change to be: nothing
+is written until the button is pressed, and no line already played changes its
+face. *Of the four repairs above, presence and status, and now who you play,
+are built*; merge, split and linking an unresolved mention are not, and the
+panel's own docstring still says why.
 
 ---
 

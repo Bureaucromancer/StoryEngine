@@ -2,7 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -17,6 +17,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const readSession = vi.fn();
 const writeSessionChannel = vi.fn();
+const setSessionCast = vi.fn();
 const listLibrary = vi.fn();
 
 vi.mock('../api.js', async (importOriginal) => {
@@ -25,6 +26,7 @@ vi.mock('../api.js', async (importOriginal) => {
     ...actual,
     readSession: (...a: unknown[]) => readSession(...a) as unknown,
     writeSessionChannel: (...a: unknown[]) => writeSessionChannel(...a) as unknown,
+    setSessionCast: (...a: unknown[]) => setSessionCast(...a) as unknown,
     api: { ...actual.api, listLibrary: (...a: unknown[]) => listLibrary(...a) as unknown },
   };
 });
@@ -41,9 +43,13 @@ const VERA = {
   introduced: true,
 };
 
-function answerWith(cast: unknown[]): void {
+function answerWith(cast: unknown[], roster?: { persona: string | null; actors: string[] }): void {
   readSession.mockResolvedValue({
-    session: { id: SESSION_ID, name: 'A wet week' },
+    session: {
+      id: SESSION_ID,
+      name: 'A wet week',
+      ...(roster === undefined ? {} : { cast: roster }),
+    },
     activeJob: null,
     health: [],
     hud: [],
@@ -67,6 +73,7 @@ beforeEach(() => {
       },
     ],
   });
+  setSessionCast.mockResolvedValue({ session: { id: SESSION_ID } });
   writeSessionChannel.mockResolvedValue({
     session: { id: SESSION_ID },
     effect: { applied: true, rejectedReason: null },
@@ -194,5 +201,79 @@ describe('the cast panel', () => {
       expect(readSession).toHaveBeenCalled();
     });
     expect(screen.queryByLabelText('Cast')).toBeNull();
+  });
+
+  /**
+   * ***A face on every row, outside a chat as in one*** —
+   * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.3. Every
+   * row is a claim that this person is in this story, which is [10 §1.3]'s test
+   * for a face; it was a chat's alone. The picture is the library's, by content
+   * hash, and an actor the library no longer has keeps a face — the tile, by
+   * the id the row carries.
+   */
+  it('draws a face on every row, outside a chat as in one', async () => {
+    answerWith([VERA, { ...VERA, actorId: 'actor-gone' }]);
+    renderPanel();
+
+    const row = (name: string): HTMLElement => {
+      const found = screen.getByText(name, { selector: 'span' }).parentElement;
+      if (found === null) throw new Error(`no row for ${name}`);
+      return found;
+    };
+    await screen.findByText('Vera Kohl');
+    expect(row('Vera Kohl').querySelector('img')?.getAttribute('src')).toBe(
+      '/api/library/actors/actor-vera/avatar?v=sha256%3Ax',
+    );
+    expect(row('actor-gone').querySelector('span[aria-hidden="true"]')?.textContent).toBe('A');
+  });
+});
+
+/**
+ * ***Who you play*** — the correction the face on the player's own line leads
+ * to, [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.3.
+ *
+ * [06 §8] makes a mid-session persona change *"an explicit act rather than an
+ * outcome of play"*, so what is held is that choosing writes nothing and
+ * pressing writes the persona, the roster's actors as they were.
+ */
+describe('who you play', () => {
+  it('changes the persona when asked, and only then, with the roster whole', async () => {
+    answerWith([VERA], { persona: null, actors: ['actor-vera', 'actor-lund'] });
+    renderPanel();
+
+    const choice = await screen.findByRole('combobox', { name: 'You play' });
+    expect((choice as HTMLSelectElement).value).toBe('');
+    const press = screen.getByRole('button', { name: 'Play as them' });
+    expect((press as HTMLButtonElement).disabled).toBe(true);
+
+    await within(choice).findByRole('option', { name: 'Vera Kohl' });
+    await userEvent.selectOptions(choice, 'actor-vera');
+    expect(setSessionCast).not.toHaveBeenCalled();
+    await userEvent.click(press);
+
+    await waitFor(() => {
+      expect(setSessionCast).toHaveBeenCalledWith(SESSION_ID, {
+        persona: 'actor-vera',
+        actors: ['actor-vera', 'actor-lund'],
+      });
+    });
+  });
+
+  it('says who the session is played as, even somebody the library no longer has', async () => {
+    answerWith([VERA, { ...VERA, actorId: 'actor-gone' }], {
+      persona: 'actor-gone',
+      actors: ['actor-vera'],
+    });
+    renderPanel();
+
+    const choice = await screen.findByRole('combobox', { name: 'You play' });
+    await waitFor(() => {
+      expect(
+        within(choice)
+          .getAllByRole('option')
+          .map((one) => one.textContent),
+      ).toContain('Vera Kohl');
+    });
+    expect((choice as HTMLSelectElement).value).toBe('actor-gone');
   });
 });

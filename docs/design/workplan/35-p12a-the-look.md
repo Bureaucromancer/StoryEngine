@@ -1409,6 +1409,180 @@ for a long time, so the no-image case is the common case: `auth/tile.ts` already
 generates deterministic initials for the sign-in gallery, and a second
 invention here would be the third spelling of one idea.
 
+***Built 2026-10-13***, under [§0.4](#04-what-the-audit-of-2026-10-13-found-and-what-each-finding-decides)'s
+decisions for this stage, which were binding on it. Six things, one of them on
+the server.
+
+- **A blank card answers 404.** `GET /library/actors/:id/avatar` compares the
+  card's picture — its `IHDR`, `PLTE` and `IDAT` chunks, type and data, walked
+  by hand — with the 1×1 transparent picture `blankCardPixels()` writes, and
+  answers `404 not-found` when they are the same (`isBlankCard`,
+  `library.ts`). The download and a copy still hand the blank card over whole:
+  the card is still the file, and only *show me the picture* has no answer.
+  [The API reference](../../api.md) has a dated note.
+- **One face, `ui/Face.tsx`**, on the tile `auth/tile.ts` drew for the sign-in
+  gallery, **moved to `ui/tile.ts`** with its inputs renamed — `handle` and
+  `displayName` became `id` and `name` — so an actor's hue is its id's and an
+  account's its handle's. A picture when there is one, the tile when there is
+  not, and the tile again on the `<img>`'s error; it remembers *which* source
+  failed, so a new one is tried. Four sizes in one class table, the editor's
+  header on `rounded-media` because it is the card's own picture.
+  `play/Portrait.tsx` is the actor's face on it, keeping its ranking — a
+  `reference` medium, then the card — and its own `initialOf` is gone; its
+  comment's false clause about 404s has a dated note saying it is true from
+  today. `auth/Gallery.tsx` and `settings/UserSettings.tsx` import the moved
+  tile. The actor editor's header is the face: the card's picture, the tile
+  for a draft — from the name being typed — and the tile when the route answers
+  404 for a blank card, where it drew an empty grey square in both.
+- **A face on every cast row**, not only a chat's, the picture by the content
+  hash from the library's actors query as every face site already did.
+- **The player's own line.** The page sends `input.actorId` — the persona it
+  plays, `roster.persona`, `null` for nobody in particular — with every move
+  (`api.ts`'s `submitTurn`, inside the input; the route already took it —
+  `routes/sessions.ts`'s input schema and `payloadOf` — and nothing sent it). A past line draws the face its own record names and **no face when
+  it names none**: chat's `turn.input.actorId ?? personaId` is gone — the
+  `personaId` prop with it, so the fallback cannot come back by a default — and
+  the non-chat line in `TurnView` draws `PlayedAs` beside the line when the
+  record names somebody. **The correction path**: no *you play* control
+  existed anywhere, in a chat or out of one, and `LorePanel.tsx`'s note called
+  that a deliberate absence; the cast panel has one now, **You play** — a
+  choice and **Play as them**, nothing written until the button is pressed,
+  the persona through `PUT /sessions/:id/cast` with the roster's actors as they
+  were. The face on a line is a button that hands *You play* the keyboard,
+  which scrolls it into view; where the page draws no cast panel, the face is
+  a face and not a button. `LorePanel.tsx`'s note has a dated note.
+- **Mentions.** `runsFor` (`library/search.ts`) carries each hit's span, so a
+  run is no longer only text and a flag, and the overlay maps a mark to its
+  target by what it was cut from rather than by counting. A mark is the
+  trigger of **`ui/Popover`**, built here — non-modal, anchored beside its
+  trigger and scrolling with it, closed by its trigger, Escape or a press
+  outside, Escape handing the keyboard back and stopping there, no trap — and
+  opens a card: the actor's face and name, *Matched by "…"*, **Open** the
+  actor's editor, the sentence that names the correction (*a name is marked
+  when it is a character's name or one of their aliases*) and a link to
+  **Edit …'s aliases**, which the editor lands on: `#aliases` wraps the field,
+  and the editor gives it the keyboard as it is first drawn, since the router's
+  own scroll to a hash runs before the editor has its object. An actor the
+  library no longer has keeps the name the span recorded and offers no links.
+  **No new route.**
+- **The library**: an actor's row on the shelf draws its face beside the name,
+  which stays the link, and an actor's own page opens on it; no other kind
+  draws one.
+
+**What the stage text said and what turned out different:**
+
+- *"No new server route is expected"* — none was built. A route's answer
+  changed instead, which is §0.4's decision: a blank card's `200` became a
+  `404`. *The bytes* §0.4 names are taken as **the picture**: a card's file
+  holds its own object beside the blank's two chunks, so no two blank cards
+  are the same bytes and a file comparison would never match.
+- *"`api.avatarUrl` and the content hash are enough"* — they are, and §1.1's
+  *"`CastRow` carries `actorId` and the avatar URL is derivable from it"* is
+  not quite: a row has no content hash, so a row's face reads the library's
+  actors query for it, as every existing face did.
+- *"A second invention here would be the third spelling of one idea"* — the
+  second was already there (`Portrait`'s one code-point initial on a grey
+  disc), so this stage removed one rather than avoided one.
+- *"Each … gets the path from the face to the place the claim is corrected"* —
+  for three of the four places. The cast row is its own correction surface;
+  the player's line leads to *You play*, which had to be built; the mention
+  leads to the aliases. **The object header's picture has none**: the editor
+  shows the card and does not replace it, as its note says, and changing a
+  card's picture in the app is not something any surface offers. That is
+  [P12A.7](#p12a7--editors-section-jumps-and-an-identity-header)'s header to
+  carry, and `library/note-labels.ts`'s import sentence *"Add a picture in the
+  editor instead"* still points at a control that does not exist — found here,
+  left for that stage.
+- *`ui/Popover`* is built here rather than at P12A.4, which §0.4's P12A.4
+  bullet names as its builder, because this stage runs first; P12A.4 reuses
+  it. **A press outside does not move focus**: Escape gives the keyboard back
+  to the trigger, while a press already put focus where the person meant it
+  to go, and pulling it back would undo the click. Its content is phrasing
+  content, because a mention is a word inside a `<p>`.
+- *Decided inside the stage*: **a redo is played as whoever made the move**
+  — it sends the turn's own `input.actorId`, as it sends its words, its kind
+  and its pictures — not as today's persona. A line whose record names an
+  actor the library no longer has draws that id's colour under *You*, the name
+  chat already used there, never the id.
+- *Not done, and said*: a **shadowed** actor's face is the winner's, because
+  the avatar and media routes take no address; and the card's panel is
+  `w-64` from its trigger's start, so a mark near the end of a line on a
+  narrow phone can push past the column — [P12A.8](#p12a8--the-phone-rules)'s
+  to look at.
+- *Tests that held the old answer*: `routes/history.test.ts`'s *serves the
+  avatar with the card's bytes* made an actor through the API — a blank card —
+  and asserted `200`, which is the answer that drew the empty circle; it is
+  two tests now, below. `import-aventuras-transports.test.ts` digested each
+  actor's picture through the avatar route, and reads it through the download
+  now, since a character imported without a portrait has a blank card.
+  `PlayPage.chat.test.tsx` asserted *Ned* — today's persona — on a turn whose
+  record names nobody, which is the claim §0.4 reverses. `LibraryPage.test.tsx`
+  and `ObjectDetailPage.test.tsx` replace the whole `api` object in their mocks
+  and now pass its two address builders through; `CastPanel.chat.test.tsx`
+  finds a row's name as a `span`, since *You play* offers the same name.
+
+**Tests, each checked against a mutation and restored.** In
+`routes/history.test.ts`: *serves the avatar with the card's bytes when the
+card has a picture* — a 4×4 card and a 1×1 opaque card with the blank's own
+header — fails with every card treated as blank, with only the header compared
+(the 1×1, *expected 404 to be 200*), and with nothing but `PLTE` compared;
+*answers not-found for a blank card, and still downloads it whole* fails with
+the route's check removed. In the new `ui/Face.test.tsx`: *falls back to the
+tile when the picture answers with an error* fails with `onError` unwired;
+*tries a new picture* fails with the face remembering *that* a picture failed
+rather than which; *keeps an id's colour through a rename, and gives another
+id another* fails with the hue taken from the name. In the new
+`ui/Popover.test.tsx`: *closes on Escape and gives the keyboard back* fails
+with the refocus removed and with Escape let through to an enclosing handler;
+*closes on a press outside* fails with the outside listener removed; *stays
+open for a press inside it* fails with the inside check removed; *opens …
+and hands the keyboard to what is inside* fails with focus left on the
+trigger; *lets Tab leave it* fails with Tab trapped inside. One mutation
+**survived and is equivalent**: focusing the trigger from the outside press,
+because a press's own focus lands after its `pointerdown`, on the control
+pressed or on the page, so the trigger never keeps it. In `play/MentionOverlay.test.tsx`: *names the
+actor it matched, the words it matched by, and both corrections* fails with
+`runsFor` dropping the span (the three existing tests that draw a mark fail
+with it too), with the aliases link losing its hash, with *Open* gone, and
+with the card naming the matched words instead of the target; *opens the span
+the mark was cut from, not one counted to* — two marks, the spans out of order
+— fails with the span found by counting hits over the unsorted list, and with
+links offered for an actor the library lacks. In `play/CastPanel.test.tsx`:
+*draws a face on every row, outside a chat as in one* fails with the face back
+behind `chat`, and with the row's card not passed; *changes the persona when
+asked, and only then, with the roster whole* fails with the choice writing on
+change and with the actors dropped; *says who the session is played as, even
+somebody the library no longer has* fails with that option removed. In
+`api.test.ts`: *sends who a move is played as inside its input, null included*
+fails with `actorId` left off the wire and with `null` dropped. In
+`play/PlayPage.test.tsx`: *sends the move as the persona it is played as, and
+as nobody without one* fails with `actorId` taken out of the send; *draws no
+face on a line whose record names nobody* fails with a face drawn for every
+line; *draws the face its record names, and opens who you play from it* fails
+with none drawn for any and with the face not wired to *You play*; *redoes a move as whoever made it* fails with the redo sending no
+`actorId`. In `play/PlayPage.chat.test.tsx`: *draws no face and no persona on
+a line whose record names nobody* fails with a face drawn from a fallback id
+and with the persona's name put back; *opens who you play from the face* fails
+with the face not wired. In `editor/ActorEditorPage.test.tsx`: *shows the
+card, and the tile in its place* fails with no picture asked for; *gives a
+draft a face from the name being typed* fails with the name not passed; *lands
+on the aliases* fails with the landing removed. `LibraryPage.test.tsx`'s
+*draws an actor's face beside its name, and no face on another kind* fails
+with the face on no row and on every row; `ObjectDetailPage.test.tsx`'s
+header test fails with the face gone. `ui/tile.test.ts` moved with its module,
+its inputs renamed and its assertions unchanged. `i18n/catalogue.test.ts`
+exempts `Face`'s size table, a table of classes. *Not looked at in a browser* —
+none is installed where this was built.
+
+**Entry after: 315.37 kB, CSS 8.39** — **313.90 and 8.34 before**, at
+`2a31f971` — gzip level 9 over the files `index.html` pulls, the budget test's
+method. **+1.47 kB**, over the 315 ceiling by 0.37, so
+`tools/entry-budget.test.ts` is **raised to 320**, with its paragraph saying
+where it went: the mention's popover and card 0.61, *You play* 0.14, the rest
+the face and its sites. The mention's card behind a `lazy()` measured
+**316.27**, worse, for the reason that file's earlier notes give. **4.63 kB is
+left** for P12A.4 onward.
+
 ### P12A.4 — The HUD, and whether it can write
 
 §1.4. Audit first, then the strip: the *facts about now* widgets in one line

@@ -40,7 +40,38 @@ const WORDS = labels('play.cast', {
   cardPrompts: 'Card prompts',
   castFailed: 'The cast could not be changed.',
   talkativenessFailed: 'The card could not be saved.',
+  youPlay: 'You play',
+  nobody: 'Nobody in particular',
+  playAs: 'Play as them',
+  personaFailed: 'Who you play could not be changed.',
 });
+
+/**
+ * ***Where the player's own face sends a person*** — the id of *You play*, so
+ * a line of the transcript can hand it the keyboard without the page holding a
+ * ref into this panel. One control on the page has it.
+ */
+const YOU_PLAY = 'cast-you-play';
+
+/**
+ * Hands *You play* the keyboard, which scrolls it into view: the face on a
+ * player's line, pressed. A no-op when the panel is not drawn, which
+ * {@link castPanelShows} lets the page know before it offers the press.
+ */
+export function focusWhoYouPlay(): void {
+  document.getElementById(YOU_PLAY)?.focus();
+}
+
+/**
+ * ***Whether the panel is drawn***, as a question the page can ask too: the
+ * player's face on a line is a way to *You play* only when there is one to go
+ * to. A chat renders even with nobody in it, because the control that seats
+ * somebody is inside; anything else keeps the old rule — no cast, no panel —
+ * and a session with a persona has a row for them.
+ */
+export function castPanelShows(rows: readonly CastRow[], chat: ChatSettings | undefined): boolean {
+  return rows.length > 0 || chat !== undefined;
+}
 
 /** The steps a talkativeness select offers: SillyTavern's slider, in tenths. */
 const TENTHS = Array.from({ length: 11 }, (_, at) => at / 10);
@@ -57,7 +88,10 @@ const TENTHS = Array.from({ length: 11 }, (_, at) => at / 10);
  * about it: *"Read-only, the panel is a complaint the user cannot act on.
  * Editable, it is the repair surface for exactly the failures §13.1 makes
  * visible."* That section lists four repairs and this offers **one** of them —
- * *correct presence and status directly*. The other three are named here rather
+ * *correct presence and status directly*. *(2026-10-13,
+ * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.3: and who
+ * you play, which is not one of the four but is the correction a face on the
+ * player's own line leads to — `WhoYouPlay`.)* The other three are named here rather
  * than quietly dropped: **merge** and **split** are library operations that need
  * a redirect so that turn records pointing at an actor id do not rot
  * ([00 §3.3]), and no such mechanism exists; **linking an unresolved mention**
@@ -118,12 +152,11 @@ export function CastPanel(props: {
   const roster = session.data?.session.cast;
   const modeId = session.data?.session.mode?.id;
 
-  // A chat renders even with nobody in it, because the control that seats
-  // somebody is inside. Anything else keeps the old rule: no cast, no panel.
-  if (rows.length === 0 && chat === undefined) return null;
+  if (!castPanelShows(rows, chat)) return null;
 
   return (
     <section className="flex flex-col gap-2" aria-label={WORDS.label}>
+      {roster === undefined ? null : <WhoYouPlay sessionId={props.sessionId} roster={roster} />}
       {rows.map((row) => (
         <CastMember
           key={row.actorId}
@@ -139,6 +172,90 @@ export function CastPanel(props: {
       ))}
       {chat === undefined ? null : <AddMember sessionId={props.sessionId} roster={roster} />}
     </section>
+  );
+}
+
+/**
+ * ***Who you play*** (2026-10-13,
+ * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.3) — the
+ * correction a face on the player's own line leads to.
+ *
+ * Since P12A.3 a move is sent with the persona it is played as, and its line
+ * draws that face, which makes the persona a claim the transcript shows. A
+ * shown claim needs the place it is corrected ([00 §3.6]), and there was none:
+ * `PUT /cast` has always taken a persona, and `LorePanel`'s note said *nothing
+ * in the product offers one yet, and that is a deliberate absence*, on
+ * [06 §8](../../../../docs/design/06-modes-and-turn-pipeline.md)'s reading that
+ * a persona is *"chosen at setup, and changing it mid-session is an explicit
+ * act rather than an outcome of play"*. **This is that explicit act**, and the
+ * least of it: a choice and a button, the choice doing nothing until the button
+ * is pressed, so a persona never changes because a select was scrolled past.
+ * It writes the roster whole, actors as they are, which is the route's shape.
+ *
+ * **It changes who plays the next move, and nothing already played.** A line
+ * says who it was played as, from its own record; choosing someone else here
+ * moves no face on any line before it, which is the point of the face being
+ * the record's.
+ *
+ * *A persona the library no longer has* is offered under its id, as the row
+ * below names it, so the select shows what the session says rather than
+ * quietly reading *Nobody in particular*.
+ */
+function WhoYouPlay(props: {
+  sessionId: string;
+  roster: { persona: string | null; actors: string[] };
+}): JSX.Element {
+  const actors = useLibrary('actors');
+  const cast = useSetCast(props.sessionId);
+  const current = props.roster.persona ?? '';
+  const [chosen, setChosen] = useState<string | null>(null);
+  const value = chosen ?? current;
+  const offered = actors.data?.objects ?? [];
+
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex flex-wrap items-center gap-2">
+        <label className="flex items-center gap-1 text-sm text-ink-muted">
+          {WORDS.youPlay}
+          <select
+            id={YOU_PLAY}
+            className="rounded-control border border-line bg-surface p-1 text-ink"
+            value={value}
+            onChange={(event) => {
+              setChosen(event.target.value);
+            }}
+          >
+            <option value="">{WORDS.nobody}</option>
+            {current === '' || offered.some((one) => one.id === current) ? null : (
+              <option value={current}>{current}</option>
+            )}
+            {offered.map((one) => (
+              <option key={one.id} value={one.id}>
+                {one.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <Button
+          type="button"
+          size="compact"
+          disabled={value === current || cast.isPending}
+          onClick={() => {
+            cast.mutate(
+              { persona: value === '' ? null : value, actors: props.roster.actors },
+              {
+                onSuccess: () => {
+                  setChosen(null);
+                },
+              },
+            );
+          }}
+        >
+          {WORDS.playAs}
+        </Button>
+      </div>
+      <WriteFailed error={cast.error} otherwise={WORDS.personaFailed} />
+    </div>
   );
 }
 
@@ -237,7 +354,12 @@ function CastMember(props: {
   return (
     <div className="flex flex-col gap-1">
       <div className="flex flex-wrap items-center gap-2">
-        {chat === undefined ? null : <Portrait actor={card} name={name} />}
+        {/* ***A face on every row*** (2026-10-13, P12A.3) — it was a chat's
+            alone. Every row is a claim that this person is in this story, which
+            is [10 §1.3]'s test for a face, and the row is where that claim is
+            corrected. The picture is found by the library's content hash, as
+            every face is: a row carries the actor's id and nothing else. */}
+        <Portrait actorId={row.actorId} actor={card} name={name} />
         <span className="text-ink">{name}</span>
         <Badge tone={isTerminalBadge(row.status) ? 'danger' : 'neutral'}>{castBadge(row)}</Badge>
         {party === null ? null : <Badge tone="neutral">{party}</Badge>}

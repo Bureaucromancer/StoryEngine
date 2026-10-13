@@ -14,6 +14,7 @@ import { TagChip } from '../ui/TagChip.js';
 import { link, page, table } from '../ui/classes.js';
 import { Field, SelectField } from '../ui/Field.js';
 import { OpenDockButton } from '../workbench/OpenDockButton.js';
+import { Portrait } from '../play/Portrait.js';
 import { DeleteObject } from './DeleteObject.js';
 import { newObjectFor, newRouteFor, type NewRoute } from './fields.js';
 import { KIND_LABELS, ShadowedBadge } from './labels.js';
@@ -638,6 +639,20 @@ function ObjectRow(props: {
       ) : null}
       <td className={table.cell}>
         <span className="flex flex-wrap items-center gap-2">
+          {/* ***An actor's row carries its face*** (2026-10-13,
+              [P12A](../../../../docs/design/workplan/35-p12a-the-look.md)
+              P12A.3): [10 §1.3] puts faces in the library as much as in play,
+              because identity is not atmosphere — someone with forty actors
+              finds Vera by her face before her name. Beside the name, so the
+              name stays the link and the face stays decorative. */}
+          {kind === 'actors' ? (
+            <Portrait
+              actorId={props.object.id}
+              actor={props.object}
+              name={props.object.name}
+              size="row"
+            />
+          ) : null}
           {kind === null ? (
             <span>{props.object.name}</span>
           ) : (

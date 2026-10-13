@@ -246,7 +246,32 @@ describe('the transcript as a chat', () => {
     expect(within(narration).queryByRole('button', { name: 'Another reply' })).toBeNull();
     expect(within(narration).getByRole('button', { name: 'Hide' })).toBeTruthy();
     expect(within(narration).getByRole('button', { name: 'Edit' })).toBeTruthy();
-    expect(within(await lineOf('I knock.')).getByText('Ned')).toBeTruthy();
+  });
+
+  /**
+   * ***A line whose record names nobody is nobody's*** (2026-10-13,
+   * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.3, under
+   * its §0.4). This test asserted *Ned* on the old turn's input — the persona
+   * the session has **now**, drawn on a line whose `input.actorId` is `null`:
+   * a claim the record never made. It is *You* and no face.
+   */
+  it('draws no face and no persona on a line whose record names nobody', async () => {
+    renderPage();
+    const line = await lineOf('I knock.');
+    expect(within(line).queryByText('Ned')).toBeNull();
+    expect(within(line).getByText('You')).toBeTruthy();
+    expect(line.querySelector('img')).toBeNull();
+    expect(line.querySelector('span[aria-hidden="true"]')).toBeNull();
+  });
+
+  /** The face a line's record names is the way to who you play, in a chat as outside one. */
+  it('opens who you play from the face on a line its record names', async () => {
+    renderPage();
+    const line = await lineOf('Well?');
+    await userEvent.click(
+      within(line).getByRole('button', { name: 'Played as Ned. Change who you play' }),
+    );
+    expect(document.activeElement).toBe(screen.getByRole('combobox', { name: 'You play' }));
   });
 
   it('offers neither swipe nor continue once the chat is narrated', async () => {

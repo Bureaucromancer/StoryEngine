@@ -343,7 +343,33 @@ const DIST = join(HERE, '..', 'packages', 'client', 'dist');
  * check below, which reads the build for the chunk and for a sentence from
  * each of the half's four files, is what does.
  */
-const JS_CEILING_KB = 315;
+/*
+ * ***Raised to 320 on 2026-10-13, at [P12A](../docs/design/workplan/35-p12a-the-look.md)
+ * P12A.3*** — faces, found by this file failing as it is meant to be. The
+ * lowering above left 4.70 for P12A.0 onward; P12A.0 to P12A.2, and the merge
+ * that brought P16's two follow-ups under the phase (1.88 of it), spent 3.60,
+ * and P12A.2's record named the **1.10** left as the next stage's first number
+ * to read. Measured with this file's compressor: **313.90** before
+ * the stage (`2a31f971`), **315.37** after — **+1.47 kB**, every byte the
+ * client's own code and **no new dependency**, which is the [21 §7] trigger.
+ * *Where it went*, each measured by taking it out of a build: a mention's
+ * popover and the card it opens, **0.61** (314.76 without; the card alone
+ * 0.15); the cast panel's *You play*, **0.14** (315.23 without); and the rest,
+ * about **0.72**, is the face itself — `ui/Face` with the tile it draws, the
+ * player's line's face that opens *You play*, a face on every cast row, an
+ * actor's library row, page and editor header, the editor landing on its
+ * aliases, and the move sent with its persona. *A split was measured and is
+ * worse*: the mention's card behind its own `lazy()` measured **316.27**, since
+ * everything it imports — the router's link, the library query, the face — is
+ * on the entry already, the old finding of this file's notes above. So the
+ * raise, to leave about five kB as every raise above left: **320 leaves
+ * 4.63** for P12A.4 onward, every stage of which is client work too. The
+ * remedy this file names whenever it is asked — a whole surface off the entry,
+ * as the administration half went — is still the honest alternative, and the
+ * note sentences with the library surface that is their only reader are still
+ * the largest candidate; choosing one is a loading decision and not a face's.
+ */
+const JS_CEILING_KB = 320;
 
 /** The stylesheet, at 6.99 kB and growing with the design system rather than the app. */
 const CSS_CEILING_KB = 12;

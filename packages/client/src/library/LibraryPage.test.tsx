@@ -47,31 +47,39 @@ let handle = 'ned';
 let prefsStore: Record<string, unknown> = {};
 const patchPrefs = vi.fn();
 
-vi.mock('../api.js', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../api.js')>()),
-  // The *used by* count a row's question shows ([polish §27]). Not on `api`,
-  // so the spread above would hand the real one a fetch jsdom does not have.
-  readUsedBy: () => Promise.resolve({ usedBy: [] }),
-  api: {
-    listLibrary: (...a: unknown[]) => listLibrary(...a) as unknown,
-    createObject: (...a: unknown[]) => createObject(...a) as unknown,
-    deleteObject: (...a: unknown[]) => deleteObject(...a) as unknown,
-    // Added at P5.0: the table formats an *Updated* column, so it reads the
-    // account's locale like every other surface that formats a timestamp. The
-    // mock replaces the whole `api` object, so an absent method is not a
-    // fallback — it is a query that throws and a locale that is silently
-    // undefined in every test.
-    authState: () => Promise.resolve({ account: { handle, locale: null } }),
-    readPrefs: () => Promise.resolve({ prefs: { ...prefsStore } }),
-    patchPrefs: (patch: Record<string, unknown>) => {
-      patchPrefs(patch);
-      prefsStore = Object.fromEntries(
-        Object.entries({ ...prefsStore, ...patch }).filter(([, value]) => value !== null),
-      );
-      return Promise.resolve({ prefs: { ...prefsStore } });
+vi.mock('../api.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../api.js')>();
+  return {
+    ...actual,
+    // The *used by* count a row's question shows ([polish §27]). Not on `api`,
+    // so the spread above would hand the real one a fetch jsdom does not have.
+    readUsedBy: () => Promise.resolve({ usedBy: [] }),
+    api: {
+      // An actor's face builds its picture's address with these (2026-10-13,
+      // P12A.3); the mock replaces the whole `api` object, so they are passed
+      // through, being addresses and not requests.
+      avatarUrl: actual.api.avatarUrl,
+      mediaUrl: actual.api.mediaUrl,
+      listLibrary: (...a: unknown[]) => listLibrary(...a) as unknown,
+      createObject: (...a: unknown[]) => createObject(...a) as unknown,
+      deleteObject: (...a: unknown[]) => deleteObject(...a) as unknown,
+      // Added at P5.0: the table formats an *Updated* column, so it reads the
+      // account's locale like every other surface that formats a timestamp. The
+      // mock replaces the whole `api` object, so an absent method is not a
+      // fallback — it is a query that throws and a locale that is silently
+      // undefined in every test.
+      authState: () => Promise.resolve({ account: { handle, locale: null } }),
+      readPrefs: () => Promise.resolve({ prefs: { ...prefsStore } }),
+      patchPrefs: (patch: Record<string, unknown>) => {
+        patchPrefs(patch);
+        prefsStore = Object.fromEntries(
+          Object.entries({ ...prefsStore, ...patch }).filter(([, value]) => value !== null),
+        );
+        return Promise.resolve({ prefs: { ...prefsStore } });
+      },
     },
-  },
-}));
+  };
+});
 
 vi.mock('@tanstack/react-router', () => ({
   getRouteApi: () => ({ useSearch: () => search }),
@@ -246,6 +254,34 @@ describe('narrowing the library by kind', () => {
     expect(screen.getByText('Rain City')).toBeTruthy();
     expect(screen.getByText('Vera Kohl')).toBeTruthy();
     expect(screen.queryByText('A wet week')).toBeNull();
+  });
+
+  /**
+   * ***An actor's row carries its face, and nothing else's does*** (2026-10-13,
+   * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.3):
+   * identity is not atmosphere, and [10 §1.3] puts faces in the library as
+   * much as in play — beside the name, which stays the link.
+   */
+  it('draws an actor’s face beside its name, and no face on another kind', async () => {
+    search = { kind: 'actors,lorebooks' };
+    listLibrary.mockResolvedValue({
+      objects: [
+        objectOf('Rain City', 'storyengine.lorebook/1', 'b-1'),
+        objectOf('Vera Kohl', 'storyengine.actor/1', 'a-1'),
+      ],
+    });
+    renderPage();
+    await settled();
+
+    const cell = (name: string): HTMLElement => {
+      const found = screen.getByText(name).closest('td');
+      if (found === null) throw new Error(`no cell for ${name}`);
+      return found;
+    };
+    expect(cell('Vera Kohl').querySelector('img')?.getAttribute('src')).toBe(
+      '/api/library/actors/a-1/avatar?v=sha256%3Aa-1',
+    );
+    expect(cell('Rain City').querySelector('img, span[aria-hidden="true"]')).toBeNull();
   });
 
   it('does not call a full library empty when it is only empty of these kinds', async () => {

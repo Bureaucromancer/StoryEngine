@@ -54,7 +54,7 @@ import { GuidanceBox } from './GuidanceBox.js';
 import { ChannelHealth } from './ChannelHealth.js';
 import { StartedWithout } from './StartedWithout.js';
 import { ChannelHud } from './ChannelHud.js';
-import { CastPanel } from './CastPanel.js';
+import { CastPanel, castPanelShows, focusWhoYouPlay } from './CastPanel.js';
 import {
   AutoMode,
   PushStory,
@@ -66,7 +66,7 @@ import {
 import { ChatMessages, EditedOriginal, type ChatGestures } from './ChatMessages.js';
 import { ChatSettingsPanel } from './ChatSettingsPanel.js';
 import { anyoneWouldReply, canSpeak, hiddenEntry, hideSent, turnSiblings } from './chat.js';
-import { Portrait } from './Portrait.js';
+import { PlayedAs, Portrait } from './Portrait.js';
 import { liveMessages } from './reducer.js';
 import { AUTO_MODE_DEFAULT_SECONDS, useAutoMode } from './useAutoMode.js';
 import { DialPanel } from './DialPanel.js';
@@ -487,6 +487,18 @@ export function PlayPage({
           ? {}
           : {
               text: draft,
+              /**
+               * ***Who this move is played as*** (2026-10-13,
+               * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md)
+               * P12A.3): the persona, as the session has it when the move is
+               * sent. The route has always taken `input.actorId` and the record
+               * has always had a place for it, and this page never sent it, so
+               * every move played in a browser was recorded as played by
+               * nobody — and the transcript drew today's persona over it. Sent,
+               * the line draws the face its own record names, and a persona
+               * changed later moves no face on a line already played.
+               */
+              actorId: roster?.persona ?? null,
               // Absent unless the player chose, so the route applies the mode's
               // default rather than the client guessing `do` for a mode without one.
               ...(kind === undefined ? {} : { kind }),
@@ -714,7 +726,10 @@ export function PlayPage({
         headTurnId: session.data?.session.headTurnId ?? null,
         // A turn that answered no move — *let them talk* — is redone as one:
         // sending `''` would turn it into a blank move by the player.
-        ...(turn.input === undefined ? {} : { text: turn.input.text }),
+        // ***And who it was played as*** (2026-10-13, P12A.3), for the same
+        // reason as its words: this is *that* move again, by whoever made it,
+        // not by whoever the session is played as now.
+        ...(turn.input === undefined ? {} : { text: turn.input.text, actorId: turn.input.actorId }),
         /**
          * **The move's kind comes with it** — a redone `think` is a thought
          * again, not a `do` that puts the player's private thought in the
@@ -1327,7 +1342,11 @@ export function PlayPage({
             head={turn.id === session.data?.session.headTurnId}
             chat={chat}
             actors={actorObjects}
-            personaId={roster?.persona ?? null}
+            onWhoYouPlay={
+              castPanelShows(session.data?.cast ?? [], chat) && roster !== undefined
+                ? focusWhoYouPlay
+                : undefined
+            }
             gestures={chatGestures}
             busy={transcriptBusy}
             onRedo={(subject, rewrite, guidance) => {
@@ -1825,7 +1844,7 @@ function TurnView({
   head,
   chat,
   actors,
-  personaId,
+  onWhoYouPlay,
   gestures,
   busy,
   onRedo,
@@ -1854,7 +1873,12 @@ function TurnView({
   chat: ChatSettings | undefined;
   /** The library's actors, read once by the page — for names and portraits. */
   actors: readonly LibraryObject[];
-  personaId: string | null;
+  /**
+   * Opens who you play, for the face on the player's line; absent when there
+   * is nowhere to open. It was `personaId` until 2026-10-13 (P12A.3), the
+   * persona a chat drew on every line whose record named nobody.
+   */
+  onWhoYouPlay: (() => void) | undefined;
   gestures: ChatGestures;
   sessionId: string;
   /** Whose memory a capture could be — read once by the page, per `surfaces`. */
@@ -1931,8 +1955,23 @@ function TurnView({
 
   return (
     <li className="group/turn flex flex-col gap-1">
-      {chatShaped || turn.input === undefined || turn.input.text === '' ? null : (
+      {/* ***The player's line, under the face its record names*** (2026-10-13,
+          P12A.3): `input.actorId`, who the move was played as, and no face
+          when it names nobody — `PlayedAs` says why. Beside the line rather
+          than above it, as a chat's is, so the prose keeps its column. */}
+      {chatShaped || turn.input === undefined || turn.input.text === '' ? null : turn.input
+          .actorId === null ? (
         <p className={`${story} text-ink-subtle`}>{turn.input.text}</p>
+      ) : (
+        <div className="flex gap-2">
+          <PlayedAs
+            actorId={turn.input.actorId}
+            actor={actors.find((one) => one.id === turn.input?.actorId)}
+            name={actors.find((one) => one.id === turn.input?.actorId)?.name}
+            onWho={onWhoYouPlay}
+          />
+          <p className={`${story} text-ink-subtle`}>{turn.input.text}</p>
+        </div>
       )}
       {turn.input?.attachments === undefined ? null : (
         <MovePictures sessionId={sessionId} pictures={turn.input.attachments} />
@@ -1944,7 +1983,7 @@ function TurnView({
             messages={messages}
             hidden={hiddenEntry(chat, turn.id)}
             actors={actors}
-            personaId={personaId}
+            onWhoYouPlay={onWhoYouPlay}
             swipes={swipes}
             voice={chat?.voice}
             head={head}
@@ -2389,6 +2428,7 @@ function LiveTurn(props: {
           ) : (
             <div key={index} className="flex gap-2">
               <Portrait
+                actorId={message.speaker.id}
                 actor={props.actors.find((one) => one.id === message.speaker?.id)}
                 name={message.speaker.name}
               />

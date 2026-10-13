@@ -302,12 +302,19 @@ async function libraryOf(server: TestServer): Promise<unknown> {
  * chunk beside the picture — ids, timestamps and all — so the file's bytes
  * differ between two servers that stored the same portrait; the object is
  * compared above, field by field, and this is the picture.
+ *
+ * ***Read through the download*** (2026-10-13,
+ * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.3): it was
+ * the avatar route, which answers `404` for a blank card now, so a character
+ * imported without a portrait had no picture to digest. The download hands over
+ * the card as it is stored, blank or not — the same bytes — and a blank that
+ * arrived differently would still differ here.
  */
 async function cardDigest(server: TestServer, id: string): Promise<string> {
   const cookie = [...server.cookies].map(([name, value]) => `${name}=${value}`).join('; ');
   const response = await server.app.inject({
     method: 'GET',
-    url: `/api/library/actors/${id}/avatar`,
+    url: `/api/library/actors/${id}/download`,
     headers: { cookie },
   });
   expect(response.statusCode).toBe(200);

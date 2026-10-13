@@ -61,8 +61,8 @@ describe('the colour', () => {
    * where it was, the colour it was.
    */
   it('follows the handle, so a rename keeps it', () => {
-    const before = drawnTile({ handle: 'ned', displayName: 'Ned' });
-    const after = drawnTile({ handle: 'ned', displayName: 'Ned Carlson' });
+    const before = drawnTile({ id: 'ned', name: 'Ned' });
+    const after = drawnTile({ id: 'ned', name: 'Ned Carlson' });
 
     expect(after.background).toBe(before.background);
     // The letters do move, which is correct: they are the name on the tile.
@@ -100,7 +100,7 @@ describe('the colour', () => {
    * glare and whose blues disappear.
    */
   it('is spelled in the colour space the theme is spelled in', () => {
-    const tile = drawnTile({ handle: 'ned', displayName: 'Ned' });
+    const tile = drawnTile({ id: 'ned', name: 'Ned' });
     expect(tile.background).toMatch(/^oklch\(/);
     expect(tile.ink).toMatch(/^oklch\(/);
   });

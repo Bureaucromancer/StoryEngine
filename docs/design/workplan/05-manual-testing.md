@@ -1304,6 +1304,23 @@ scrollbar, at the window's edge. The mouse wheel and **Page Down** over the
 picture beside the column scroll the page, and the place you were reading at
 stays put when a picture arrives or **No backdrop** is chosen.)*
 
+*(2026-10-13, [P12A](35-p12a-the-look.md) P12A.3 — for T2's walker, and not an
+edit to the row: what a face is and where it leads, as built. T0's actor with no
+portrait has a drawn tile — two initials, a colour — wherever a face is drawn,
+never an empty circle. **A face on the player's own line is the record's**: a
+move sent since P12A.3 carries the persona it was played as, and a line whose
+record names nobody — every move played in a browser before then — has no face.
+So the stale attribution to make is a re-cast: play a few moves, choose
+somebody else in the cast panel's **You play** and press **Play as them**, play
+on; the earlier lines keep their face and the later ones wear the new one.
+**Fixing it from the face** is pressing the face on a line, which hands
+**You play** the keyboard. A mention is the other half: a marked name opens a
+card saying whom it was matched to and by which words, with **Open** and the
+actor's aliases, which decide a match — a wrong match is corrected there, and
+marks the turns after it, not the ones already drawn. Renaming an actor changes
+its tile's letters and not its colour. What P12A.4 adds to T2 is the HUD's
+half.)*
+
 ***What this list cannot reach*** is whether any of it is beautiful, and the
 gate does not ask. Five of its six rows test a written claim; taste is a
 standing-list matter and a token away from being reversed.

@@ -1352,6 +1352,18 @@ content hash. Actors only — no other kind has an image that *is* the object �
 so any other kind is `404`. **The object's own pixels, which is what makes it
 actors-only**; media the object merely *carries* is the route below.
 
+***A blank card is `404 not-found` too*** (2026-10-13,
+[P12A](design/workplan/35-p12a-the-look.md) P12A.3). An actor made in the editor,
+or imported without a portrait, carries the 1×1 transparent picture the server
+writes for a card with none, and this route served it with a `200` — so a client
+drawing a face from it drew an empty circle, an `<img>` that loaded having
+nothing to fall back from. It answers `404` now, and a client falls back on the
+image's error for a card with no picture, a card whose file is gone and an id
+nobody has alike. *The picture is compared, not the file*: the card's image
+chunks against the blank's, since every card carries its own object beside them.
+**The card is still the file** — [`/download`](#get-apilibrarykindiddownload) hands over a blank card whole,
+as it is stored.
+
 ### `GET /api/library/:kind/:id/media/:mediaId`
 
 The bytes of one entry in an object's `media` manifest — [P7.10]. `content-type`

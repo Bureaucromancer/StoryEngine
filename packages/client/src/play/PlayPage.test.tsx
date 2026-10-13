@@ -568,6 +568,142 @@ describe('submitting a turn', () => {
 
     expect(submitTurn).not.toHaveBeenCalled();
   });
+
+  /**
+   * ***Who the move is played as goes with it*** (2026-10-13,
+   * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.3): the
+   * persona the session has as the move is sent, and *nobody* — `null`, a
+   * choice — when it has none. The route always read `input.actorId`; this
+   * page never sent it.
+   */
+  it('sends the move as the persona it is played as, and as nobody without one', async () => {
+    readSession.mockResolvedValue({
+      session: { ...SESSION, cast: { persona: 'actor-ned', actors: [] } },
+      activeJob: null,
+    });
+    const first = renderPage();
+    await screen.findByText('I knock twice.');
+    await userEvent.type(screen.getByRole('textbox', { name: 'What do you do?' }), 'I step in.');
+    await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+    await waitFor(() => {
+      expect(submitTurn).toHaveBeenCalledWith(
+        expect.objectContaining({ text: 'I step in.', actorId: 'actor-ned' }),
+      );
+    });
+    first.unmount();
+
+    readSession.mockResolvedValue({
+      session: { ...SESSION, cast: { persona: null, actors: [] } },
+      activeJob: null,
+    });
+    renderPage();
+    await screen.findByText('I knock twice.');
+    await userEvent.type(screen.getByRole('textbox', { name: 'What do you do?' }), 'I wait.');
+    await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+    await waitFor(() => {
+      expect(submitTurn).toHaveBeenLastCalledWith(
+        expect.objectContaining({ text: 'I wait.', actorId: null }),
+      );
+    });
+  });
+});
+
+/**
+ * ***The player's own line, under the face its record names*** (2026-10-13,
+ * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.3, under
+ * its §0.4): `input.actorId`, and no face where it names nobody — today's
+ * persona on an old line is a claim the record never made. A face drawn is a
+ * way to where who you play is changed.
+ */
+describe('the player’s own line', () => {
+  const NED = {
+    id: 'actor-ned',
+    name: 'Ned',
+    schema: 'storyengine.actor/1',
+    slug: 'ned',
+    source: 'user',
+    contentHash: 'sha256:ned',
+    shadowed: false,
+    object: { id: 'actor-ned', name: 'Ned', media: [] },
+  };
+  const PLAYED: TurnRecord = {
+    ...TURN,
+    id: 'turn-2',
+    parentTurnId: 'turn-1',
+    input: { actorId: 'actor-ned', text: 'I light the lamp.', kind: 'action', raw: '' },
+    output: { text: 'The room comes up amber.' },
+  };
+
+  beforeEach(() => {
+    // The session is played as Vera *now*; the record says the second move was
+    // Ned's and the first was nobody's.
+    readSession.mockResolvedValue({
+      session: { ...SESSION, headTurnId: 'turn-2', cast: { persona: 'actor-vera', actors: [] } },
+      activeJob: null,
+      cast: [
+        {
+          actorId: 'actor-vera',
+          presence: true,
+          status: 'alive',
+          pending: null,
+          introduced: true,
+          party: null,
+        },
+      ],
+    });
+    readTranscript.mockResolvedValue({ turns: [TURN, PLAYED] });
+    listLibrary.mockResolvedValue({ objects: [NED] });
+  });
+
+  /** The row a line of the player's is drawn in, found by its words. */
+  async function lineOf(text: string): Promise<HTMLElement> {
+    const words = await screen.findByText(text);
+    const line = words.parentElement;
+    if (line === null) throw new Error(`no line holds ${text}`);
+    return line;
+  }
+
+  it('draws no face on a line whose record names nobody', async () => {
+    renderPage();
+    const line = await lineOf('I knock twice.');
+
+    expect(line.querySelector('img')).toBeNull();
+    expect(line.querySelector('span[aria-hidden="true"]')).toBeNull();
+    expect(within(line).queryByRole('button', { name: /Played as/ })).toBeNull();
+  });
+
+  it('draws the face its record names, and opens who you play from it', async () => {
+    renderPage();
+    const line = await lineOf('I light the lamp.');
+
+    const face = await within(line).findByRole('button', {
+      name: 'Played as Ned. Change who you play',
+    });
+    expect(face.querySelector('img')?.getAttribute('src')).toBe(
+      '/api/library/actors/actor-ned/avatar?v=sha256%3Aned',
+    );
+
+    await userEvent.click(face);
+    expect(document.activeElement).toBe(screen.getByRole('combobox', { name: 'You play' }));
+  });
+
+  /**
+   * ***A redo is that move again, by whoever made it*** — its words, its kind,
+   * its pictures and since P12A.3 who it was played as, not who the session is
+   * played as now.
+   */
+  it('redoes a move as whoever made it, not as today’s persona', async () => {
+    renderPage();
+    await screen.findByText('The room comes up amber.');
+
+    await userEvent.click(screen.getAllByRole('button', { name: 'Redo' })[1]!);
+
+    await waitFor(() => {
+      expect(submitTurn).toHaveBeenCalledWith(
+        expect.objectContaining({ text: 'I light the lamp.', actorId: 'actor-ned' }),
+      );
+    });
+  });
 });
 
 describe('the stream', () => {

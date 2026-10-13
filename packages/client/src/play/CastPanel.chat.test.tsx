@@ -152,7 +152,8 @@ describe('the cast panel in a chat', () => {
 
   it('seats somebody and takes them out again, the roster sent whole', async () => {
     renderPanel();
-    await screen.findByText('Vera');
+    // The row's name, which *You play* also offers as a choice since P12A.3.
+    await screen.findByText('Vera', { selector: 'span' });
     await userEvent.selectOptions(
       screen.getByRole('combobox', { name: 'Somebody to add' }),
       'actor-lund',
@@ -193,7 +194,7 @@ describe('the cast panel in a chat', () => {
 
   it('switches one card prompt part, the others as they were', async () => {
     renderPanel();
-    await screen.findByText('Vera');
+    await screen.findByText('Vera', { selector: 'span' });
     await userEvent.click(screen.getByText('Card prompts'));
     const parts = within(screen.getByRole('group', { name: /Vera’s card sends/ }));
     expect(
@@ -210,7 +211,7 @@ describe('the cast panel in a chat', () => {
   it('offers none of it on a session that is not a chat', async () => {
     answerWith(undefined);
     renderPanel();
-    await screen.findByText('Vera');
+    await screen.findByText('Vera', { selector: 'span' });
     expect(screen.queryByRole('button', { name: 'Speak' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Add to the cast' })).toBeNull();
     expect(screen.getByRole('checkbox', { name: 'In the scene' })).toBeTruthy();

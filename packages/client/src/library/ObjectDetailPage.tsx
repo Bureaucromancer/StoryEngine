@@ -47,6 +47,7 @@ import { editorRouteFor } from './fields.js';
 import { LorebookView, lorebookShape } from './LorebookView.js';
 import { labels } from '../i18n/catalogue.js';
 import { KIND_LABELS, ShadowedBadge, SourceBadge } from './labels.js';
+import { Portrait } from '../play/Portrait.js';
 import { sentence } from './note-labels.js';
 import { joinIds } from '../search-lists.js';
 import { fileErrorFor, reasonWords } from './QuarantinePanel.js';
@@ -153,6 +154,12 @@ function ObjectView(props: {
   return (
     <>
       <header className="mb-6 flex flex-wrap items-center gap-3">
+        {/* ***An actor's page opens on its face*** (2026-10-13, P12A.3),
+            [10 §1.3]'s *the avatar first in an editor header*, on the page that
+            reads the object as well as the one that edits it. */}
+        {kind === 'actors' ? (
+          <Portrait actorId={object.id} actor={object} name={object.name} size="card" />
+        ) : null}
         <h1 className="text-title text-ink">{object.name}</h1>
         <SourceBadge source={object.source} />
         {object.shadowed ? <ShadowedBadge /> : null}

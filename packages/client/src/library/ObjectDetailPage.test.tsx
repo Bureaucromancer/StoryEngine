@@ -44,21 +44,29 @@ const COPY_ID = '01a008de-7e08-70d0-899c-f6869d6b9abc';
 let params: { kind: string; id: string } = { kind: 'actors', id: ACTOR_ID };
 let search: { slug?: string; source?: 'user' | 'system' } = {};
 
-vi.mock('../api.js', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../api.js')>()),
-  createSession: (...a: unknown[]) => createSession(...a) as unknown,
-  listSessions: (...a: unknown[]) => listSessions(...a) as unknown,
-  api: {
-    readObject: (...a: unknown[]) => readObject(...a) as unknown,
-    deleteObject: (...a: unknown[]) => deleteObject(...a) as unknown,
-    createObject: (...a: unknown[]) => createObject(...a) as unknown,
-    authState: (...a: unknown[]) => authState(...a) as unknown,
-    takeFile: (...a: unknown[]) => takeFile(...a) as unknown,
-    publishRecords: (...a: unknown[]) => publishRecords(...a) as unknown,
-    libraryErrors: (...a: unknown[]) => libraryErrors(...a) as unknown,
-    listLibrary: (...a: unknown[]) => listLibrary(...a) as unknown,
-  },
-}));
+vi.mock('../api.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../api.js')>();
+  return {
+    ...actual,
+    createSession: (...a: unknown[]) => createSession(...a) as unknown,
+    listSessions: (...a: unknown[]) => listSessions(...a) as unknown,
+    api: {
+      // An actor's face builds its picture's address with these (2026-10-13,
+      // P12A.3); the mock replaces the whole `api` object, so they are passed
+      // through, being addresses and not requests.
+      avatarUrl: actual.api.avatarUrl,
+      mediaUrl: actual.api.mediaUrl,
+      readObject: (...a: unknown[]) => readObject(...a) as unknown,
+      deleteObject: (...a: unknown[]) => deleteObject(...a) as unknown,
+      createObject: (...a: unknown[]) => createObject(...a) as unknown,
+      authState: (...a: unknown[]) => authState(...a) as unknown,
+      takeFile: (...a: unknown[]) => takeFile(...a) as unknown,
+      publishRecords: (...a: unknown[]) => publishRecords(...a) as unknown,
+      libraryErrors: (...a: unknown[]) => libraryErrors(...a) as unknown,
+      listLibrary: (...a: unknown[]) => listLibrary(...a) as unknown,
+    },
+  };
+});
 
 vi.mock('@tanstack/react-router', () => ({
   getRouteApi: () => ({ useParams: () => params, useSearch: () => search }),
@@ -264,6 +272,38 @@ describe('starting a session in a world', () => {
     await screen.findByRole('heading', { name: 'Harbour set' });
 
     expect(screen.queryByRole('button', { name: 'Start a session in this world' })).toBeNull();
+  });
+});
+
+/**
+ * ***An actor's page opens on its face*** (2026-10-13,
+ * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.3) — [10
+ * §1.3]'s *the avatar first in an editor header*, on the page that reads the
+ * object too. Another kind's header has none: a face is identity, not
+ * decoration.
+ */
+describe('the header', () => {
+  it('draws an actor’s face beside its name, and none for another kind', async () => {
+    const first = render(
+      <QueryClientProvider
+        client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+      >
+        <ObjectDetailPage />
+      </QueryClientProvider>,
+    );
+    const heading = await screen.findByRole('heading', { name: 'Vera Kohl' });
+    expect(heading.closest('header')?.querySelector('img')?.getAttribute('src')).toBe(
+      `/api/library/actors/${ACTOR_ID}/avatar?v=sha256%3Aabc`,
+    );
+    first.unmount();
+
+    params = { kind: 'lorebooks', id: ACTOR_ID };
+    readObject.mockResolvedValue(
+      actor({ schema: 'storyengine.lorebook/1', name: 'Rain City', object: {} }),
+    );
+    renderPage();
+    const book = await screen.findByRole('heading', { name: 'Rain City' });
+    expect(book.closest('header')?.querySelector('img, span[aria-hidden="true"]')).toBeNull();
   });
 });
 

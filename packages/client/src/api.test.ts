@@ -17,6 +17,7 @@ import {
   removeSessionHook,
   renameSession,
   setSessionLore,
+  submitTurn,
   uploadFailure,
 } from './api.js';
 import { formatTimestamp, timestampsOf } from './format.js';
@@ -588,6 +589,39 @@ describe('the session write bodies', () => {
       mode: 'storyengine.assistant',
       cast: { persona: null, actors: ['the-card'] },
     });
+  });
+
+  /**
+   * ***Who a move is played as travels inside the move*** (2026-10-13,
+   * [P12A](../../../docs/design/workplan/35-p12a-the-look.md) P12A.3). The
+   * route always read `input.actorId` and nothing here sent it, so every move
+   * played in a browser recorded nobody. `null` is a choice — nobody in
+   * particular — and goes on the wire as one; absent is not sent.
+   */
+  it('sends who a move is played as inside its input, null included', async () => {
+    const seen = capture();
+
+    await submitTurn({
+      sessionId: 's1',
+      idempotencyKey: 'k1',
+      headTurnId: 'turn-1',
+      text: 'I step in.',
+      actorId: 'actor-ned',
+    });
+    await submitTurn({
+      sessionId: 's1',
+      idempotencyKey: 'k2',
+      headTurnId: 'turn-1',
+      text: 'I step in.',
+      actorId: null,
+    });
+    await submitTurn({ sessionId: 's1', idempotencyKey: 'k3', headTurnId: 'turn-1', text: 'Hm.' });
+
+    expect(seen.map((one) => (one.body as { input?: unknown }).input)).toEqual([
+      { text: 'I step in.', actorId: 'actor-ned' },
+      { text: 'I step in.', actorId: null },
+      { text: 'Hm.' },
+    ]);
   });
 });
 

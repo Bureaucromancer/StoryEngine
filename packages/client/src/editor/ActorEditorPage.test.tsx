@@ -787,3 +787,66 @@ describe('a new actor', () => {
     expect(status.getAttribute('role')).toBe('status');
   });
 });
+
+/**
+ * ***The header's face, and where a mention's card lands*** (2026-10-13,
+ * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.3).
+ *
+ * The header was an empty grey square for a draft and — since a blank card
+ * loaded with a 200 — for every actor made here. It is the card's picture when
+ * there is one and the drawn tile when there is not, including when the avatar
+ * route answers 404 for a blank card. And a mention's card links to
+ * `#aliases`, which has to land on the field that decides a match.
+ */
+describe('the actor editor’s header and its aliases', () => {
+  function header(): HTMLElement {
+    const found = screen.getByRole('heading', { level: 1 }).closest('header');
+    if (found === null) throw new Error('no header');
+    return found;
+  }
+
+  it('shows the card, and the tile in its place when the card has no picture', async () => {
+    renderApp();
+    await openTheEditor();
+
+    const card = header().querySelector('img');
+    expect(card?.getAttribute('src')).toContain(`/api/library/actors/${ACTOR_ID}/avatar`);
+    act(() => {
+      card?.dispatchEvent(new Event('error'));
+    });
+
+    expect(header().querySelector('img')).toBeNull();
+    expect(header().querySelector('span[aria-hidden="true"]')?.textContent).toBe('VS');
+  });
+
+  it('gives a draft a face from the name being typed, never an empty square', async () => {
+    renderApp();
+    await act(async () => {
+      await router.navigate({ to: '/library/actors/new' });
+    });
+    const name = await screen.findByRole('textbox', { name: 'Name' });
+
+    const tile = (): string | null | undefined =>
+      header().querySelector('span[aria-hidden="true"]')?.textContent;
+    expect(header().querySelector('img')).toBeNull();
+    expect(tile()).toBe('?');
+    await userEvent.type(name, 'Vera Kohl');
+    expect(tile()).toBe('VK');
+  });
+
+  it('lands on the aliases when the address asks for them', async () => {
+    renderApp();
+    await act(async () => {
+      await router.navigate({
+        to: '/library/actors/$id/edit',
+        params: { id: ACTOR_ID },
+        hash: 'aliases',
+      });
+    });
+    const aliases = await screen.findByRole('textbox', { name: 'Aliases' });
+
+    await waitFor(() => {
+      expect(document.activeElement).toBe(aliases);
+    });
+  });
+});

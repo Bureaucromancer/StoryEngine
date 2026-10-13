@@ -2,7 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { getRouteApi, Link } from '@tanstack/react-router';
-import { useState, type JSX } from 'react';
+import { useEffect, useRef, useState, type JSX, type RefObject } from 'react';
 
 import { uuidv7 } from '@storyengine/shared';
 
@@ -23,6 +23,7 @@ import { Alert } from '../ui/Alert.js';
 import { Button } from '../ui/Button.js';
 import { TwoStep } from '../ui/TwoStep.js';
 import { page } from '../ui/classes.js';
+import { Face } from '../ui/Face.js';
 import { CheckboxField, Field } from '../ui/Field.js';
 import { Fine, Note, SubsectionTitle } from '../ui/Text.js';
 import { TagInput } from '../tags/TagInput.js';
@@ -184,6 +185,7 @@ function Editor(props: { initial: LibraryObject; unsaved?: boolean }): JSX.Eleme
     ...(props.unsaved === undefined ? {} : { unsaved: props.unsaved }),
   });
   const { base, form, missing, unsaved } = editor;
+  const aliases = useLandOnAliases();
 
   /**
    * The actor form's patch, over the shell's.
@@ -239,16 +241,20 @@ function Editor(props: { initial: LibraryObject; unsaved?: boolean }): JSX.Eleme
             {/* Shown, never replaced here — the card's pixels are the portrait as
               intended, and replacing them is not this stage's business. A draft
               has no card to show, and asking for one by an id the server has
-              never heard of would be a 404 rendered as a broken image. */}
-            {unsaved ? (
-              <div className="h-20 w-20 rounded-media border border-line bg-surface-muted" />
-            ) : (
-              <img
-                src={api.avatarUrl(base.id, base.contentHash)}
-                alt=""
-                className="h-20 w-20 rounded-media border border-line bg-surface-muted object-cover"
-              />
-            )}
+              never heard of would be a 404 rendered as a broken image.
+              ***And a card with no picture has a face*** (2026-10-13,
+              [P12A](../../../../docs/design/workplan/35-p12a-the-look.md)
+              P12A.3): this was an empty grey square for a draft and, since the
+              blank card loaded with a 200, for every actor made here — the
+              commonest actor there is. `Face` draws the tile instead, from the
+              name being typed and the id the draft was minted with, and falls
+              back to it when the route answers 404 for a blank card. */}
+            <Face
+              id={base.id}
+              name={form.name}
+              src={unsaved ? null : api.avatarUrl(base.id, base.contentHash)}
+              size="header"
+            />
             <div>
               <h1 className="text-title text-ink">{editor.heading}</h1>
               <Note>
@@ -278,17 +284,23 @@ function Editor(props: { initial: LibraryObject; unsaved?: boolean }): JSX.Eleme
         }}
         hint="Leave blank for unknown. Never inferred from the name."
       />
-      <Field
-        label="Aliases"
-        path="aliases"
-        value={form.aliasesText}
-        onChange={(aliasesText) => {
-          patchForm({ aliasesText });
-        }}
-        multiline
-        rows={3}
-        hint="One per line. Also the default keyword set for lore matching."
-      />
+      {/* ***Where a mention's card sends a person*** (2026-10-13, P12A.3): the
+          aliases decide what the transcript marks as this actor, so a wrong
+          mark's correction is here, and `#aliases` lands on it — see
+          `useLandOnAliases`. */}
+      <div id="aliases" ref={aliases} className="scroll-mt-4">
+        <Field
+          label="Aliases"
+          path="aliases"
+          value={form.aliasesText}
+          onChange={(aliasesText) => {
+            patchForm({ aliasesText });
+          }}
+          multiline
+          rows={3}
+          hint="One per line. Also the default keyword set for lore matching."
+        />
+      </div>
       <TagInput
         label="Tags"
         values={form.tags}
@@ -462,4 +474,26 @@ function Editor(props: { initial: LibraryObject; unsaved?: boolean }): JSX.Eleme
       </section>
     </EditorFrame>
   );
+}
+
+/**
+ * ***`#aliases` lands on the field*** (2026-10-13,
+ * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.3).
+ *
+ * A mention's card in the transcript links here with the hash, because the
+ * aliases are what decide a match and so are where a wrong one is corrected.
+ * The router scrolls to a hash's element when it navigates, and this page has
+ * none yet then — the editor draws after its object arrives — so the editor
+ * lands on it itself, once, as it is first drawn: **the field takes the
+ * keyboard**, which scrolls it into view and is where the next keystroke
+ * belongs. Read from `window.location` rather than the router's state so a
+ * test, or a page drawn outside the router, reads it the same way.
+ */
+function useLandOnAliases(): RefObject<HTMLDivElement | null> {
+  const field = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (window.location.hash !== '#aliases') return;
+    field.current?.querySelector('textarea')?.focus();
+  }, []);
+  return field;
 }

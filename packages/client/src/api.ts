@@ -2942,6 +2942,15 @@ export interface SubmitTurn {
    */
   text?: string;
   /**
+   * ***Who the move is played as*** — the persona's actor id, or `null` for
+   * nobody in particular. Sent with `text` and never without it, because it is
+   * part of the move ([P12A](../../../docs/design/workplan/35-p12a-the-look.md)
+   * P12A.3, 2026-10-13: the route always took it and nothing here sent it, so
+   * every move played in a browser recorded nobody). Absent lets the route
+   * record nobody, as it did.
+   */
+  actorId?: string | null;
+  /**
    * What kind of thing this is — one of the mode's declared `inputs`
    * ([06 §1], [P7.9]). Absent lets the server apply the mode's default.
    */
@@ -3024,6 +3033,7 @@ export function submitTurn(submission: SubmitTurn): Promise<{ jobId: string; cur
       : {
           input: {
             text: submission.text,
+            ...(submission.actorId === undefined ? {} : { actorId: submission.actorId }),
             ...(submission.kind === undefined ? {} : { kind: submission.kind }),
             ...(submission.attachments === undefined || submission.attachments.length === 0
               ? {}

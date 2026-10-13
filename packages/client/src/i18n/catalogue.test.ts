@@ -90,6 +90,7 @@ const EXEMPT: Record<string, string> = {
   'ui/Button.tsx:VARIANT': 'Tailwind classes.',
   'ui/Button.tsx:SIZE': 'Tailwind classes.',
   'ui/Dialog.tsx:SIZE': 'Tailwind classes.',
+  'ui/Face.tsx:SIZE': 'Tailwind classes — where a face sits, and its shape there.',
   'ui/Panel.tsx:VARIANT': 'Tailwind classes.',
   'ui/classes.ts:link': 'Tailwind classes — the file is nothing else.',
   'ui/classes.ts:navLink': 'Tailwind classes.',

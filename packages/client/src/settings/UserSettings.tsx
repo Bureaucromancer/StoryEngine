@@ -16,7 +16,7 @@ import { CheckboxField, Field, SelectField } from '../ui/Field.js';
 import { Button } from '../ui/Button.js';
 import { fieldLabel, page } from '../ui/classes.js';
 import { SecretField } from '../ui/SecretField.js';
-import { drawnTile } from '../auth/tile.js';
+import { drawnTile } from '../ui/tile.js';
 
 import { TRANSLATIONS } from '../i18n/locales.js';
 import { Fine, Note } from '../ui/Text.js';
@@ -350,7 +350,7 @@ function AvatarField(props: { account: Account }): JSX.Element {
   const upload = useUploadAvatar();
   const remove = useRemoveAvatar();
   const inputId = useId();
-  const tile = drawnTile(props.account);
+  const tile = drawnTile({ id: props.account.handle, name: props.account.displayName });
 
   return (
     <div className="flex items-center gap-4">

@@ -76,6 +76,22 @@ export function highlight(text: string, query: string): Run[] {
 }
 
 /**
+ * A run cut by {@link runsFor}, and **the span it was cut from** when it is a
+ * hit (`null` between hits).
+ *
+ * ***Carried since 2026-10-13***
+ * ([P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.3). A run
+ * was its text and a flag, so a mark could say *something was matched here* and
+ * not *who*: the transcript's mention lost its target before it was drawn, and
+ * mapping a run back to its span by counting would have been wrong whenever a
+ * span was skipped below — which is exactly when the count drifts. So the span
+ * travels with its run, and a mark can open the actor it names.
+ */
+export interface SpanRun<S> extends Run {
+  span: S | null;
+}
+
+/**
  * The same cut, driven by spans somebody else computed — [P5.8].
  *
  * `highlight` above finds its own occurrences of one query string. This takes
@@ -83,20 +99,25 @@ export function highlight(text: string, query: string): Run[] {
  * (whole-word, case) and cannot be re-derived from a single needle. Sharing the
  * `Run` shape is what lets one component render both.
  */
-export function runsFor(text: string, spans: readonly { start: number; end: number }[]): Run[] {
-  if (spans.length === 0) return [{ text, hit: false }];
+export function runsFor<S extends { start: number; end: number }>(
+  text: string,
+  spans: readonly S[],
+): SpanRun<S>[] {
+  if (spans.length === 0) return [{ text, hit: false, span: null }];
 
-  const runs: Run[] = [];
+  const runs: SpanRun<S>[] = [];
   let cursor = 0;
   for (const span of spans) {
     // Defensive against a span outside the text: the caller computes these from
     // the same string, but a run with a negative length would render as an
     // empty mark and be invisible rather than wrong-looking.
     if (span.start < cursor || span.end > text.length) continue;
-    if (span.start > cursor) runs.push({ text: text.slice(cursor, span.start), hit: false });
-    runs.push({ text: text.slice(span.start, span.end), hit: true });
+    if (span.start > cursor) {
+      runs.push({ text: text.slice(cursor, span.start), hit: false, span: null });
+    }
+    runs.push({ text: text.slice(span.start, span.end), hit: true, span });
     cursor = span.end;
   }
-  if (cursor < text.length) runs.push({ text: text.slice(cursor), hit: false });
+  if (cursor < text.length) runs.push({ text: text.slice(cursor), hit: false, span: null });
   return runs;
 }

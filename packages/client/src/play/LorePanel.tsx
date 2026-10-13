@@ -47,8 +47,15 @@ import { disclosure } from '../ui/classes.js';
  * changing it mid-session is an explicit act rather than an outcome of play"*.
  * Lore is the opposite — a book joins a world mid-story and starting again
  * costs the thread — which is why this panel exists at all. `PUT /cast` accepts
- * a later change; nothing in the product offers one yet, and that is a
- * deliberate absence rather than an oversight.
+ * a later change; ~~nothing in the product offers one yet, and that is a
+ * deliberate absence rather than an oversight~~. *(2026-10-13,
+ * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.3: the cast
+ * panel offers one now, **You play**. A move is sent with the persona it is
+ * played as and its line draws that face, which made the persona a claim the
+ * transcript shows and so one that needs a place to be corrected. It is the
+ * explicit act 06 §8 asks for — a choice that writes nothing until its button
+ * is pressed — and it lives with the cast rather than here, for this note's
+ * own reason.)*
  */
 export function LorePanel(props: { sessionId: string }): JSX.Element {
   const session = useSession(props.sessionId);

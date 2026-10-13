@@ -199,6 +199,16 @@ recent **100** turns of the line you are on; older ones are in the
 [reading view](#reading-a-story) and in [search](#search). It does not scroll itself:
 when a reply arrives, scroll down to it.
 
+Your own lines carry the face of the character you played them as. A line played as
+nobody in particular, or from before the character was recorded with it, has none. Press the face to go to **You play** in the cast panel,
+where you choose who you play from now on; lines already played keep their face.
+
+Names in a reply that the engine recognised as a character are marked. Press one to
+see who it was matched to and by which words, with **Open** to go to that character
+and a link to their **Aliases**: a name is matched when it is the character's name or
+one of their aliases, so that is where a wrong match is put right. A change there marks
+the turns after it, not the ones already written.
+
 ## Taking a turn
 
 Type in the box at the bottom and press **Enter** to send — **Shift+Enter** starts a
@@ -341,12 +351,16 @@ pack — the setup names the library preset.
 
 ### Cast
 
-Everyone in the story, each with a badge — **Here**, **Elsewhere**, **Dead**,
-**Departed** — and, where it applies, **You write them**, **Companion** or **With
-you**; someone not yet met says *not yet met*. Each row has **In the scene** and a
-status list (**Alive**, **Dead**, **Departed**). These are part of the story's state,
+Everyone in the story, each with their face — their portrait, or their initials on a
+colour of their own when they have none — and a badge: **Here**, **Elsewhere**,
+**Dead**, **Departed** — and, where it applies, **You write them**, **Companion** or
+**With you**; someone not yet met says *not yet met*. Each row has **In the scene** and
+a status list (**Alive**, **Dead**, **Departed**). These are part of the story's state,
 so a character can be dead on one branch and alive on another. Nothing in play
 changes them for you: they change when you change them.
+
+At the top, **You play** says which character you play. Choose another and press
+**Play as them** to play as them from your next move; choosing alone changes nothing.
 
 A character counts as met only once their presence has been set on this line, and
 nothing in play sets it: until you tick **In the scene** (or, in a chat where the

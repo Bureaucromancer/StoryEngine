@@ -31,6 +31,7 @@ import {
   create,
   fileErrors,
   indexRows,
+  isBlankCard,
   LibraryError,
   list,
   read,
@@ -1055,6 +1056,24 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
    * The card's pixels, for the editor to show and not replace
    * ([P1 §P1.7](../../../../docs/design/workplan/07-p1-implementation.md)). Actors only — no other
    * kind has an image that *is* the object.
+   *
+   * ***A blank card answers 404*** (2026-10-13,
+   * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.3, under
+   * its §0.4). An actor made in the editor, or imported without a portrait, has
+   * the 1×1 transparent card `blankCardPixels` writes, and this route served it
+   * with a 200 — so every face drawn from it was an empty circle, because an
+   * `<img>` that loaded a transparent pixel has nothing to fall back *from*.
+   * The client's faces fall back on the image's `error`, the only signal an
+   * `<img>` gives, and **a 404 is that signal**: one rule for a card with no
+   * picture, a card whose file is gone and an id nobody has, rather than a
+   * second check per face (`naturalWidth` after every load) or a flag on every
+   * library row for one route's sake.
+   *
+   * *This route only.* The card is still the file: a download hands over the
+   * blank card as it is stored, and a copy carries it, because the honest empty
+   * card is what [`blankCardPixels`'s own note](../library.ts) chose over a
+   * stock face that would travel with the file. What changes is the answer to
+   * *show me this actor's picture*, and the answer is that there is none.
    */
   app.get(
     '/library/:kind/:id/avatar',
@@ -1072,6 +1091,11 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
           (request.params as { id: string }).id,
           schemaId,
         );
+        if (isBlankCard(bytes)) {
+          return await reply
+            .code(404)
+            .send({ error: 'not-found', message: 'This actor’s card has no picture.' });
+        }
         return await reply
           .header('content-type', 'image/png')
           .header('etag', contentHash)

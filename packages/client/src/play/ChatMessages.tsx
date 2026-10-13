@@ -12,7 +12,7 @@ import { control, disclosure, reveal, story } from '../ui/classes.js';
 import { Fine } from '../ui/Text.js';
 import { isMessageHidden, messageOffsets, messageSiblings, type HiddenEntry } from './chat.js';
 import { MentionOverlay } from './MentionOverlay.js';
-import { Portrait } from './Portrait.js';
+import { PlayedAs, Portrait } from './Portrait.js';
 
 /**
  * ***A turn, drawn as the chat it is*** —
@@ -111,7 +111,14 @@ export function ChatMessages(
     hidden: HiddenEntry;
     /** The library's actors, read once by the page — `surfaces`' rule. */
     actors: readonly LibraryObject[];
-    personaId: string | null;
+    /**
+     * Opens who you play, for the face on the input line — absent when the
+     * page has nowhere to open. ***Not the persona any more*** (2026-10-13,
+     * P12A.3): this was `personaId`, the session's persona *now*, which the
+     * input line drew on every line whose record named nobody — see
+     * `InputLine`.
+     */
+    onWhoYouPlay: (() => void) | undefined;
     swipes: SwipeGroups | undefined;
     /**
      * The chat's voice. Under a narrator a swipe or a continue is refused
@@ -136,10 +143,12 @@ export function ChatMessages(
       {turn.input === undefined || turn.input.text === '' ? null : (
         <InputLine
           turn={turn}
-          // The persona's name when the library has the card, *You* when there
-          // is no persona or the card is gone — never an id.
-          name={actorOf(turn.input.actorId ?? props.personaId)?.name ?? WORDS.you}
-          actor={actorOf(turn.input.actorId ?? props.personaId)}
+          // The name of whoever the record says the move was played as, when
+          // the library has the card; *You* when it names nobody or the card
+          // is gone — never an id.
+          name={actorOf(turn.input.actorId)?.name ?? WORDS.you}
+          actor={actorOf(turn.input.actorId)}
+          onWho={props.onWhoYouPlay}
           hiddenWhole={props.hidden === true}
           busy={props.busy}
           onEdit={(text) => {
@@ -188,10 +197,21 @@ function spansFor(spans: readonly TextSpan[], start: number | null, length: numb
     .map((span) => ({ ...span, start: span.start - start, end: span.end - start }));
 }
 
+/**
+ * ***The player's line, under the face its record names*** (2026-10-13,
+ * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.3, under
+ * its §0.4). It drew `input.actorId ?? personaId` — the persona the session has
+ * **today** — so every line whose record named nobody, which in a browser was
+ * every line, wore whoever the session is played as now: a face the record
+ * never claimed, and a persona changed mid-story would have re-attributed the
+ * whole transcript. It draws `input.actorId` alone now, and **no face when
+ * that is `null`**, with *You* for the name.
+ */
 function InputLine(props: {
   turn: TurnRecord;
   name: string;
   actor: LibraryObject | undefined;
+  onWho: (() => void) | undefined;
   hiddenWhole: boolean;
   busy: boolean;
   onEdit: (text: string) => void;
@@ -206,7 +226,14 @@ function InputLine(props: {
       className={`group/line flex gap-2 ${props.hiddenWhole ? 'opacity-50' : ''}`}
       data-hidden={props.hiddenWhole ? 'true' : undefined}
     >
-      <Portrait actor={props.actor} name={props.name} />
+      {props.turn.input?.actorId == null ? null : (
+        <PlayedAs
+          actorId={props.turn.input.actorId}
+          actor={props.actor}
+          name={props.name}
+          onWho={props.onWho}
+        />
+      )}
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <span className="text-sm font-medium text-ink-muted">{props.name}</span>
         {editing ? (
@@ -444,7 +471,9 @@ function MessageLine(props: {
       className={`group/line flex gap-2 ${props.hidden ? 'opacity-50' : ''}`}
       data-hidden={props.hidden ? 'true' : undefined}
     >
-      {narrator ? null : <Portrait actor={props.actor} name={name} />}
+      {message.speaker === null ? null : (
+        <Portrait actorId={message.speaker.id} actor={props.actor} name={name} />
+      )}
       {body}
     </div>
   );

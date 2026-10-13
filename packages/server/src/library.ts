@@ -538,6 +538,55 @@ export function blankCardPixels(): Uint8Array {
   return blankCard;
 }
 
+/**
+ * ***Whether a card's picture is the one {@link blankCardPixels} writes***
+ * (2026-10-13, [P12A](../../../docs/design/workplan/35-p12a-the-look.md)
+ * P12A.3) — an actor made in the editor, or imported without a portrait, whose
+ * card is honest about having none.
+ *
+ * **The picture, not the file.** A card's file is the blank's two image chunks
+ * with the object beside them in a text chunk — ids, timestamps, the whole
+ * envelope — so no two blank cards are the same bytes, and comparing files would
+ * find none. What a viewer draws is `IHDR`, `PLTE` and `IDAT`, and those are
+ * compared, type and data, in order: the same reading
+ * `import-aventuras-transports.test.ts` takes of *the portrait* for the same
+ * reason.
+ *
+ * *A transparent 1×1 somebody made elsewhere* compresses its one scanline
+ * however their encoder does, so it is not this picture and is served; nothing
+ * in this build writes one, and a card that looks blank to a person but is not
+ * the build's own blank is a picture somebody chose. Walked by hand rather than
+ * through `png-chunks-extract`, which copies every chunk — an expression set in
+ * the card's media chunk among them — to answer a question about two.
+ */
+export function isBlankCard(bytes: Uint8Array): boolean {
+  blankImage ??= imageChunks(blankCardPixels());
+  const image = imageChunks(bytes);
+  return (
+    image.length === blankImage.length &&
+    image.every((chunk, at) => blankImage?.[at]?.equals(chunk) === true)
+  );
+}
+
+let blankImage: Buffer[] | null = null;
+
+/** A PNG's picture chunks, each its type and data, in file order. */
+function imageChunks(bytes: Uint8Array): Buffer[] {
+  const png = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const found: Buffer[] = [];
+  // Past the eight-byte signature, chunk by chunk: length, type, data, CRC. A
+  // length that runs past the end is clamped by `subarray`, and every step
+  // moves at least twelve bytes, so a damaged file ends the walk.
+  for (let at = 8; at + 8 <= png.length; at += 12 + png.readUInt32BE(at)) {
+    const type = png.toString('latin1', at + 4, at + 8);
+    if (type === 'IEND') break;
+    if (type === 'IHDR' || type === 'PLTE' || type === 'IDAT') {
+      found.push(png.subarray(at + 4, at + 8 + png.readUInt32BE(at)));
+    }
+  }
+  return found;
+}
+
 function assertValidObject(object: unknown): PortableSchemaId {
   const schemaId = schemaIdOf(object);
   if (schemaId === null || !isKnownSchema(schemaId)) {

@@ -5,6 +5,17 @@
  * The tile nobody uploaded — [12 §5.4](../../../../docs/design/12-account-gallery.md),
  * [P10.4].
  *
+ * ***In `ui/` since 2026-10-13, and for actors as well as accounts***
+ * ([P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.3, under
+ * its §0.4). It was `auth/tile.ts`, the sign-in gallery's, while the play
+ * page's portraits spelled the same idea a second way — one letter, cut by code
+ * point, on a grey disc — which is the *second invention* P12A.3 was written
+ * to prevent, already made. There is one spelling now, here, and `Face` beside
+ * it is the one component that draws it. **The inputs were renamed rather than
+ * reinterpreted**: `handle` and `displayName` became `id` and `name`, because
+ * an actor has no handle and its immutable key is its id — the argument below
+ * for the handle is the argument for the actor's id, word for word.
+ *
  * ***Every account has a face from the day the feature ships***, which is what
  * makes an uploaded image an **override** rather than a requirement — and that
  * is the difference between a gallery and a grid of grey squares waiting for
@@ -16,7 +27,8 @@
  * lie. **Hue from the handle**, since the handle is immutable and *a rename
  * should not change anybody's colour* — the tile is how you find yourself in a
  * grid, and having it move under you is precisely the failure a generated
- * identicon exists to avoid.
+ * identicon exists to avoid. *(An actor's: initials from its name, hue from its
+ * id, which a rename leaves where it was and the folder's slug does not.)*
  *
  * *Drawn client-side*: no bytes stored, no server involvement, no upload
  * required.
@@ -25,7 +37,7 @@
 /**
  * Up to two letters, taken the way a person would read them.
  *
- * ***Grapheme-aware rather than by code unit***, because `displayName` is free
+ * ***Grapheme-aware rather than by code unit***, because a name is free
  * text and `"Ná"[0]` is the kind of thing that silently produces half a
  * character. The lint rules already forbid spreading a string for this reason;
  * `Intl.Segmenter` is the same argument with an answer.
@@ -34,8 +46,8 @@
  * than `Ad`. A one-word name with one initial looks deliberate; two letters cut
  * out of the middle of a word look like a bug.
  */
-export function initialsOf(displayName: string): string {
-  const words = displayName.trim().split(/\s+/).filter(Boolean);
+export function initialsOf(name: string): string {
+  const words = name.trim().split(/\s+/).filter(Boolean);
   if (words.length === 0) return '?';
 
   const first = firstGrapheme(words[0] ?? '');
@@ -68,7 +80,7 @@ function firstGrapheme(word: string): string {
 }
 
 /**
- * A hue in degrees, from the handle.
+ * A hue in degrees, from an immutable key — an account's handle, an actor's id.
  *
  * ***FNV-1a rather than anything stronger***, and the choice is deliberate on
  * two counts: this is a **colour**, not a token — nothing about it needs to
@@ -80,10 +92,10 @@ function firstGrapheme(word: string): string {
  * differ in one byte, and without it two people on one install would get two
  * colours a person cannot tell apart, which is the whole job undone.
  */
-export function hueOf(handle: string): number {
+export function hueOf(id: string): number {
   let hash = 0x811c9dc5;
-  for (let at = 0; at < handle.length; at += 1) {
-    hash ^= handle.charCodeAt(at);
+  for (let at = 0; at < id.length; at += 1) {
+    hash ^= id.charCodeAt(at);
     hash = Math.imul(hash, 0x01000193) >>> 0;
   }
   return Math.round(((hash % 360) * 137.508) % 360);
@@ -110,10 +122,10 @@ export interface DrawnTile {
  * it keeps the tile one colour, and at this lightness it clears contrast
  * comfortably.
  */
-export function drawnTile(input: { handle: string; displayName: string }): DrawnTile {
-  const hue = hueOf(input.handle);
+export function drawnTile(input: { id: string; name: string }): DrawnTile {
+  const hue = hueOf(input.id);
   return {
-    initials: initialsOf(input.displayName),
+    initials: initialsOf(input.name),
     background: `oklch(0.82 0.09 ${String(hue)})`,
     ink: `oklch(0.32 0.08 ${String(hue)})`,
   };
