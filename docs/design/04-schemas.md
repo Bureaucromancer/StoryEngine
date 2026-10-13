@@ -2161,7 +2161,7 @@ anywhere.** Whether the reader should warn about extensions and capabilities, sa
 what it dropped, and offer a degraded start — or this paragraph and
 [03 §7.2](03-data-model.md)'s should be narrowed to what was built — is the
 owner's. ***Answered by the owner, 2026-10-13: build the promise*** — the
-paragraph above stands as written, and the build meets it:
+promise above this note stands as written, and the build meets it:
 
 - **The capability vocabulary is the model roles** — *the lead's decision of
   2026-10-13, open to the owner's reversal.* A `requires.capabilities` string
@@ -2206,7 +2206,11 @@ paragraph above stands as written, and the build meets it:
   wrote one*: the versions a manifest derives are not kept when a World file
   lands — the World is written as its author wrote it, so importing your own
   file back is `unchanged` — and a Setup names its mode by id alone
-  ([docs/api.md](../api.md) has the route).
+  ([docs/api.md](../api.md) has the route). Every door that starts a session —
+  a Setup's page, a World's, the session form — answers the refusal with a
+  dialog listing each item and what *anyway* means for it, **Start anyway**
+  and **Cancel**; a session started anyway says on its page what it started
+  without.
 
 ### 9.1 One action produces a package
 

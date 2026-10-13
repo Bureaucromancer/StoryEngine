@@ -1512,7 +1512,8 @@ italics. Each item says whose it is.
 
 - **Two disagreements between the notes and the build, open for the owner.**
   *(The first answered 2026-10-12 — below, under P16.2's records — and built; the
-  `requires` one stays open.)* ~~*Starting in a World never reads a Setup member*:~~
+  `requires` one stays open.)* *(2026-10-13: **both answered and built** — the
+  `requires` one below.)* ~~*Starting in a World never reads a Setup member*:~~
   [04 §9](../04-schemas.md) and [03 §7.2](../03-data-model.md) say a World
   starts through its Setup — "the whole mechanism" — and P16.2 built a second
   start ([15 §5.3](../15-world.md)) that reads its lorebook and treatment members
@@ -1524,7 +1525,23 @@ italics. Each item says whose it is.
   extensions and capabilities without checking them, drops a malformed entry
   without a word, and offers no degraded start. **Build the promise, or narrow
   the notes to what was built?** Both are recorded where the notes state them,
-  dated, and neither text is struck.
+  dated, and neither text is struck. ***Answered by the owner, 2026-10-13: build
+  the promise — and built the same day.*** Three decisions under it are the
+  lead's, recorded in [04 §9](../04-schemas.md) and open to the owner's reversal:
+  **a capability is a model role**, checked against what resolves for the
+  account, and any other string is named as one that cannot be checked; **an
+  extension is unmet by construction**, since this build loads none; and the
+  degraded start's semantics — a missing mode in the default one, the Setup's
+  answers to it dropped; an older mode on the installed version; an unbound role
+  going without; extensions left out. The import now warns for every unmet
+  requirement, once per id, for a file with no World too, and counts what it
+  dropped; `POST /api/sessions` refuses `unmet-requirements` with the list and
+  starts with `degraded: true`, recording `startedWithout`; every start door asks
+  in a dialog; the session's page says what it started without. A `mode` the
+  caller names outright is still `unknown-mode`. 04 §9's struck *with the
+  warning* is restored by a dated note; [16 §4](../16-publish.md)'s claim that
+  extension and capability requirements are derived is struck, dated — only
+  modes are, and always were.
 - **One code comment, for the next code change.** The docstrings in
   `packages/shared/src/schema/world.ts` still say a reader carries an unknown
   kind through untouched and that the import review shows one as "kept, not
@@ -1569,9 +1586,17 @@ italics. Each item says whose it is.
     a World unless *Just make the file* is chosen. **Publishing again** opens on
     what changed since the last file. **Importing a World file** — and a
     `.sepack.json` from alpha 5 or 6 — through the ordinary import, as a World
-    naming its members that landed.
+    naming its members that landed. **What a world needs, said, and started
+    anyway** *(2026-10-13)*: importing a world file says each thing it needs that
+    this install lacks — a mode, a model for a job, an extension — before and
+    after, and starting a session from a world or a setup that needs one asks
+    first, listing each with what starting without it means; **Start anyway**
+    starts it, and the session says above its story what it started without.
   - ***Changed.*** *Export this package* is gone, replaced by *Publish this
-    world…*: the file it wrote is still read. **A plot hook's *Involves* and
+    world…*: the file it wrote is still read. **A setup whose mode this install
+    lacks is no longer refused with *No such mode*** *(2026-10-13)*: starting it
+    asks, and starts it anyway in the default mode on a word. Choosing a mode
+    that does not exist is still refused. **A plot hook's *Involves* and
     *Blocked by* take only what they offer**: a typed name that matches nothing is
     no longer saved as a reference to nobody, which retired the hook quietly.
     *(Added 2026-10-13, with the owner's decision on the connection id:)* **A
