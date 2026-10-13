@@ -621,6 +621,56 @@ clean prose first* — and Play is on the quiet side of that table. So:
 down to a phone, and a backdrop behind a full-width reading column at that size
 is all cost and no atmosphere.
 
+***Built 2026-10-13***, [P12A](workplan/35-p12a-the-look.md) P12A.2, under its
+§0.4. Until then the server half was built and the client drew the stage as an
+`<img>` in the column's flow, above the transcript, with the widget's label as
+its `alt` — a picture in the column, which is what this section says a backdrop
+is not. What each sentence above became:
+
+- **The prose wins.** The picture is a layer behind the window — `fixed`, drawn
+  into the document's body so no box the page owns can capture it — and the
+  reading column is drawn over it on the **veil**, each theme's canvas at 82%
+  ([P12A](workplan/35-p12a-the-look.md) P12A.0's token). `contrast.test.ts`
+  holds `ink`, `ink-muted` and `ink-subtle` (the player's line) to 4.5:1 over
+  the veil composited over black and over white, which is every picture there
+  is. While a picture is behind it the column scrolls itself, so nothing in it
+  runs past the veil on a short window. *`ink-faint` cannot sit on the veil* —
+  it would need 99.5% — so the fine print the column still carries falls below
+  its floor over a backdrop; it is tooling rather than prose, and
+  [P12A](workplan/35-p12a-the-look.md) P12A.5's move of the panels is where
+  most of it leaves.
+- **It is chrome.** It takes no room in the flow, so it pushes nothing when it
+  changes, and a change is a **crossfade**: the new picture arrives over the
+  old one once its pixels have, on the `arrive` duration and the `swap`
+  easing — zeroed for someone who has asked for less motion, so it is simply
+  there.
+- **Off is a real setting.** No selection, no layer and no veil: the column's
+  class list is the one it had before the stage existed. **How off works**:
+  *Choose a backdrop…* → **No backdrop** clears the selection and switches
+  *Stage a backdrop* off, as two of a person's channel writes on the record;
+  turning *Stage a backdrop* off on its own still stops new pictures and
+  leaves the one showing, as it always did. A selection whose picture will
+  not load is treated as off, not drawn as a broken image.
+- **It is not a status display.** Decorative: `alt=""`, and the layer hidden
+  from assistive technology. The label *Scene* names the region, not the
+  picture.
+- **On a phone**, `max-sm:hidden` — gone below the breakpoint.
+
+***"Generated or uploaded"*** is built as **generated or chosen**. *Choose a
+backdrop…*, beside *Set the scene*, lists the session's own background
+renditions and the pictures on what the session uses — its treatment, its
+lorebooks and their entries, its setup, its cast, the Worlds it is in — and an
+upload goes into one of those library objects first, through the galleries that
+exist, rather than into the session: no new arm of the channel's value, which
+would be a migration under live sessions. **Choosing turns *Stage a backdrop*
+off in the same act**, and the dialog says so in the same sentence, because with
+staging on the story's next reuse or new picture would overwrite the pick;
+turning staging back on hands the choice back to the story. Both writes rewind
+with the tree. *What the decision leaves open*: a staged picture already being
+drawn when a person chooses still lands, because a finished background is shown
+whatever the switch says — *Set the scene* depends on that — so it overwrites the
+pick once. [P12A](workplan/35-p12a-the-look.md)'s record of the stage has it.
+
 ---
 
 ## 3. Workbench — the inspector panel

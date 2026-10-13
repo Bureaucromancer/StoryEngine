@@ -2650,6 +2650,36 @@ export function readRenditions(
 }
 
 /**
+ * ***One picture a session could stage*** — `GET /sessions/:id/backdrops`,
+ * [10 §2.3](../../../docs/design/10-ui-surfaces.md),
+ * [P12A](../../../docs/design/workplan/35-p12a-the-look.md) P12A.2.
+ *
+ * **`selection` is `unknown` on this side, on purpose.** It is the value
+ * choosing the picture writes to `se.backdrop`, composed by the server from a
+ * reference it followed, and the client's whole part is to send it back as it
+ * came: a client that read its fields would be on the way to building one,
+ * which is resolving a `MediaSelection` in a browser — what `ModeRegion`'s
+ * docstring refuses for the stage's own surface. The type says so where a
+ * reviewer would otherwise have to.
+ *
+ * `source` is the library object the picture is on — its folder's kind, its id
+ * and its name — or `null` for one this session made. `label` is the picture's
+ * own name, or the lorebook entry it hangs on, or `null`. `current` says it is
+ * the one showing.
+ */
+export interface BackdropCandidate {
+  selection: unknown;
+  url: string;
+  source: { kind: string; id: string; name: string } | null;
+  label: string | null;
+  current: boolean;
+}
+
+export function readBackdrops(sessionId: string): Promise<{ candidates: BackdropCandidate[] }> {
+  return request('GET', `/api/sessions/${encodeURIComponent(sessionId)}/backdrops`);
+}
+
+/**
  * Where a rendition's pixels are.
  *
  * ***`?v=<digest>` is the cache-buster***, which is `avatarUrl`'s and

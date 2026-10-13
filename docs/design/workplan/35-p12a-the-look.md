@@ -1060,6 +1060,190 @@ means the scrim's floor is computed rather than eyeballed and
 `contrast.test.ts` gets the pair. A person still looks at it — T1 — because a
 ratio that passes over an average is not a ratio that passes over a highlight.
 
+***Built 2026-10-13***, under [§0.4](#04-what-the-audit-of-2026-10-13-found-and-what-each-finding-decides)'s
+decisions for this stage. The server half was as the audit found it —
+`se.backdrop` and its two arms, `mediaUrlFor`, `selectBackdrop` and
+`offerBackdrop`, the reuse key, and `se.backdrop.on` gating both generation and
+the stager's place question, all built and working — so what was missing was
+the client, and a way to choose.
+
+**Behind the column.** `play/Backdrop.tsx` draws the stage region as a layer
+behind the window — `fixed inset-0 -z-10`, `object-cover`, **`max-sm:hidden`**
+(the codebase's phone idiom) and `print:hidden` — decorative: `alt=""` on each
+picture and the layer `aria-hidden`, because the widget's label, *Scene*, names
+the region and not the picture. It is keyed on the **region**, not the widget:
+`stagePicture` reads the first `image` surface whose region is `stage`, and the
+message region's sprites keep `ModeRegion`'s inline `<img>` and their label.
+`ModeRegion`'s `region` union no longer admits `stage`, with a dated note, so
+the in-flow arm cannot be reached for it by accident. **The reading column takes
+the veil only while a picture shows** — `veiled`, `bg-veil` with two more
+classes this section's next list says why — and with none its class list is the
+one it had, which a test holds. A picture that fails to load (`onError`: an
+object deleted, a file gone) is reported up (`useStage` remembers the last one
+lost) and the page treats it as no backdrop: no layer, no veil.
+
+**The crossfade** is `crossfade` in `ui/classes.ts`, beside `reveal` —
+`transition-opacity duration-arrive ease-swap`, with a `waiting` and a `shown`
+state, the first of the five motions [P12A.6](#p12a6--motion-five-of-them)
+names. A new picture is drawn over the old one, waiting, and shown once its
+pixels have arrived; the old one stays drawn underneath until the next change,
+so the stage never passes through an empty frame and nothing has to wait for a
+`transitionend` that a zeroed duration never fires. *Reduced motion, confirmed
+in the built stylesheet rather than assumed*: the utilities keep the token —
+`.duration-arrive{--tw-duration:var(--transition-duration-arrive);transition-duration:var(--transition-duration-arrive)}`
+and `.ease-swap{--tw-ease:var(--ease-swap);transition-timing-function:var(--ease-swap)}`
+— and `@media (prefers-reduced-motion:reduce){:root{--transition-duration-respond:0s;--transition-duration-arrive:0s;--default-transition-duration:0s}}`
+zeroes it, so the new picture is simply there. Now that something spends them,
+`:root` carries `--transition-duration-arrive:.3s` and `--ease-swap`, which
+P12A.0's record said Tailwind leaves out until then.
+
+**Choose.** *Choose a backdrop…* (`play/ChooseBackdrop.tsx`) sits beside *Set
+the scene*, under the same condition, and opens a `ui/Dialog` listing **both
+arms**: the background renditions the session holds with pixels, newest first,
+and the pictures on what the session uses — its treatment, its setup, the Worlds
+it is in, its lorebooks and their entries, and its cast — grouped under whose
+they are, with the picture's label or its entry's name or a number. **A small
+server endpoint, `GET /sessions/:id/backdrops`** (`renditions/candidates.ts`),
+**rather than the client stitching library queries**, because stitching would
+have made the browser a second reader of [04 §9.1](../04-schemas.md)'s session
+row — the lore links and the treatment's own, the World membership, the cast's
+arrivals — and a second resolver of a `MediaSelection`, which `ModeRegion`
+refuses for the stage's own surface. The route follows each reference with the
+function the engine follows it with (`resolveLore`, `resolveCast`'s union, the
+index's *Used by*) and builds each URL with `mediaUrlFor`, now exported, so a
+thumbnail and the stage cannot disagree about an address; the client's
+`selection` is typed `unknown` and sent back unread. Choosing writes, in order,
+**`se.backdrop.on` = `false`, then `se.backdrop` = the selection**, both through
+the existing `PUT /sessions/:id/channels/:key` as a person's effect — **two
+engine turns on the record**, two empty rows in the transcript, both rewinding
+with the tree. **No backdrop** writes `false` and then `null`. The dialog's
+sentence says that choosing stops the story staging its own and that switching
+*Stage a backdrop* back on hands the choice back; its words are a `labels`
+table, `play.backdrop`.
+
+**The promises are true now, and say so**: `renditions/backdrop.ts`'s *"can
+still be chosen by hand"* and its `{ kind: 'user' }` caller,
+`import/aventuras/pictures.ts`'s *"chosen by hand in a mode that shows a
+backdrop"* and the same sentence in [the API reference](../../api.md), each with
+a dated note; the import review's user-facing sentence in
+`library/note-labels.ts` names the control now, its old clause struck in the
+comment above it. [10 §2.3](../10-ui-surfaces.md) has a dated record of what
+was built and how off works, and the user guide's *Pictures* has *Choosing a
+backdrop*.
+
+**What the stage text said and what turned out different:**
+
+- *"Behind the column"* needed **the column to scroll itself** while a picture
+  is behind it — `overflow-y-auto` in `veiled`, `max-sm:overflow-visible` where
+  the layer is gone. The column is `h-full`, the transcript's own scrolling
+  depends on that, and with up to thirteen blocks above the prose (§0.4) its
+  content runs past its box and `<main>` scrolls it: a background stops at its
+  box, so everything past the first screenful — the composer among it — would
+  have been drawn on the bare picture. Found by reasoning about the layout, not
+  in a browser, and not in any plan.
+- *A layer behind the column* is **a portal into `document.body`**, not a child
+  of the page: a `fixed` element is fixed to the nearest ancestor with a
+  transform, a filter or containment, and the column and `<main>` are where a
+  later stage puts one — P12A.6's motions. Outside every box the page owns, it
+  cannot be captured.
+- *"`--color-ink` on the story column clears 4.5:1 whatever is behind it"* — and
+  `ink-muted` and `ink-subtle`, as §0.4 decided and P12A.0's pairs measure.
+  **`ink-faint` cannot**: it would need the veil at 99.5%. The play column still
+  sets fine print in it — field hints, `Fine`, a text widget's label — so over a
+  backdrop that print falls below its floor. It is tooling rather than prose,
+  and most of it leaves the column with [P12A.5](#p12a5--the-column-that-grew-seven-disclosures)'s
+  move; T1's walker should look at it.
+- *"Choose-an-image … an uploaded image, or one already in the library"* (§1.2)
+  is **chosen from what the session uses**, §0.4's narrowing: an upload goes
+  into a library object first, through the galleries that exist. So
+  [T0](#31-the-critical-list-and-why-each-row-is-on-it)'s *image on disk* has
+  to go onto the session's treatment, a lorebook entry, a character or a World
+  before T1 can choose it — a sentence for the walker, not an edit to the row.
+- ***Set the scene* and the new control were hidden until *Stage a backdrop* had
+  been flipped**, which no audit named. The session read sent
+  `renditions.backdrop` when `se.backdrop.on` was **in the channel map**, and a
+  session's map starts empty, so the condition meant *written on this path*,
+  not *declared by the mode* as its own docstring said — and the guide had
+  documented the result, rewinding past the first flip hiding the button again.
+  It is `channelInPlay` now, the channel route's own question, with a dated note
+  at the route; the guide's sentence is rewritten.
+- *Always both writes*, even when the switch already reads off: the page's idea
+  of the switch can be stale (another tab, a rewind), and the write is what makes
+  the pick hold. A **refused** first write stops the second, and the dialog says
+  the choice did not take: a pick the next turn would overwrite is worse than
+  none.
+- ***What §0.4's decision leaves open***: a staged background **already being
+  drawn** when a person chooses still lands, and is shown, overwriting the pick
+  once — the worker shows every finished background whatever the switch says,
+  and *Set the scene*, which works with staging off, depends on exactly that. A
+  rule that told the two apart (a background its turn's render step requested
+  is staged; one from *Set the scene* is not) would be the new rule §0.4 chose
+  not to write, so it is not written here; it is said in 10 §2.3's record and
+  the guide, and it is a question for the owner.
+- *The dialog off the entry* was measured rather than assumed: behind a
+  `lazy()` the entry came to **314.06**, worse than **313.75** static (before
+  the import sentence's last words) — the
+  split imports what the entry already holds, the case the budget test's raise
+  note records. It stays static.
+- *Not looked at in a browser* — none is installed where this was built. The
+  layer's stacking (behind `<main>`, under the header's, the dock's and the
+  footer's `bg-surface`), the crossfade and the column's scrollbar are T1's to
+  see.
+
+**Tests, each checked against a mutation and restored.** In the new
+`routes/backdrops.test.ts`, *offers a picture from each thing the session uses,
+and nothing from what it does not* — a fixture with a picture on every kind the
+session uses and the same kind unused beside each — fails with the Worlds not
+followed, with every treatment in the library offered, with set members
+(`expression`) offered, with an actor offering every picture but set members,
+with renditions offered without pixels, with illustrations offered, with
+arrivals not followed, with the entry's name not used as a label, with the setup
+not followed, and with the newest-first order dropped; *marks the one the stage
+is showing* fails with `current` never set; *is staged from the address it was
+offered under* (a row written the way the dialog writes it, read back off the
+session's `stage` surface) fails with a rendition URL built in the module rather
+than by `mediaUrlFor`; *answers not-found for a session whose mode stages no
+backdrop* fails with the route's check removed; and the session read's *are there
+in a Scene session before anybody has touched the switch* fails with the old
+`in session.channels` condition, and *are not there for a mode with no backdrop*
+with the condition forced true. In the new `play/Backdrop.test.tsx`: *drawn
+behind the window, outside the page, decorative and gone on a phone* fails with
+the layer drawn in place, with the label as `alt`, and with `max-sm:hidden`
+removed; *draws no frame at all* fails with an empty layer for nothing; *says so
+when a picture will not load* fails with `onError` unwired; the crossfade's
+*fades the new picture in over the old one* fails with the picture shown before
+its pixels arrive and with the old one dropped at once, *shows a room it has
+drawn before* fails with only the last arrival remembered, and *brings nothing
+back underneath once it has been turned off* fails with off keeping the old
+picture; *is the stage region's picture, and a sprite is not* fails with the
+region ignored and with the kind ignored. In `PlayPage.test.tsx`'s new *the
+backdrop*: *draws the stage behind the column rather than in it, and veils the
+column* fails with the layer drawn in the column, with the stage drawn in flow
+under its label as well, and with the veil never applied; *draws no frame and no
+veil without a backdrop* fails with the veil always applied; *treats a picture
+that will not load as no backdrop at all* fails with the failure not passed up;
+*offers a choice beside Set the scene* fails with the control removed from that
+row. In the new `play/ChooseBackdrop.test.tsx`: *lists both arms as the server
+sent them, under whose pictures they are* fails with one heading for every
+picture and with the showing one unmarked; *says that choosing stops the story
+staging one* fails with the sentence dropped; *turns staging off and then writes
+the choice, as it was sent* fails with the two writes swapped and with the
+selection rebuilt rather than sent back; *writes no backdrop as staging off and
+then nothing* fails with the switch left alone and with `undefined` for `null`;
+*chooses nothing when the switch refuses* fails with the refusal ignored; *does
+not offer a picture whose thumbnail will not load* fails with the error
+unhandled. `ModeRegion.test.tsx`'s image tests moved from the stage region to
+the message region — the image arm's remaining home — and its no-frame test's
+stage half is `Backdrop.test.tsx`'s now. `i18n/catalogue.test.ts` exempts the
+`crossfade` recipe, a table of classes, as it exempts `page`.
+
+**Entry after: 313.77 kB** of a 315 ceiling, **CSS 8.16** — **312.25 and 7.99
+before**, at `e93cab0e`, the merge that brought P16's follow-ups under the
+phase after P12A.1's 310.37 — gzip level 9 over the files `index.html` pulls,
+the budget test's method. **+1.52 kB**: the layer, the dialog, the two hooks,
+the recipe, and the import sentence's new words. **1.23 kB is left** for
+P12A.3 onward, which is the next stage's first number to read.
+
 ### P12A.3 — Faces
 
 §1.1's four places: cast rows, the player's own line, the mention affordance,

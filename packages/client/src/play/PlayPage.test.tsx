@@ -17,6 +17,7 @@ import {
   type TurnPreview,
   type TurnRecord,
 } from '../api.js';
+import { page } from '../ui/classes.js';
 import type { StreamHandlers } from './stream.js';
 
 /**
@@ -317,6 +318,126 @@ describe('the measure', () => {
     const composer = screen.getByRole('textbox', { name: 'What do you do?' });
     expect(composer.closest('.max-w-story')).toBeNull();
     expect(composer.closest('.max-w-reading')).toBeTruthy();
+  });
+});
+
+/**
+ * ***The backdrop behind the column, and the column on its veil*** (2026-10-13,
+ * P12A.2) — [10 §2.3]. The stage region is no longer drawn in the column's
+ * flow: it is a layer behind the window (`Backdrop.tsx`, whose own tests hold
+ * the layer), and what only the page can show is the join — that the session's
+ * stage surface reaches the layer, that the column wears the veil exactly while
+ * a picture is behind it, and that a picture that will not load leaves the page
+ * as it was with none.
+ */
+describe('the backdrop', () => {
+  const STAGE = {
+    region: 'stage',
+    key: 'se.backdrop',
+    channelId: 'se.backdrop',
+    scopeKey: null,
+    kind: 'image',
+    label: 'Scene',
+    image: { url: '/api/library/worlds/w-1/media/m-1', alt: 'Scene' },
+  };
+
+  /** The reading column: the composer's nearest ancestor at the reading width. */
+  function column(): HTMLElement {
+    const found = screen
+      .getByRole('textbox', { name: 'What do you do?' })
+      .closest<HTMLElement>('.max-w-reading');
+    if (found === null) throw new Error('no reading column');
+    return found;
+  }
+
+  function stageLayer(): HTMLElement | null {
+    return document.body.querySelector<HTMLElement>('[aria-hidden="true"].fixed');
+  }
+
+  it('draws the stage behind the column rather than in it, and veils the column', async () => {
+    readSession.mockResolvedValue({ session: SESSION, activeJob: null, surfaces: [STAGE] });
+    renderPage();
+    await screen.findByText('I knock twice.');
+
+    const layer = await waitFor(() => {
+      const found = stageLayer();
+      if (found === null) throw new Error('no backdrop layer yet');
+      return found;
+    });
+    const picture = layer.querySelector('img');
+    expect(picture?.getAttribute('src')).toBe(STAGE.image.url);
+    // Decorative: the widget's label is the region's name, not the picture's.
+    expect(picture?.getAttribute('alt')).toBe('');
+    expect(layer.classList.contains('-z-10')).toBe(true);
+    // Behind the column, not in it — and no picture of the stage is drawn in
+    // the column's flow any more, under its label or otherwise.
+    expect(column().contains(layer)).toBe(false);
+    expect(column().querySelector(`img[src="${STAGE.image.url}"]`)).toBeNull();
+    expect(screen.queryByRole('img', { name: 'Scene' })).toBeNull();
+    // The column is on the veil while a picture is behind it.
+    expect(column().classList.contains('bg-veil')).toBe(true);
+  });
+
+  /**
+   * ***Off is the surface it was before*** — [10 §2.3]: no frame, and no veil
+   * either. The column's class list is the one it had before this stage.
+   */
+  it('draws no frame and no veil without a backdrop', async () => {
+    renderPage();
+    await screen.findByText('I knock twice.');
+
+    expect(stageLayer()).toBeNull();
+    expect(column().className.split(/\s+/).sort()).toEqual(
+      `${page.reading} flex h-full flex-col gap-4`.split(' ').sort(),
+    );
+  });
+
+  it('treats a picture that will not load as no backdrop at all', async () => {
+    readSession.mockResolvedValue({ session: SESSION, activeJob: null, surfaces: [STAGE] });
+    renderPage();
+    await screen.findByText('I knock twice.');
+    const picture = await waitFor(() => {
+      const found = stageLayer()?.querySelector('img');
+      if (found == null) throw new Error('no backdrop picture yet');
+      return found;
+    });
+
+    fireEvent.error(picture);
+
+    await waitFor(() => {
+      expect(stageLayer()).toBeNull();
+    });
+    expect(column().classList.contains('bg-veil')).toBe(false);
+  });
+
+  /**
+   * ***Choose a backdrop…, where a backdrop is staged*** — beside *Set the
+   * scene*, for a mode that declares the switch, and nowhere else.
+   * `ChooseBackdrop.test.tsx` holds what it writes.
+   */
+  it('offers a choice beside Set the scene, only for a mode that stages one', async () => {
+    readSession.mockResolvedValue({
+      session: SESSION,
+      activeJob: null,
+      renditions: { illustration: 'off', backdrop: false },
+    });
+    renderPage();
+
+    const choose = await screen.findByRole('button', { name: 'Choose a backdrop…' });
+    const scene = screen.getByRole('button', { name: 'Set the scene' });
+    expect(choose.parentElement).toBe(scene.parentElement);
+  });
+
+  it('offers no choice for a mode with no backdrop', async () => {
+    readSession.mockResolvedValue({
+      session: SESSION,
+      activeJob: null,
+      renditions: { illustration: 'off' },
+    });
+    renderPage();
+    await screen.findByText('I knock twice.');
+
+    expect(screen.queryByRole('button', { name: 'Choose a backdrop…' })).toBeNull();
   });
 });
 

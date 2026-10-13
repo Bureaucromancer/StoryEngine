@@ -60,6 +60,14 @@ import { readRendition } from './store.js';
  * `{ kind: 'user' }` when a person chose among siblings. Both are admitted by
  * `engine-computed` and a model is not, which is the policy meaning exactly what
  * it says.
+ *
+ * *(2026-10-13, [P12A](../../../../docs/design/workplan/35-p12a-the-look.md)
+ * P12A.2: a person's choice does not come through here. *Choose a backdrop…*
+ * writes `se.backdrop` through `PUT /sessions/:id/channels/:key` — the same
+ * `engine-computed` admission, a person's effect on an engine turn of its own —
+ * because it can name either arm, and this function writes only the rendition
+ * one. So `{ kind: 'user' }` is still admitted here and still has no caller;
+ * the engine's finished pictures are this function's only writes.)*
  */
 export async function selectBackdrop(
   sessions: SessionContext,
@@ -120,7 +128,13 @@ export async function selectBackdrop(
  *
  * *One per session, the latest winning*, because only the last selection would
  * be showing anyway. In memory, and lost on a restart, which costs a backdrop
- * that is on disk and can still be chosen by hand.
+ * that is on disk and can still be chosen by hand. *(2026-10-13,
+ * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.2: and now
+ * it can be. When this was written nothing could choose one — no client path
+ * wrote `se.backdrop`, so the cost was a picture on disk that nobody could
+ * show. *Choose a backdrop…* lists the session's background renditions with
+ * pixels (`renditions/candidates.ts`) and writes the pick as a person's
+ * effect, so a backdrop lost here is one choice away.)*
  */
 export class DeferredBackdrops {
   readonly #held = new Map<string, { account: string; renditionId: string }>();

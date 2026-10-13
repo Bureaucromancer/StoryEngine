@@ -80,6 +80,8 @@ import {
   type ComposerPicture,
 } from './Pictures.js';
 import { preparePicture } from './preparePicture.js';
+import { Backdrop, useStage, veiled } from './Backdrop.js';
+import { ChooseBackdrop } from './ChooseBackdrop.js';
 import { ModeActions, ModeRegion } from './ModeRegion.js';
 import { Starters, Suggestions } from './Suggestions.js';
 import { MentionOverlay } from './MentionOverlay.js';
@@ -279,6 +281,13 @@ export function PlayPage({
   // cache entry and the invalidate below refreshes both ([P3.1]).
   const session = useSession(sessionId);
   const transcript = useTranscript(sessionId);
+  /**
+   * ***The backdrop, and whether one is showing*** — [10 §2.3], P12A.2. Read
+   * here because two things follow it: the layer behind the column, and the
+   * column's own veil, which a page with no picture behind it does not wear
+   * (`Backdrop.tsx`).
+   */
+  const stage = useStage(session.data?.surfaces);
   const auth = useAuthState();
   const locale = auth.data?.account?.locale ?? undefined;
 
@@ -1067,7 +1076,17 @@ export function PlayPage({
     // turns sit narrower than this column. The column keeps its width for the
     // composer and the panels, which are not prose and gain nothing from a
     // reader's line length.)*
-    <div className={`${page.reading} flex h-full flex-col gap-4`}>
+    //
+    // *(2026-10-13, P12A.2: and the veil, while a backdrop shows behind it —
+    // `veiled` in `Backdrop.tsx`, which says why it also scrolls itself then.
+    // With none, the column is exactly the class list it was.)*
+    <div
+      className={
+        stage.url === null
+          ? `${page.reading} flex h-full flex-col gap-4`
+          : `${page.reading} ${veiled} flex h-full flex-col gap-4`
+      }
+    >
       <div className="flex flex-wrap items-center gap-2">
         {/*
           Two cases kept apart on purpose. `?? 'Session'` used to cover both and
@@ -1203,13 +1222,14 @@ export function PlayPage({
           staged against, and it behaves like chrome: *"The prose wins,
           always… On a phone it is the first thing to go."* Renders nothing at
           all when the session has no backdrop, which 10 §2.3 requires in as
-          many words — there must be no placeholder where the picture would go. */}
-      <ModeRegion
-        sessionId={sessionId}
-        surfaces={session.data?.surfaces}
-        region="stage"
-        className="flex flex-col gap-2"
-      />
+          many words — there must be no placeholder where the picture would go.
+
+          *(2026-10-13, P12A.2: no longer here. It was a `ModeRegion` in the
+          column's flow, which is a picture in the column; it is a layer behind
+          the window now, drawn into `document.body` by `Backdrop`, and the
+          column wears the veil while it shows. `Backdrop.tsx` says what each
+          of 10 §2.3's bullets became.)* */}
+      <Backdrop url={stage.url} onLost={stage.lose} />
 
       {/* ***Set the scene*** — [06 §10.6], [P9.4]. *"The manual counterpart is
           **Set the scene**, which regenerates the backdrop for where you are
@@ -1220,22 +1240,29 @@ export function PlayPage({
           **Only for a mode that has a stage.** `renditions.backdrop` is absent
           when the mode declares no backdrop channel, which is `dials`' rule for
           a mode with no difficulty: nothing to render rather than a control that
-          does nothing. */}
-      {session.data?.renditions?.backdrop === undefined ||
-      session.data.session.headTurnId === null ? null : (
-        <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            disabled={running || illustrate.isPending}
-            onClick={() => {
-              illustrate.mutate({
-                turnId: session.data?.session.headTurnId ?? '',
-                purpose: 'background',
-              });
-            }}
-          >
-            Set the scene
-          </Button>
+          does nothing.
+
+          *(2026-10-13, P12A.2: and **Choose a backdrop…** beside it, under the
+          same condition, with no head needed — a pick is a channel write, which
+          a session with no turn yet can make. Set the scene still waits for a
+          head, which is the turn it draws.)* */}
+      {session.data?.renditions?.backdrop === undefined ? null : (
+        <div className="flex flex-wrap items-center gap-2">
+          {session.data.session.headTurnId === null ? null : (
+            <Button
+              type="button"
+              disabled={running || illustrate.isPending}
+              onClick={() => {
+                illustrate.mutate({
+                  turnId: session.data?.session.headTurnId ?? '',
+                  purpose: 'background',
+                });
+              }}
+            >
+              Set the scene
+            </Button>
+          )}
+          <ChooseBackdrop sessionId={sessionId} busy={running} />
           <IllustrateNote note={illustrateNote('background')} />
         </div>
       )}

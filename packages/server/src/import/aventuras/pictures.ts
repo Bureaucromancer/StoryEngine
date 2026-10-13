@@ -99,6 +99,14 @@ import type {
  * reconstruction would have to explain. So the record is on its turn, served
  * by the asset route, and chosen by hand in a mode that shows a backdrop,
  * which is a person's choice this import has no business making for them.
+ * *(2026-10-13, [P12A](../../../../../docs/design/workplan/35-p12a-the-look.md)
+ * P12A.2: the hand choice this promised did not exist until then — nothing in
+ * the client wrote `se.backdrop`, so an imported background stayed on disk,
+ * unshown. *Choose a backdrop…*, beside *Set the scene* in a Scene session,
+ * lists every background rendition the session holds, these among them, and
+ * writes the pick as a person's effect. An imported story names no mode and
+ * so plays the default, which is Scene, so the choice is there for every
+ * imported story this build plays.)*
  *
  * ## What a record says
  *

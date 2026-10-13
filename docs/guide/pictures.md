@@ -2,7 +2,7 @@
 
 StoryEngine can draw pictures of the story as you play — an **illustration** of a
 turn, shown in the transcript, and in Scene a **backdrop** of where the story is, shown
-above it. It can also show the model a picture of **your own**, attached to a move.
+behind it. It can also show the model a picture of **your own**, attached to a move.
 
 Pictures are made in the background after a turn's text is finished, so the story
 never waits for one. An illustration that fails becomes a placeholder with **Try
@@ -96,8 +96,18 @@ service refused this one.*
 
 ## Backdrops
 
-*Scene only.* **Stage a backdrop**, among the switches above the transcript, keeps a
-picture of where the story is above the transcript. It is off by default.
+*Scene only.* A backdrop is a picture of where the story is, filling the window behind
+the page. The story's column is drawn over it on a pale veil (dark in the dark theme),
+so the text stays as readable as it is without one; with no backdrop the page is
+exactly as it is without the feature. A new backdrop fades in over the old one — or
+simply appears, if your system is set to reduce motion. On a phone-sized window there
+is no backdrop at all.
+
+A backdrop comes from one of two places: the story stages one (**Stage a backdrop**,
+below), or you choose one (**Choose a backdrop…**, further down).
+
+**Stage a backdrop**, among the switches above the transcript, has the story make its
+own. It is off by default.
 
 While it is on — or while **Show the scene** is — a model call after each reply names the
 place in a few words. The place shows as **Place** in the strip at the top, and the narrator
@@ -111,15 +121,40 @@ shown again instead. The place is in the model's words, so *the harbourmaster's 
 is asked for again after every reply while the place stays the same — each a new image
 request, with a *could not be made* notification when you are away.
 
-**Set the scene** draws a new backdrop of the current place whenever no turn is being
-written, even with **Stage a backdrop** off. It appears once **Stage a backdrop** has
-been switched on or off earlier in the story than where you are now (rewinding to before
-the first switch hides it again), and needs a known place: otherwise *The story has not
-said where this is yet, so there is no place to draw.*
+**Set the scene**, under the switches, draws a new backdrop of the current place
+whenever no turn is being written, even with **Stage a backdrop** off. It is there in
+every Scene session once it has a turn, and needs a known place: otherwise *The story
+has not said where this is yet, so there is no place to draw.*
 
 Turning **Stage a backdrop** off stops new backdrops but leaves the current one showing.
-There is no control yet for choosing among earlier backdrops, for retrying one that failed
-(**Set the scene** makes a new one), or for deleting pictures.
+
+### Choosing a backdrop
+
+**Choose a backdrop…**, beside **Set the scene**, opens a list of pictures to put behind
+the story, from what the session already uses:
+
+- the backdrops this session has made (and, for a story imported from Aventuras, the
+  backgrounds it came with);
+- pictures on its treatment, its setup, the Worlds it is in, its lorebooks and their
+  entries — a picture with no name of its own is called by its entry;
+- from its characters, only a **reference** picture or one filed as a **background** —
+  a character's faces and portrait are not offered.
+
+Pick one and it is the backdrop. **No backdrop** takes the backdrop away and leaves no
+empty frame. Either way, **choosing switches Stage a backdrop off**, so the story stops
+staging its own and what you chose stays until you change it; the dialog says so.
+Switching **Stage a backdrop** back on hands the choice back to the story, whose next new
+or reused backdrop replaces yours. A picture the story was already drawing when you
+chose still arrives, and replaces your choice once.
+
+To use a picture that is not on that list, add it to one of those first — the treatment's
+or a World's gallery, a lorebook entry, a character — in the library; there is no
+uploading straight into a session. Each choice is two steps in the story's record —
+the switch, then the picture — like any other change you make, each an empty row in the
+transcript: rewinding past them puts the earlier backdrop back.
+
+There is no control yet for retrying a backdrop that failed (**Set the scene** makes a new
+one), or for deleting pictures.
 
 ## Faces
 

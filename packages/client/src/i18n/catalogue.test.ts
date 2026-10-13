@@ -96,6 +96,7 @@ const EXEMPT: Record<string, string> = {
   'ui/classes.ts:disclosure': 'Tailwind classes — the two registers a fold is drawn in.',
   'ui/classes.ts:table': 'Tailwind classes.',
   'ui/classes.ts:page': 'Tailwind classes.',
+  'ui/classes.ts:crossfade': 'Tailwind classes — the backdrop’s two states and its motion.',
   'workbench/turn/labels.ts:OUTCOME_TONES': 'A call outcome to a `BadgeTone`, which is a colour.',
   'workbench/address.ts:SAMPLE_OWNERS':
     'A block source to the library kind that owns it — the kinds are route segments and index keys.',

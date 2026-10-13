@@ -548,9 +548,18 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
    * picture and not as a choice. `pictureModels` is the one place the model
    * that drew them is said: this server has no connection that drew them, and
    * a record claiming one would be a request that never happened.
+   *
+   * *(2026-10-13, [P12A](../../../../docs/design/workplan/35-p12a-the-look.md)
+   * P12A.2: ~~— not shown until you choose it, in a mode that shows a
+   * background~~ — the sentence promised a choice nothing built: no control
+   * wrote the backdrop, so an imported background could not be shown at all.
+   * *Choose a backdrop…*, beside *Set the scene*, lists every background a
+   * session holds, so the sentence names it now. "In a mode that shows a
+   * background" goes: an imported story names no mode and plays the default,
+   * Scene, which is one. The key stays, so a review saved before reads on.)*
    */
   'import.aventuras.storyPictures':
-    '“{story}” came with its pictures: {illustrations} drawn into its text, each beside the turn it illustrates, and {backgrounds} backgrounds, each on the last turn of the branch it belonged to — not shown until you choose it, in a mode that shows a background.',
+    '“{story}” came with its pictures: {illustrations} drawn into its text, each beside the turn it illustrates, and {backgrounds} backgrounds, each on the last turn of the branch it belonged to. A background is not shown until you choose it: Choose a backdrop…, beside Set the scene on the session’s page.',
   'import.aventuras.pictureModels':
     'The pictures in “{story}” were drawn in Aventuras by {models}. They came with the prompts they were drawn from; drawing one again here uses this server’s own image model.',
   'import.aventuras.picturesUnfinished':

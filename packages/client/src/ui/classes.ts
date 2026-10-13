@@ -103,6 +103,40 @@ export const link = {
  */
 export const reveal = 'opacity-0 transition-opacity [@media(hover:none)]:opacity-100';
 
+/**
+ * ***A room change is a fade*** — the backdrop's crossfade (2026-10-13),
+ * [10 §2.3](../../../../docs/design/10-ui-surfaces.md), built at
+ * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.2 and the
+ * first of the five motions P12A.6 names.
+ *
+ * *"It does not animate a transition the reader has to wait through. A room
+ * change is a fade, not an event."* So a new picture arrives **over** the one
+ * it replaces, which stays fully drawn underneath until the next change: the
+ * stage is never empty between two rooms, and nothing has to fade *out* — a
+ * fade-out would need an end event to clean up after, and a transition whose
+ * duration is zero fires none.
+ *
+ * **`arrive` and `swap`, the tokens P12A.0 named for this**: `arrive` because
+ * the person did not cause the picture (the story moved, or they chose it in a
+ * dialog that has closed), and `swap` because neither end of a crossfade is an
+ * arrival — one state is handed to another in place. The duration is zeroed
+ * by `index.css`'s reduced-motion block, so for someone who has asked for less
+ * motion the new picture is simply there once its pixels are: *absent, not
+ * fast*, which is what T5 walks.
+ *
+ * *Three strings, because the layer holds two states*: `waiting` until the
+ * picture's bytes have arrived — an image fading in before it has decoded
+ * fades in nothing and then pops — and `shown` after. `picture` is on both.
+ * Here and not at the call site for `reveal`'s reason: a hidden state and a
+ * motion are each spelled in this file and nowhere else, and theme.test.ts
+ * refuses either written elsewhere.
+ */
+export const crossfade = {
+  picture: 'transition-opacity duration-arrive ease-swap',
+  waiting: 'opacity-0',
+  shown: 'opacity-100',
+} as const;
+
 export const navLink = {
   base: 'rounded-control px-3 py-1 text-sm focus-visible:outline-2 focus-visible:outline-focus',
   idle: 'text-ink-muted hover:bg-surface-muted',

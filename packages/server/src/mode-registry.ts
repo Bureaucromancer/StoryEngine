@@ -693,8 +693,17 @@ function renderSurface(
  * to change under live sessions when something does ([06 §10.1a]). A backdrop
  * pointing at a rendition renders nothing here and renders a picture there,
  * with no change to this function's callers.
+ *
+ * ***Exported, for a second caller that must agree with this one***
+ * (2026-10-13, [P12A](../../../docs/design/workplan/35-p12a-the-look.md)
+ * P12A.2). *Choose a backdrop* lists the pictures a session could stage, each
+ * with the URL its thumbnail is drawn from, and the stage then draws the chosen
+ * one from the URL this function gives the surface. Two spellings of one
+ * address would let the dialog show a picture the stage cannot find, so
+ * `backdropCandidates` (`renditions/candidates.ts`) asks here rather than
+ * building its own.
  */
-function mediaUrlFor(value: unknown, sessionId: string | null): string | null {
+export function mediaUrlFor(value: unknown, sessionId: string | null): string | null {
   if (typeof value !== 'object' || value === null) return null;
   const selection = value as {
     from?: unknown;

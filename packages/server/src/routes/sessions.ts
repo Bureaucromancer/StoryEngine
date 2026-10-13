@@ -88,6 +88,8 @@ import { userOwner } from '../storage/layout.js';
 import { rememberThis } from '../memory/capture.js';
 import type { SessionMemoryConfig } from '../memory/config.js';
 import { memoryPanel } from '../memory/panel.js';
+import { SE_BACKDROP } from '../renditions/backdrop.js';
+import { backdropCandidates } from '../renditions/candidates.js';
 import { readRendition, readRenditions } from '../renditions/store.js';
 import { illustrateTurn } from '../renditions/illustrate.js';
 import {
@@ -2216,13 +2218,27 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
        * which is the same three words `dials` uses for a mode with no
        * difficulty: nothing to render rather than a control that does nothing.
        * Scene declares it; Freeform does not.
+       *
+       * *(2026-10-13, [P12A](../../../../docs/design/workplan/35-p12a-the-look.md)
+       * P12A.2: ~~`SE_BACKDROP_ON in session.channels`~~ — what the code tested
+       * was whether the switch had ever been **written** on this path, not
+       * whether the mode declares it: a session's channel map starts empty and
+       * gains a key only when something writes one. So in a Scene session *Set
+       * the scene* appeared only after *Stage a backdrop* had been flipped, and
+       * went again on a rewind past the flip — which the guide had faithfully
+       * documented as the behaviour. *Choose a backdrop…* sits beside it under
+       * the same condition, and a choice nobody can find until they have
+       * flipped an unrelated switch is the feature not shipped, so the test is
+       * now the sentence above: `channelInPlay`, the channel route's own
+       * answer to "does this session's mode have this channel", with
+       * `readBackdropOn`'s absent-means-off for the value.)*
        */
       renditions: {
         illustration: readIllustration(
           session.channels,
           packMode?.definition.renditions?.illustration,
         ),
-        ...(SE_BACKDROP_ON in session.channels
+        ...(channelInPlay(SE_BACKDROP_ON, modeId)
           ? { backdrop: readBackdropOn(session.channels) }
           : {}),
       },
@@ -3001,6 +3017,50 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
         ),
       );
       return reply.send({ renditions, selection: session.renditionSelection ?? {} });
+    },
+  );
+
+  /**
+   * ***The pictures a person may stage behind this session*** — *Choose a
+   * backdrop…*, [10 §2.3], [P12A](../../../../docs/design/workplan/35-p12a-the-look.md)
+   * P12A.2.
+   *
+   * **A list, not a write.** Choosing writes through `PUT …/channels/:key`
+   * like every other person's change to a channel — `se.backdrop.on` off, then
+   * `se.backdrop` — so a pick is an effect on the record and rewinds with the
+   * tree; this route only says what there is to choose, with each row's
+   * selection and URL composed here (`backdropCandidates` says why here and
+   * not in the browser).
+   *
+   * **A read, not a reconcile** — `readMine`, for the renditions list's reason
+   * above: it is asked when a dialog opens, and a reconcile could append a turn
+   * under a page that was only looking.
+   *
+   * **`404` for a session whose mode stages no backdrop**, the channel route's
+   * own answer for a channel not in play: a list of pictures nothing can show
+   * is a control that does nothing, which is `renditions.backdrop`'s rule on
+   * the session read.
+   */
+  app.get(
+    '/sessions/:sessionId/backdrops',
+    { schema: { params: SessionParams } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+      const session = await readMine(services, request, reply);
+      if (!session) return;
+      if (!channelInPlay(SE_BACKDROP, session.mode?.id)) {
+        return reply
+          .code(404)
+          .send({ error: 'no-such-channel', message: 'This session has no such channel.' });
+      }
+      const candidates = await backdropCandidates(
+        services.library,
+        services.sessions.layout,
+        account.handle,
+        session,
+      );
+      return reply.send({ candidates });
     },
   );
 

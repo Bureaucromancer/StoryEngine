@@ -40,6 +40,17 @@ import { WriteFailed } from './WriteFailed.js';
  * backdrop off Play is the surface it was before, not a surface with an empty
  * frame in it. The temptation this feature brings is a placeholder where the
  * picture would go, and there should not be one."*
+ *
+ * ***The stage is not drawn here any more*** (2026-10-13,
+ * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.2). Every
+ * region this component draws is a place in the column's flow, and the stage
+ * is the one place that is not: a backdrop is behind the column, and drawing
+ * it here made it a picture in the column, which is what 10 §2.3 says a
+ * backdrop is not. `Backdrop.tsx` draws the stage region now — a layer behind
+ * the window, decorative, crossfaded and gone on a phone — and `region` below
+ * no longer admits it, so the in-flow arm cannot be reached for the stage by
+ * accident. *The `image` arm stays*, for the message region's sprites, which
+ * are content beside a line and keep their label as their `alt`.
  */
 export function ModeRegion(props: {
   sessionId: string;
@@ -52,7 +63,8 @@ export function ModeRegion(props: {
    * moment this was written the other way. One read, many renderings.
    */
   surfaces: readonly ModeSurface[] | undefined;
-  region: 'hud' | 'panel' | 'message' | 'stage' | 'settings';
+  /** A region in the column's flow — the stage is `Backdrop`'s (see above). */
+  region: 'hud' | 'panel' | 'message' | 'settings';
   /**
    * Which scope key to show, for an actor-scoped channel — a sprite beside the
    * line its speaker said. Absent shows every key the region has.

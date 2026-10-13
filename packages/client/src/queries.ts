@@ -33,6 +33,7 @@ import {
   renameSession,
   readMemoryPanel,
   illustrateTurn,
+  readBackdrops,
   readRenditions,
   retryRendition,
   selectRendition,
@@ -51,6 +52,7 @@ import {
   type AccountPatch,
   type AdminAccountList,
   type AdminConnection,
+  type BackdropCandidate,
   type Binding,
   type BindingsState,
   type MyRoles,
@@ -1096,6 +1098,76 @@ export function useWriteChannel(
  */
 export function channelWriteKey(sessionId: string): readonly unknown[] {
   return ['channel-write', sessionId];
+}
+
+/**
+ * ***What a person may stage behind a session*** — *Choose a backdrop…*,
+ * [10 §2.3](../../../docs/design/10-ui-surfaces.md),
+ * [P12A](../../../docs/design/workplan/35-p12a-the-look.md) P12A.2.
+ *
+ * *Read only while the dialog is open* (`enabled`), and afresh each time it
+ * opens: what a session uses changes under it — a picture added to its
+ * treatment, a World it joined — and the list is cheap beside a dialog that
+ * offers yesterday's.
+ */
+export function backdropsKey(sessionId: string): readonly unknown[] {
+  return ['session-backdrops', sessionId];
+}
+
+export function useBackdrops(
+  sessionId: string,
+  open: boolean,
+): UseQueryResult<BackdropCandidate[]> {
+  return useQuery({
+    queryKey: backdropsKey(sessionId),
+    queryFn: async () => (await readBackdrops(sessionId)).candidates,
+    enabled: open,
+  });
+}
+
+/**
+ * ***Choosing a backdrop, or none*** — two of a person's channel writes, in
+ * order: `se.backdrop.on` off, then `se.backdrop` to the choice (`null` for
+ * *No backdrop*). Two engine turns on the record, each a person's effect that
+ * rewinds with the tree.
+ *
+ * **Staging goes off first, and that order is the whole design** (P12A §0.4).
+ * With *Stage a backdrop* on, the story's next reuse or new picture would
+ * overwrite a pick; with it off, nothing in the runner writes the channel, so
+ * the pick holds without a rule of its own. Written first so that no turn can
+ * land between a pick and the switch that protects it.
+ *
+ * ***Always both, even when the switch already reads off.*** The page's idea
+ * of the switch can be stale — another tab, a rewind somebody else made — and
+ * the write is what makes the pick hold, so it is not skipped on the page's
+ * say-so. A refused first write stops the second: a pick the next turn would
+ * overwrite is worse than none, and the person is told it did not take.
+ *
+ * *Settled, not only succeeded*, refreshes the session, the transcript and the
+ * list: the first write may have landed when the second did not, and the
+ * transcript shows both turns as rows — the place Undo takes a pick back.
+ * Shares {@link channelWriteKey}, so a control waiting on channel writes waits
+ * on these.
+ */
+export function useChooseBackdrop(
+  sessionId: string,
+): UseMutationResult<void, Error, { selection: unknown }> {
+  const client = useQueryClient();
+  return useMutation({
+    mutationKey: channelWriteKey(sessionId),
+    mutationFn: async ({ selection }: { selection: unknown }) => {
+      const off = await writeSessionChannel(sessionId, 'se.backdrop.on', false);
+      if (!off.effect.applied) throw new Error('The staging switch refused the write.');
+      const chosen = await writeSessionChannel(sessionId, 'se.backdrop', selection);
+      if (!chosen.effect.applied) throw new Error('The backdrop channel refused the write.');
+    },
+    onSettled: () => {
+      void client.resetQueries({ queryKey: previewKey(sessionId) });
+      void client.invalidateQueries({ queryKey: ['transcript', sessionId] });
+      void client.invalidateQueries({ queryKey: backdropsKey(sessionId) });
+      return client.invalidateQueries({ queryKey: ['session', sessionId] });
+    },
+  });
 }
 
 /**

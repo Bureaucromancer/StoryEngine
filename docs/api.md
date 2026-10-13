@@ -903,7 +903,10 @@ hold keeps the tag as its anchor with `anchorResolved: false`); and each
 branch's newest `background_images` row
 a `background` on the turn its line ends on, **carried and not selected**
 — the import names no mode, and the `se.backdrop` selection is a mode's —
-so it is chosen by hand in a mode that shows one. Their ids are the turn's
+so it is chosen by hand in a mode that shows one *(2026-10-13,
+[P12A](design/workplan/35-p12a-the-look.md) P12A.2: which nothing could do
+until then — the hand choice is `GET /sessions/:sessionId/backdrops` and two
+channel writes, below)*. Their ids are the turn's
 and an ordinal (`<turnId>.<n>`), their `prompt` is Aventuras' prompt as one
 fragment (a background's is empty), their `provenance` names no binding
 and no seed, and `foreign` is `{ source: "aventuras", id }`. The bytes are
@@ -1400,6 +1403,48 @@ out as stored, so a page drew a broken image. **A read, not a reconcile**: this
 route, the asset and the attachment routes and `GET …/turns/:turnId` read the
 session as the preview does, since they are asked whenever something is looked
 at and a reconcile could append a turn under the page that asked.
+
+### `GET /sessions/:sessionId/backdrops`
+
+The pictures a person may stage behind this session — *Choose a backdrop…*,
+[10 §2.3](design/10-ui-surfaces.md),
+[P12A](design/workplan/35-p12a-the-look.md) P12A.2. `{ candidates: [{
+selection, url, source, label, current }] }`, in the order a person looks for a
+place: the session's own **background** renditions with pixels, newest first;
+then the pictures on its **treatment**, its **setup** (the library's object, by
+the id its copy kept), the **Worlds** it is a member of, its **lorebooks** and
+their entries (the books a turn reads, as `resolveLore` resolves them), and its
+**cast** (persona, roster, then whoever the channels walked in). Each object
+once. *Nothing the session does not use*, and no other part of the library.
+
+`selection` is the value choosing it writes to `se.backdrop` — `{ from:
+"rendition", renditionId }` or `{ from: "authored", kind, objectId, mediaId }`
+with `kind` the object's folder (`treatments`, `lorebooks`, …) — and a client
+sends it back as it came. `url` is the address the stage draws it from, the
+same function's answer the session read's `stage` surface gives. `source` is `{
+kind, id, name }` for an object's picture and `null` for the session's own;
+`label` is the media row's label, or the lorebook entry it hangs on, or `null`;
+`current` marks the one showing. A picture whose role says it is part of
+something else — an `expression`, a `pose`, a `portrait-source` — is not
+offered, and from an **actor** only a `reference` or a `background` is: an
+actor's other pictures are of the actor.
+
+**A list, not a write.** Choosing is two of a person's
+`PUT /sessions/:id/channels/:key` writes, in order: `se.backdrop.on` to `false`,
+then `se.backdrop` to the selection — or to `null` for *No backdrop*. Staging
+goes off first so that nothing the story stages afterwards overwrites the pick;
+turning it back on hands the choice back. Both land on the record as engine
+turns with a person's effect, and rewind with the tree. **`404
+no-such-channel`** for a session whose mode stages no backdrop. *A read, not a
+reconcile*, as the renditions list is.
+
+*And the session read's `renditions.backdrop`* (the switch's value, which the
+page draws *Set the scene* and *Choose a backdrop…* under) is present for every
+session whose mode declares `se.backdrop.on`, from the first moment —
+~~present once the switch had been written on the head's path~~ *(2026-10-13,
+P12A.2: a session's channel map starts empty, so the old test hid both
+controls until *Stage a backdrop* had been flipped, and again on a rewind past
+the flip)*.
 
 ### `GET /sessions/:sessionId/renditions/:renditionId/asset`
 

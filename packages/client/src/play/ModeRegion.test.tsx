@@ -50,11 +50,18 @@ function answerWith(surfaces: unknown[]): void {
   given = surfaces;
 }
 
+/**
+ * *A sprite beside a line, by default.* ~~The stage's backdrop~~ was the
+ * default until 2026-10-13: P12A.2 took the stage out of this component
+ * (`Backdrop.tsx` draws it, behind the column), so the in-flow picture these
+ * tests read is the message region's, which is where an image arm still draws
+ * one.
+ */
 function surface(over: Record<string, unknown> = {}): Record<string, unknown> {
   return {
-    region: 'stage',
-    key: 'se.backdrop',
-    channelId: 'se.backdrop',
+    region: 'message',
+    key: 'se.expression',
+    channelId: 'se.expression',
     scopeKey: null,
     kind: 'image',
     label: 'The tavern',
@@ -64,7 +71,7 @@ function surface(over: Record<string, unknown> = {}): Record<string, unknown> {
 }
 
 async function renderRegion(
-  region: 'hud' | 'panel' | 'message' | 'stage' | 'settings',
+  region: 'hud' | 'panel' | 'message' | 'settings',
   scopeKey?: string | null,
   nameOf?: (scopeKey: string) => string,
 ): Promise<{ container: HTMLElement }> {
@@ -98,7 +105,7 @@ beforeEach(() => {
 describe('a mode’s contributed surface', () => {
   it('shows a picture the server resolved, with the declaration’s label as its alt', async () => {
     answerWith([surface()]);
-    await renderRegion('stage');
+    await renderRegion('message');
 
     const image = await screen.findByRole('img');
     expect(image.getAttribute('src')).toBe('/api/library/actors/a-1/media/m-1');
@@ -113,7 +120,7 @@ describe('a mode’s contributed surface', () => {
       surface(),
       surface({ region: 'panel', key: 'se.staging', kind: 'toggle', on: true }),
     ]);
-    const { container } = await renderRegion('stage');
+    const { container } = await renderRegion('message');
 
     expect(container.querySelectorAll('img')).toHaveLength(1);
     expect(container.querySelector('input')).toBeNull();
@@ -127,7 +134,7 @@ describe('a mode’s contributed surface', () => {
    */
   it('skips a widget kind it does not know', async () => {
     answerWith([surface({ kind: 'gauge', label: 'Health' })]);
-    const { container } = await renderRegion('stage');
+    const { container } = await renderRegion('message');
 
     expect(screen.queryByText('Health')).toBeNull();
     // And renders no wrapper either: a gap in the layout for a feature that is
@@ -142,7 +149,7 @@ describe('a mode’s contributed surface', () => {
    */
   it('skips a region it does not know', async () => {
     answerWith([surface({ region: 'sidebar' })]);
-    const { container } = await renderRegion('stage');
+    const { container } = await renderRegion('message');
 
     expect(container.textContent).toBe('');
   });
@@ -151,10 +158,12 @@ describe('a mode’s contributed surface', () => {
    * *Nothing when there is nothing*, and for the stage this is a requirement
    * rather than tidiness — [10 §2.3]: *"with the backdrop off Play is the
    * surface it was before, not a surface with an empty frame in it."*
+   * *(2026-10-13, P12A.2: the stage's half of this is `Backdrop.test.tsx`'s
+   * now; a flow region still draws no wrapper for nothing.)*
    */
   it('renders no frame when the session has nothing to show', async () => {
     answerWith([]);
-    const { container } = await renderRegion('stage');
+    const { container } = await renderRegion('message');
 
     expect(container.textContent).toBe('');
     expect(container.querySelector('img')).toBeNull();
