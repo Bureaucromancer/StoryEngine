@@ -175,6 +175,32 @@ describe('reading a session', () => {
   });
 
   /**
+   * ***The story at its measure on screen, and at the paper's on paper***
+   * (2026-10-13, P12A.1). The measure is about seventy characters of the
+   * story face, held in `ch`, and a `ch` counts the face of the element it is
+   * spent on — so the element that sets the story's face is the one that must
+   * carry it, which here is the article round every passage. The column
+   * releases its width for print (the test above), and the article has to
+   * release its own beside it, or the printed story would be set seventy
+   * characters wide inside the page's margins, which it never was.
+   *
+   * Classes rather than widths, because jsdom lays nothing out; the numbers
+   * are `theme.test.ts`'s.
+   */
+  it('sets the story to its measure in its own face, and gives the paper that back too', async () => {
+    renderPage();
+    const prose = await screen.findByText('The keeper points north.');
+    const article = prose.closest('article');
+
+    expect(article?.classList.contains('font-story')).toBe(true);
+    expect(article?.classList.contains('max-w-story')).toBe(true);
+    expect(article?.classList.contains('print:max-w-none')).toBe(true);
+    // And nothing between the passage and the article narrows it in some
+    // other face: the one measure is the article's.
+    expect(prose.closest('.max-w-story')).toBe(article);
+  });
+
+  /**
    * ***A picture is not its sentence twice*** (2026-10-01, polish 11). The alt
    * was the anchor — the sentence the picture sits right after — so a screen
    * reader read the sentence, then the picture as the same sentence.

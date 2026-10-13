@@ -13,7 +13,7 @@ import {
 } from '../api.js';
 import { useLibrary, useRenditions, useSession, type RenditionSet } from '../queries.js';
 import { Button } from '../ui/Button.js';
-import { link, page } from '../ui/classes.js';
+import { link, page, story } from '../ui/classes.js';
 import { COPY_WORDS, copyText } from '../ui/copy.js';
 import { Note, PageTitle } from '../ui/Text.js';
 import { MovePictures } from '../play/Pictures.js';
@@ -132,7 +132,16 @@ export function ReadingPage(props: { sessionId: string; from?: string }): JSX.El
         <Note>Nothing has been written in this session yet.</Note>
       ) : null}
 
-      <article className="flex flex-col gap-6 text-story font-story text-ink">
+      {/* ***The story at its measure, on screen*** (2026-10-13, P12A.1) — the
+          recipe sets the step, the face and about seventy characters of that
+          face on this element, so the passages, a move's quoted words and an
+          illustration all sit inside one measure, as a book's do, rather than
+          the pictures alone reaching the column's edge. *And on paper the
+          page's margins are the measure*, as the column's note above says, so
+          the article releases its cap for print beside the column. Kept on
+          paper, the cap would set a narrower page inside the page, and the
+          printed story was not the measure's to change. */}
+      <article className={`flex flex-col gap-6 ${story} text-ink print:max-w-none`}>
         {read.map((passage) => (
           <section key={passage.turnId} className="flex flex-col gap-2">
             {passage.said === null ? null : (

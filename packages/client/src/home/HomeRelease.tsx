@@ -6,6 +6,7 @@ import type { JSX } from 'react';
 import { findRelease } from '@storyengine/shared';
 
 import { useAuthState } from '../queries.js';
+import { story } from '../ui/classes.js';
 import { Note, SectionTitle } from '../ui/Text.js';
 import { OpenDockButton } from '../workbench/OpenDockButton.js';
 import { ChangelogDocument } from './ChangelogDocument.js';
@@ -67,12 +68,17 @@ export function HomeRelease({ release }: { release?: string }): JSX.Element {
       <Note>{showingLine(showing)}</Note>
       {/* **The Quiet family, for this block only** — [10 §1.2]'s three
           separators are type, measure and chrome, and this takes the first
-          two. `max-w-reading` inside `page.tooling` is a reading column in
+          two. ~~`max-w-reading`~~ *The story recipe (2026-10-13, P12A.1)*
+          inside `page.tooling` is a reading column in
           a tooling column rather than a reading page: home carries a
           control and sits beside the dock, so it keeps the shell's width
           and gives only its prose the story measure. `ui/classes.ts`'s
-          `page` docstring carries the argument. */}
-      <article className="mt-2 flex max-w-reading flex-col gap-3 text-story font-story text-ink-muted">
+          `page` docstring carries the argument. *The measure is about
+          seventy characters of the story face now rather than the reading
+          column's 48rem, which this block took whole, having no padding to
+          take off it — the widest prose in the client, and the one that
+          narrows most.* */}
+      <article className={`mt-2 flex flex-col gap-3 ${story} text-ink-muted`}>
         <ChangelogDocument body={shown.body} />
       </article>
     </section>

@@ -224,6 +224,11 @@ describe('the reading column', () => {
    * the call site rather than on the page column. Asserted because the class is
    * the whole of the decision — `ui/classes.ts`'s `page` docstring carries the
    * argument and nothing else would go red if the class were dropped.
+   *
+   * *(2026-10-13, P12A.1: the measure is the story recipe's, about seventy
+   * characters of the story face rather than the reading column's 48rem, so
+   * the class asserted is that one, on the element that carries the face its
+   * characters are counted in.)*
    */
   it('gives the prose the story measure without making the page a reading one', async () => {
     const { container } = render(
@@ -234,7 +239,8 @@ describe('the reading column', () => {
 
     const article = await screen.findByRole('article');
 
-    expect(article.className).toContain('max-w-reading');
+    expect(article.classList.contains('max-w-story')).toBe(true);
+    expect(article.classList.contains('font-story')).toBe(true);
     expect(article.className).toContain('text-story');
     // The page column is still the shell's, not the story column's.
     expect(container.querySelector('.max-w-4xl')).toBeTruthy();

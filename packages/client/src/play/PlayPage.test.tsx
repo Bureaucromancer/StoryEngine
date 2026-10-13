@@ -283,6 +283,44 @@ describe('the transcript', () => {
 });
 
 /**
+ * ***The prose at its measure, and the column left to the rest*** (2026-10-13,
+ * P12A.1). The story's measure is about seventy characters of its own face,
+ * held in `ch`, and a `ch` counts the face of the element it is spent on —
+ * so it is spent on each paragraph that is set in that face, and not on the
+ * column, which is set in the interface's and holds the composer. That
+ * placement is the decision, and the only thing jsdom can see of it: it lays
+ * nothing out, so the widths are `theme.test.ts`'s and a line's length is a
+ * person's look.
+ */
+describe('the measure', () => {
+  it('holds each paragraph of story to it, and leaves the composer the column', async () => {
+    renderPage();
+    const said = await screen.findByText('I knock twice.');
+    // A finished turn's prose is drawn in runs, so a mention can be marked
+    // inside it; the paragraph is the run's.
+    const written = screen.getByText('The door opens a handspan.').closest('p');
+    act(() => {
+      handlers.onFrame({ event: 'snapshot', data: { job: { id: 'job-1', status: 'running' } } });
+      handlers.onFrame({ event: 'delta', data: { text: 'The lamp gutters.' } });
+    });
+    const arriving = await screen.findByText('The lamp gutters.');
+
+    // The player's line, a finished turn's prose and the turn being written:
+    // each paragraph carries the measure itself, beside the face it counts.
+    for (const paragraph of [said, written, arriving]) {
+      expect(paragraph?.tagName).toBe('P');
+      expect(paragraph?.classList.contains('font-story')).toBe(true);
+      expect(paragraph?.classList.contains('max-w-story')).toBe(true);
+    }
+    // The composer is not prose, and nothing round it is narrowed to prose's
+    // measure; it keeps the reading column's width.
+    const composer = screen.getByRole('textbox', { name: 'What do you do?' });
+    expect(composer.closest('.max-w-story')).toBeNull();
+    expect(composer.closest('.max-w-reading')).toBeTruthy();
+  });
+});
+
+/**
  * ***In these worlds, on the session's page*** — [P16.1], [P16 §1.2]: the
  * backlink is the reverse query over the Worlds' members, beside the heading
  * with *Add to a world*. `SessionWorlds.test.tsx` holds what each says; this

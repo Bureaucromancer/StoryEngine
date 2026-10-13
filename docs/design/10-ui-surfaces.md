@@ -133,7 +133,8 @@ page: a surface may take **type** and **measure** for a block of prose without
 taking **chrome**, and without becoming a reading surface. Home does exactly
 that. Its column stays the shell's because it sits beside the workbench and
 carries a control; the rendered changelog inside it takes `--text-story` and
-`--container-reading` and nothing else. So a page can hold a reading column
+~~`--container-reading`~~ *`--container-story` (2026-10-13 — the measure moved
+onto the prose, §1.2's note)* and nothing else. So a page can hold a reading column
 without being one, and the test of which it is remains chrome — the story
 surfaces carry no border and no panel background, so tool chrome still cannot
 land on one by accident.
@@ -220,8 +221,9 @@ shortcut: [P2C](workplan/12-p2c-first-real-run.md) diagnosed the dark play
 surface as *"a stranded assumption rather than a theme"* — sixteen `neutral-*`
 utilities against a hundred and seventy-two `slate-*` — and its typed text
 measured **1.01 to 1**. What separates the two families is **type** (`text-story`
-at looser leading against the tooling steps), **measure** (`--container-reading`
-against the shell's width), and **chrome**: the story surfaces carry no border
+at looser leading against the tooling steps), **measure** (~~`--container-reading`
+against the shell's width~~ *`--container-story` on the prose — the dated note
+below*), and **chrome**: the story surfaces carry no border
 and no panel background, so tool chrome cannot land on one by accident.
 
 **Type is a face as well as a step** (2026-10-01, polish 5 —
@@ -233,6 +235,26 @@ load and a flash of the fallback while it arrives, on a server meant to need
 nothing from outside the house. The step and the face are one separator, so
 `theme.test.ts` refuses the step without the face, and home's changelog, which
 takes *type* for its one block of prose, takes both.
+
+**Measure is characters of the story face, not the column's width**
+*(2026-10-13, [P12A](workplan/35-p12a-the-look.md) P12A.1, under its §0.4)*.
+The measure was `--container-reading`, the reading column, which made it 45em
+of prose once the column's padding was off, whatever the face: something like
+ninety characters a line in a book serif. Nothing here named a target, so
+whether it held could not be checked. The target is **about seventy characters
+of the story face**, the middle of the range typographers cite for one column
+of prose, as `--container-story: 70ch`. **It is spent on the prose and not on
+the column**, because a `ch` is the zero of the face of the element it is
+resolved on, and the column is set in the interface face. So the measure
+follows the face: the same seventy is a different width in each face of the
+stack, as its letters are. `--container-reading` stays the story column's width, which the
+composer and the HUD share, and the prose starts on the column's edge with the
+room it gives back on the far side. The step, the face and the measure are
+one recipe, `story` in `ui/classes.ts`, and `theme.test.ts` refuses any of the
+three spelled anywhere else, which is what the pairing check above became.
+The reading view releases the measure for print with its column, since on
+paper the page's margins are the measure. How many characters a real line holds
+on each platform's serif is a person's look, not a test's.
 
 ### 1.3 The Marinara direction, and the three layers it has to be separated into
 

@@ -9,7 +9,7 @@ import type { AssembledBlock, BudgetVerdict, ModelCall, Turn } from '@storyengin
 import { ApiError } from '../api.js';
 import { formatCount, formatDuration, formatTimestamp } from '../format.js';
 import { useAuthState, useTurn } from '../queries.js';
-import { link, page, table } from '../ui/classes.js';
+import { link, page, story, table } from '../ui/classes.js';
 import { Note, PageTitle, SectionTitle, SubsectionTitle } from '../ui/Text.js';
 import { AlignedBlockTable } from '../workbench/turn/AlignedBlockTable.js';
 import { OUTCOME_LABELS } from '../workbench/turn/labels.js';
@@ -359,7 +359,13 @@ function Output({ label, text }: { label: string; text: string | undefined }): J
         // produced an empty string, and only one of them is worth a sentence.
         <Note>This turn produced no output.</Note>
       ) : (
-        <p className="whitespace-pre-wrap text-story font-story text-ink">{text}</p>
+        // The story recipe, measure and all (2026-10-13, P12A.1), though side
+        // by side each column is about 26em of the tooling width, well inside
+        // seventy characters, so the cap is never reached there. It is spent
+        // anyway because the pair is one recipe, and because below the
+        // two-column breakpoint one output takes the whole width and is then
+        // a block of prose like any other.
+        <p className={`whitespace-pre-wrap ${story} text-ink`}>{text}</p>
       )}
     </div>
   );

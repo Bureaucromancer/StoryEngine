@@ -8,7 +8,7 @@ import type { OutputMessage, RevisionNotice, TextSpan } from '@storyengine/share
 import type { ChatSettings, LibraryObject, SwipeGroups, TurnRecord } from '../api.js';
 import { labels } from '../i18n/catalogue.js';
 import { Button } from '../ui/Button.js';
-import { control, disclosure, reveal } from '../ui/classes.js';
+import { control, disclosure, reveal, story } from '../ui/classes.js';
 import { Fine } from '../ui/Text.js';
 import { isMessageHidden, messageOffsets, messageSiblings, type HiddenEntry } from './chat.js';
 import { MentionOverlay } from './MentionOverlay.js';
@@ -222,7 +222,7 @@ function InputLine(props: {
             }}
           />
         ) : (
-          <p className="whitespace-pre-wrap text-story font-story text-ink-subtle">{text}</p>
+          <p className={`whitespace-pre-wrap ${story} text-ink-subtle`}>{text}</p>
         )}
         {props.hiddenWhole ? <Fine>{WORDS.hiddenTurn}</Fine> : null}
         <div
@@ -301,7 +301,7 @@ function MessageLine(props: {
     <MentionOverlay
       text={message.text}
       spans={props.spans}
-      className="whitespace-pre-wrap text-story font-story text-ink"
+      className={`whitespace-pre-wrap ${story} text-ink`}
     />
   );
 

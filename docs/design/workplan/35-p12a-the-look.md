@@ -842,6 +842,111 @@ holds at `--container-reading` with the new face's x-height, which that commit
 does not say it measured. ~~Cheap, visible, and it is the stage that proves
 P12A.0's tokens reach a surface.~~
 
+***Built 2026-10-13***, under §0.4's decision for this stage: **the measure**.
+`index.css`'s `@theme` names **`--container-story: 70ch`**, beside
+`--container-reading`, and `ui/classes.ts` names one recipe that spends it,
+**`story`** — `text-story font-story max-w-story`, the step, the face and the
+measure in one string. The fourteen class strings that paired the step and the
+face by hand spend the recipe now, so the measure lands on **the element that
+carries the face**, which is the whole reason it is a recipe: a `ch` is the
+advance of the zero in the font of the element it is resolved on, and the token
+is an unregistered custom property, so `70ch` travels as text and resolves where
+`max-width` uses it rather than on `:root`. On the column, which is set in the
+interface face, the same seventy would count characters of the sans. **The
+column stays `page.reading`, 48rem**, for the composer and the HUD, which are
+not prose. The prose is not centred in it — it starts on the column's text line
+with the title and the composer, by `ui/classes.ts`'s rule that a margin belongs
+at the call site, and the room the measure gives back is on the far side.
+
+**The target, and why.** About **seventy characters of the story face** — the
+middle of the range typographers commonly cite for a single column of prose,
+which is §0.4's wording, held by the test to the band sixty to eighty either
+side of it. It replaces a measure nobody chose: 45em of prose once the column's
+padding is off, whatever the face, which the audit estimated at ninety to a
+hundred characters of a text serif. *A `ch` is the zero, not the average
+letter*, so seventy `ch` is a width that holds about seventy characters of
+running text in a face whose figures are about as wide as its lower case; how
+many a real line holds in Charter, Sitka Text or Noto Serif needs a browser,
+and §3.1 already files a second platform's rendering as a standing row rather
+than a critical one.
+
+**The fourteen sites, each decided rather than swept.**
+
+| Site | The element the recipe lands on | What the cap does there |
+|---|---|---|
+| The reading view (`reading/ReadingPage.tsx`) | The `<article>` round every passage | A passage, a move's quoted words and an illustration share one measure, as a book's do; an illustration wider than the measure is drawn at it, centred by its own `mx-auto`. **Released for print** at the call site, `print:max-w-none` beside the column's own, so the printed story is set as it was. |
+| The transcript's prose, five strings (`IllustratedProse`) | Each `MentionOverlay` paragraph | The prose narrows; a picture between two halves of a turn is the paragraphs' sibling, so it keeps the column's width, as it did. |
+| The player's line (`TurnView`) | Its `<p>` | Narrows like the prose it precedes. |
+| The turn being written, three strings (`LiveTurn`) | The joined text, a narrator's line, and a named speaker's line beside a portrait | Arrives at the measure it will have when it lands, so a finished turn does not reflow. |
+| A chat's lines, two strings (`ChatMessages`) | The input line and each message, beside a `w-8` portrait and a `gap-2` | The column there is about 42.5em, so the cap applies wherever seventy characters of the face come to less, and costs nothing where they do not. |
+| Home's changelog (`home/HomeRelease.tsx`) | The `<article>`, which drops its `max-w-reading` for the recipe | The widest prose in the client was this one — 48em, having no padding to take off — and it narrows most. |
+| Compare's two outputs, one string (`compare/ComparePage.tsx`) | Each output's `<p>` | **Harmless, and said so at the call site**: side by side each column is about 26em of the tooling width, well inside the cap; below the two-column breakpoint one output takes the width and is a block of prose like any other. |
+
+**What the stage text said and what turned out different:**
+
+- *"The measure still holds at `--container-reading` with the new face's
+  x-height"* — there was nothing to hold it to, and once a target was written
+  down it did not hold: ninety-odd characters against seventy. So the stage is
+  not the check it was written as; it is §0.4's move of the measure off the
+  column and onto the prose, and the check is where the measure is spent.
+  `--container-reading` keeps its name and its value and stops being the
+  measure.
+- *§0.4's "every `text-story` element carries it"* is held as the stronger
+  thing the recipe makes possible: **no class string in the client but the
+  recipe spells any of the three** — the step, the face or the measure — so a
+  paragraph cannot take the step without the measure, and nothing can take the
+  measure in a face it does not count. A surface that wants one of them alone
+  adds a second recipe, which is a decision rather than a default, as `reveal`'s
+  rule has it.
+- *Found by building it*: the reading view's column releases its width for
+  print, and an article capped at seventy characters inside it would have
+  printed a narrower page inside the page. The article releases its own cap
+  beside the column's; the recipe does not carry the release, because the
+  paper is the call site's business as the column's was.
+- *The test file's lexer moved*: `strip` and `literals`, written in P12A.0 for
+  the radius scan, are hoisted to module scope in `theme.test.ts` so the
+  recipe's scan reads string literals the same way, template text included.
+- *Comments and the corpus*: 10 §1.1 and §1.2 have dated notes, the measure's
+  `--container-reading` struck where they named it; `ui/classes.ts`'s `page`
+  docstring and the play column's comment carry dated notes beside what they
+  said.
+
+**The emitted CSS**, from `packages/client/dist/assets/index-*.css`:
+`--container-reading:48rem;--container-story:70ch` in `:root`, and
+`.max-w-story{max-width:var(--container-story)}` — the `var()` survives, and no
+`@property` registers the token, so `ch` resolves on the element.
+
+**Tests, each checked against a mutation and restored.** In `theme.test.ts`, a
+new describe, *the story's measure*: *holds the measure in characters, about
+seventy of them* fails with the step at `38rem`, at `90ch`, at `50ch`, and
+undeclared; *spends it on the prose, through the recipe that sets the face*
+fails with the recipe lacking `max-w-story`, with the column spending
+`max-w-story` in place of `max-w-reading`, and with the column carrying both;
+*is spelled nowhere but the recipe* fails with the pair re-typed at Compare,
+with the pair written beside a `${reveal}` hole on the player's line, with
+`max-w-story` written on home's article outside the recipe, and with
+`font-story` alone on a heading — and its calibration, the recipe found exactly
+once, fails with the lexer made blind; *is spent wherever the story is set*
+(at least fourteen holes) fails with Compare's output losing the recipe. The
+faces describe's pairing test, *never sets the story step without the story
+face*, is a test of the recipe now, and fails with `font-story` taken out of it.
+In `ReadingPage.test.tsx`, *sets the story to its measure in its own face, and
+gives the paper that back too* fails with the article's `print:max-w-none`
+removed, with the recipe lacking the measure, and with a passage's paragraph
+given a measure of its own. In `PlayPage.test.tsx`, *holds each paragraph of
+story to it, and leaves the composer the column* — the player's line, a
+finished turn's prose and a streaming one — fails with the column spending
+`max-w-story`, with the recipe lacking the measure, and with the turn being
+written put back on the bare pair. `HomePage.test.tsx`'s reading-column test
+asserts the story measure on the article and fails with it back on
+`max-w-reading`. *Not looked at in a browser* — none is installed where this
+was built.
+
+**Entry after: 310.37 kB** of a 315 ceiling (310.33 before; the recipe is
+imported at five sites), **CSS 7.99** (7.98 before: the new token and its
+utility) — gzip level 9 over the files `index.html` pulls, the budget test's
+method.
+
 ### P12A.2 — The backdrop becomes a backdrop
 
 §1.2's four behaviours, plus the **choose-an-image** path that makes them

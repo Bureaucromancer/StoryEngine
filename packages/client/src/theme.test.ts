@@ -7,6 +7,8 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
+import { page, story } from './ui/classes.js';
+
 /**
  * The palette, checked as a thing with rules rather than read as decoration.
  *
@@ -319,6 +321,82 @@ describe('controls that hide until you look at them', () => {
 });
 
 /**
+ * Source with its comments gone — block comments and whole-line `//` ones —
+ * so a class named in a sentence about classes is not read as one spent.
+ *
+ * *Hoisted, with `literals` below, out of the radius scan* (2026-10-13,
+ * [P12A.1]), because the story recipe's scan reads string literals the same
+ * way and a second lexer would be a second answer to one question.
+ */
+const strip = (text: string): string =>
+  text.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/^[ \t]*\/\/.*$/gm, ' ');
+
+/**
+ * Every string literal's text. A template literal's `${…}` holes are read
+ * as code, so the `'a'` inside one is a literal of its own and the
+ * template's text is what is left around it — which is how `${reveal} flex`
+ * is read as ` flex`. A quoted string stops at a line's end, so the
+ * apostrophe in a line of JSX prose cannot swallow the file after it.
+ */
+function literals(source: string): string[] {
+  const found: string[] = [];
+  let at = 0;
+  const code = (inHole: boolean): void => {
+    let depth = 0;
+    while (at < source.length) {
+      const char = source[at];
+      if (char === "'" || char === '"') {
+        quoted(char);
+        continue;
+      }
+      if (char === '`') {
+        template();
+        continue;
+      }
+      if (char === '{') depth += 1;
+      if (char === '}') {
+        if (inHole && depth === 0) {
+          at += 1;
+          return;
+        }
+        depth -= 1;
+      }
+      at += 1;
+    }
+  };
+  const quoted = (quote: string): void => {
+    let text = '';
+    at += 1;
+    while (at < source.length && source[at] !== quote && source[at] !== '\n') {
+      if (source[at] === '\\') at += 1;
+      text += source[at] ?? '';
+      at += 1;
+    }
+    at += 1;
+    found.push(text);
+  };
+  const template = (): void => {
+    let text = '';
+    at += 1;
+    while (at < source.length && source[at] !== '`') {
+      if (source[at] === '$' && source[at + 1] === '{') {
+        at += 2;
+        text += ' ';
+        code(true);
+        continue;
+      }
+      if (source[at] === '\\') at += 1;
+      text += source[at] ?? '';
+      at += 1;
+    }
+    at += 1;
+    found.push(text);
+  };
+  code(false);
+  return found;
+}
+
+/**
  * ***Radius, elevation and motion are spent by name*** (2026-10-13) — [P12A.0].
  *
  * The palette rule's other half. ESLint refuses a palette scale because a
@@ -367,74 +445,6 @@ describe('radius, elevation and motion are spent by name', () => {
       if (!/\.tsx?$/.test(entry.name) || /\.test\.tsx?$/.test(entry.name)) return [];
       return [path];
     });
-  }
-
-  const strip = (text: string): string =>
-    text.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/^[ \t]*\/\/.*$/gm, ' ');
-
-  /**
-   * Every string literal's text. A template literal's `${…}` holes are read
-   * as code, so the `'a'` inside one is a literal of its own and the
-   * template's text is what is left around it — which is how `${reveal} flex`
-   * is read as ` flex`. A quoted string stops at a line's end, so the
-   * apostrophe in a line of JSX prose cannot swallow the file after it.
-   */
-  function literals(source: string): string[] {
-    const found: string[] = [];
-    let at = 0;
-    const code = (inHole: boolean): void => {
-      let depth = 0;
-      while (at < source.length) {
-        const char = source[at];
-        if (char === "'" || char === '"') {
-          quoted(char);
-          continue;
-        }
-        if (char === '`') {
-          template();
-          continue;
-        }
-        if (char === '{') depth += 1;
-        if (char === '}') {
-          if (inHole && depth === 0) {
-            at += 1;
-            return;
-          }
-          depth -= 1;
-        }
-        at += 1;
-      }
-    };
-    const quoted = (quote: string): void => {
-      let text = '';
-      at += 1;
-      while (at < source.length && source[at] !== quote && source[at] !== '\n') {
-        if (source[at] === '\\') at += 1;
-        text += source[at] ?? '';
-        at += 1;
-      }
-      at += 1;
-      found.push(text);
-    };
-    const template = (): void => {
-      let text = '';
-      at += 1;
-      while (at < source.length && source[at] !== '`') {
-        if (source[at] === '$' && source[at + 1] === '{') {
-          at += 2;
-          text += ' ';
-          code(true);
-          continue;
-        }
-        if (source[at] === '\\') at += 1;
-        text += source[at] ?? '';
-        at += 1;
-      }
-      at += 1;
-      found.push(text);
-    };
-    code(false);
-    return found;
   }
 
   /** The utility a class names, without its variants, its `!` or its sign. */
@@ -627,19 +637,15 @@ describe('the appearance layer is spelled once', () => {
  * and not its face, which looks like a typo in the theme rather than a choice.
  * So the pairing is checked rather than remembered, in every class string in
  * the client, and so is the promise that neither face is a download.
+ *
+ * *(2026-10-13, [P12A.1]: the pairing is a recipe now, `story` in
+ * `ui/classes.ts`, and it carries the measure with the step and the face —
+ * the next describe says why the three are one string. So the check that
+ * every class string paired the two became a check that no class string but
+ * the recipe spells any of the three.)*
  */
 describe('the two faces', () => {
-  const ROOT = fileURLToPath(new URL('.', import.meta.url));
   const theme = blockAt(only(THEME));
-
-  function sources(dir: string): string[] {
-    return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-      const path = join(dir, entry.name);
-      if (entry.isDirectory()) return sources(path);
-      if (!/\.tsx?$/.test(entry.name) || /\.test\.tsx?$/.test(entry.name)) return [];
-      return [path];
-    });
-  }
 
   /** The families in a stack, unquoted, in order. */
   function families(token: string): string[] {
@@ -663,18 +669,103 @@ describe('the two faces', () => {
   });
 
   it('never sets the story step without the story face', () => {
-    const strip = (text: string): string =>
-      text.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/^[ \t]*\/\/.*$/gm, ' ');
-    const classStrings = sources(ROOT).flatMap((path) =>
-      [...strip(readFileSync(path, 'utf8')).matchAll(/(["'`])([^"'`]*)\1/g)]
-        .map((match) => match[2] ?? '')
-        .filter((value) => /(?:^|\s)text-story(?:\s|$)/.test(value))
-        .map((value) => ({ path: path.slice(ROOT.length), value })),
+    // It read every class string in the client for the pair until P12A.1.
+    // The step and the face are one recipe now, so this holds the recipe to
+    // both, and the next describe holds every other string to neither.
+    const tokens = story.split(/\s+/);
+    expect(tokens).toContain('text-story');
+    expect(tokens).toContain('font-story');
+  });
+});
+
+/**
+ * ***The story's measure, in characters of its own face*** (2026-10-13) —
+ * [P12A.1], under P12A §0.4's decision.
+ *
+ * The measure was the reading column's width, which made it 45em of prose
+ * whatever the face: ninety-odd characters a line in a book serif, against
+ * the seventy or so typographers cite, and nothing in the corpus said which
+ * it should be. It is `--container-story` now, about seventy `ch`, and the
+ * trap that comes with `ch` is the reason most of this describe exists: a
+ * `ch` is the zero of **the element it is resolved on**. Spent on the
+ * column, which is set in the interface face, seventy would be seventy
+ * characters of the sans and some other number of the serif. So the measure
+ * is spent only by the recipe that also sets the face, and the recipe is the
+ * only place any of the three is spelled.
+ *
+ * What none of this can see is a line on a screen. jsdom lays nothing out,
+ * so how many characters a real line holds in Charter, Sitka or Noto Serif
+ * is a person's look, and P12A §3.1 files a second platform's rendering as a
+ * standing row. These hold the numbers the stylesheet states and where they
+ * are spent, which is what drifts without anybody seeing it.
+ */
+describe("the story's measure", () => {
+  const ROOT = fileURLToPath(new URL('.', import.meta.url));
+  const RECIPES = join('ui', 'classes.ts');
+
+  function sources(dir: string): string[] {
+    return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+      const path = join(dir, entry.name);
+      if (entry.isDirectory()) return sources(path);
+      if (!/\.tsx?$/.test(entry.name) || /\.test\.tsx?$/.test(entry.name)) return [];
+      return [path];
+    });
+  }
+
+  /** The step, the face and the measure — any of them, as a class. */
+  const STORY = /(?:^|\s)(?:text-story|font-story|max-w-story)(?:\s|$)/;
+
+  it('holds the measure in characters, about seventy of them', () => {
+    // In `ch` and nothing else: a measure in `rem` or `em` is a width, and
+    // a width is what the column already was. Sixty to eighty is the band
+    // the target sits in the middle of; outside it the number has stopped
+    // being the decision P12A §0.4 recorded and wants a new one.
+    const measure = /^(\d+(?:\.\d+)?)ch$/.exec(light.get('--container-story') ?? '');
+    expect(measure, '--container-story is not a number of ch').not.toBeNull();
+    const characters = Number(measure?.[1]);
+    expect(characters).toBeGreaterThanOrEqual(60);
+    expect(characters).toBeLessThanOrEqual(80);
+  });
+
+  it('spends it on the prose, through the recipe that sets the face', () => {
+    // The class names the step Tailwind reads from `--container-*`, so the
+    // recipe's `max-w-story` is this token and no other, and it sits in one
+    // string with `font-story` so that every element measured is an element
+    // set in the face its `ch` counts.
+    expect(story.split(/\s+/).sort()).toEqual(['font-story', 'max-w-story', 'text-story']);
+    // And the column is not the measure: it is the reading column still,
+    // for the composer and the panels, and a story measure on it would
+    // count characters of the interface face.
+    expect(page.reading.split(/\s+/)).toContain('max-w-reading');
+    expect(page.reading).not.toMatch(STORY);
+  });
+
+  it('is spelled nowhere but the recipe, so no paragraph takes one half of it', () => {
+    // Every string literal in the client, template text included, through
+    // the lexer the radius scan uses — so `${story} text-ink` is read as
+    // ` text-ink` and a pair re-typed beside a hole is still found.
+    // Calibrated by the recipe itself: a reader that went blind would not
+    // find it, and the count would be nought rather than one.
+    const recipe = `${RECIPES}: ${story}`;
+    const spelled = sources(ROOT).flatMap((path) =>
+      literals(strip(readFileSync(path, 'utf8')))
+        .filter((text) => STORY.test(text))
+        .map((text) => `${path.slice(ROOT.length)}: ${text.trim()}`),
     );
-    // Calibrated, so a pattern that stopped matching anything cannot pass: the
-    // reading view, the transcript, the chat and home are all story type.
-    expect(classStrings.length).toBeGreaterThanOrEqual(10);
-    const unpaired = classStrings.filter(({ value }) => !/(?:^|\s)font-story(?:\s|$)/.test(value));
-    expect(unpaired).toEqual([]);
+    expect(spelled.filter((found) => found !== recipe)).toEqual([]);
+    expect(spelled.filter((found) => found === recipe)).toHaveLength(1);
+  });
+
+  it('is spent wherever the story is set', () => {
+    // The other half of the calibration: fourteen paragraphs of story — the
+    // reading view's article, five of the transcript's prose, the player's
+    // line, three of the turn being written, two of a chat's, home's
+    // changelog and Compare's output — each spend the recipe through a
+    // template's hole. Fewer means a surface lost its story type without
+    // the scan above having anything to refuse.
+    const spent = sources(ROOT)
+      .filter((path) => !path.endsWith(RECIPES))
+      .flatMap((path) => [...strip(readFileSync(path, 'utf8')).matchAll(/\$\{story\}/g)]);
+    expect(spent.length).toBeGreaterThanOrEqual(14);
   });
 });

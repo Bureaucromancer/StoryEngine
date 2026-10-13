@@ -289,6 +289,31 @@
   --text-story--line-height: 1.7;
   --container-reading: 48rem;
 
+  /* **The measure, in characters of the story face** (2026-10-13,
+     [P12A](../../../docs/design/workplan/35-p12a-the-look.md) P12A.1).
+     `--container-reading` above is the story *column* — the composer and
+     the HUD share it — and until this step it was the measure too: 45em of
+     prose once the column's padding is taken off, whatever the face, which
+     in a text serif is something like ninety characters a line. Nothing in
+     the corpus named a target, so "the measure still holds" could not be
+     checked; P12A §0.4 wrote one down. **About seventy characters**, the
+     middle of the range typographers cite for a single column of prose:
+     long enough that a sentence is not chopped into a ragged stack, short
+     enough that the eye finds the next line's start without hunting.
+
+     **In `ch`, so the measure follows the face rather than the column.** A
+     `ch` is the advance of the zero in the font of the element it is
+     resolved on, so the same seventy is a different width in each face of
+     the stack, as its letters are. Two things make that true only on the
+     prose itself, and the recipe in `ui/classes.ts` that spends this
+     (`story`) is where both are kept. The token is an unregistered custom
+     property, so `70ch` travels as text and is resolved where `max-width`
+     uses it, not here on `:root`. And that has to be an element set in the
+     story face — on the column, which is set in the interface face, it
+     would be seventy characters of the sans. theme.test.ts holds the value
+     in `ch` and between sixty and eighty. */
+  --container-story: 70ch;
+
   /* Two faces, and both of them already on the machine (2026-10-01).
 
      **`--font-ui` is the platform's own interface face**, named rather than

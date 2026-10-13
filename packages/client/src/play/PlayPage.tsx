@@ -2,7 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { control, link, page, reveal } from '../ui/classes.js';
+import { control, link, page, reveal, story } from '../ui/classes.js';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 
@@ -1060,6 +1060,12 @@ export function PlayPage({
     // triggered. The column is `page.reading`, not the tooling width: this is
     // the story surface, and the reading measure is the token's one designed
     // use ([10 §1.2]).
+    //
+    // *(2026-10-13, P12A.1: the measure is the prose's own now, about seventy
+    // characters of the story face through `story` in `ui/classes.ts`, so the
+    // turns sit narrower than this column. The column keeps its width for the
+    // composer and the panels, which are not prose and gain nothing from a
+    // reader's line length.)*
     <div className={`${page.reading} flex h-full flex-col gap-4`}>
       <div className="flex flex-wrap items-center gap-2">
         {/*
@@ -1626,7 +1632,7 @@ function IllustratedProse({
       <MentionOverlay
         text={text}
         spans={spans}
-        className="whitespace-pre-wrap text-story font-story text-ink"
+        className={`whitespace-pre-wrap ${story} text-ink`}
       />
     );
   }
@@ -1651,7 +1657,7 @@ function IllustratedProse({
       <MentionOverlay
         text={text}
         spans={spans}
-        className="whitespace-pre-wrap text-story font-story text-ink"
+        className={`whitespace-pre-wrap ${story} text-ink`}
       />
     );
   }
@@ -1685,7 +1691,7 @@ function IllustratedProse({
         <MentionOverlay
           text={text}
           spans={spans}
-          className="whitespace-pre-wrap text-story font-story text-ink"
+          className={`whitespace-pre-wrap ${story} text-ink`}
         />
         {picture}
         {chooser}
@@ -1698,7 +1704,7 @@ function IllustratedProse({
       <MentionOverlay
         text={text.slice(0, at)}
         spans={spans.filter((span) => span.end <= at)}
-        className="whitespace-pre-wrap text-story font-story text-ink"
+        className={`whitespace-pre-wrap ${story} text-ink`}
       />
       {picture}
       {chooser}
@@ -1715,7 +1721,7 @@ function IllustratedProse({
         spans={spans
           .filter((span) => span.start >= at)
           .map((span) => ({ ...span, start: span.start - at, end: span.end - at }))}
-        className="whitespace-pre-wrap text-story font-story text-ink"
+        className={`whitespace-pre-wrap ${story} text-ink`}
       />
     </>
   );
@@ -1883,7 +1889,7 @@ function TurnView({
   return (
     <li className="group/turn flex flex-col gap-1">
       {chatShaped || turn.input === undefined || turn.input.text === '' ? null : (
-        <p className="text-story font-story text-ink-subtle">{turn.input.text}</p>
+        <p className={`${story} text-ink-subtle`}>{turn.input.text}</p>
       )}
       {turn.input?.attachments === undefined ? null : (
         <MovePictures sessionId={sessionId} pictures={turn.input.attachments} />
@@ -2334,7 +2340,7 @@ function LiveTurn(props: {
       <li aria-live="polite" aria-busy="true" className="flex flex-col gap-3">
         {props.messages.map((message, index) =>
           message.speaker === null ? (
-            <p key={index} className="whitespace-pre-wrap text-story font-story text-ink">
+            <p key={index} className={`whitespace-pre-wrap ${story} text-ink`}>
               {message.text}
             </p>
           ) : (
@@ -2345,7 +2351,7 @@ function LiveTurn(props: {
               />
               <div className="flex min-w-0 flex-1 flex-col gap-1">
                 <span className="text-sm font-medium text-ink">{message.speaker.name}</span>
-                <p className="whitespace-pre-wrap text-story font-story text-ink">{message.text}</p>
+                <p className={`whitespace-pre-wrap ${story} text-ink`}>{message.text}</p>
               </div>
             </div>
           ),
@@ -2356,7 +2362,7 @@ function LiveTurn(props: {
   if (props.text.length === 0) return null;
   return (
     <li aria-live="polite" aria-busy="true">
-      <p className="whitespace-pre-wrap text-story font-story text-ink">{props.text}</p>
+      <p className={`whitespace-pre-wrap ${story} text-ink`}>{props.text}</p>
     </li>
   );
 }
