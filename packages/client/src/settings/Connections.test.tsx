@@ -77,7 +77,12 @@ vi.mock('../api.js', async (importOriginal) => ({
   },
 }));
 
-const { AdminConnections, MyConnections } = await import('./Connections.js');
+// The install's panel moved to a file of its own on 2026-10-13, for the
+// administration half's chunk (`AdminConnections.tsx` says why); the panel, the
+// form and the dialog both import draw are still `Connections.tsx`'s, which is
+// what this file tests through either.
+const { AdminConnections } = await import('./AdminConnections.js');
+const { MyConnections } = await import('./Connections.js');
 
 function connection(over: Record<string, unknown> = {}) {
   return {

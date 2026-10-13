@@ -131,8 +131,10 @@ vi.mock('@tanstack/react-router', async (importOriginal) => ({
     options?.select === undefined ? { hash } : options.select({ hash }),
 }));
 
-const { SettingsPage } = await import('./SettingsPage.js');
-const { SECTIONS, settingsContents } = await import('./contents.js');
+const { AdministrationChunkError, AdministrationLoad, SettingsPage } =
+  await import('./SettingsPage.js');
+const { SECTIONS, SettingsAnchor, settingsContents, useJumpOnArrival } =
+  await import('./contents.js');
 
 function account(role: 'admin' | 'user') {
   return {
@@ -303,7 +305,13 @@ describe('the dead-end warning', () => {
   it('says how many, and what fixes it', async () => {
     renderPage('admin');
 
-    const warning = await screen.findByRole('status');
+    // Inside the accounts section, since 2026-10-13: the administration half
+    // is a chunk of its own, and while it is on its way the page's one status
+    // is the sentence saying so — which a page-wide find took for this
+    // warning whenever this test ran first in the file, before the chunk was
+    // cached.
+    const accounts = await screen.findByRole('region', { name: 'Accounts' });
+    const warning = await within(accounts).findByRole('status');
     expect(warning.textContent).toContain('1 person has no usable connection');
     // With no system connection at all, this is one fix rather than n — which
     // is the fact the second number exists to make obvious.
@@ -1083,11 +1091,23 @@ describe('the contents', () => {
     expect(anchorsDrawn()).toContain('myConnections');
   });
 
+  /**
+   * ***Once the administration half has arrived*** (2026-10-13,
+   * [21 §7.5](../../../../docs/design/21-client-loading.md)). Its heading and
+   * anchor are the page's, drawn with the role; its four sections and their
+   * anchors come with its chunk, a moment later. Read straight after the
+   * heading, as this test did until that date, the list was the user half's
+   * eight and the administration anchor without the four inside it — and the
+   * test passed only when another in the file had already fetched the chunk.
+   * `SettingsPage.arrival.test.tsx` holds what a jump does in that moment.
+   */
   it('draws exactly what it lists, for an administrator', async () => {
     renderAs(account('admin'));
     await screen.findByRole('heading', { name: 'Administration' });
 
-    expect(anchorsDrawn()).toEqual(listed(settingsContents(account('admin'))));
+    await waitFor(() => {
+      expect(anchorsDrawn()).toEqual(listed(settingsContents(account('admin'))));
+    });
   });
 
   /**
@@ -1134,5 +1154,105 @@ describe('the contents', () => {
     expect(document.getElementById(SECTIONS.accounts.anchor)).toBeNull();
     expect(document.activeElement).toBe(document.body);
     expect(scrolled).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * ***The administration half's boundary*** — 2026-10-13,
+ * [21 §7.5](../../../../docs/design/21-client-loading.md).
+ *
+ * Thrown at directly, as `PublishRoute.test.tsx` holds the publish review's
+ * two sentences apart: a failed load — the error the `lazy()` factory makes of
+ * an import's rejection — is told to reload, and anything else is not, since a
+ * reload would only repeat a bug. `SettingsPage.load.test.tsx` runs the real
+ * factory against a chunk that never arrives.
+ */
+describe('the administration half’s boundary', () => {
+  function Throws(props: { error: Error }): never {
+    throw props.error;
+  }
+
+  it('tells a failed load to reload', () => {
+    // React reports an error a boundary caught; expected here.
+    const quiet = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    render(
+      <AdministrationLoad>
+        <Throws error={new AdministrationChunkError(new Error('404'))} />
+      </AdministrationLoad>,
+    );
+    expect(screen.getByRole('alert').textContent).toContain('reload the page');
+    quiet.mockRestore();
+  });
+
+  it('does not blame an upgrade for a section that fails as it draws', () => {
+    const quiet = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    render(
+      <AdministrationLoad>
+        <Throws error={new Error('a bug')} />
+      </AdministrationLoad>,
+    );
+    const said = screen.getByRole('alert').textContent;
+    expect(said).toContain('stopped with an error');
+    expect(said).not.toContain('reload');
+    quiet.mockRestore();
+  });
+});
+
+/**
+ * ***A part of the page that arrives after it*** — `useJumpOnArrival`,
+ * 2026-10-13. The administration half's anchors are drawn by its chunk, after
+ * the page's own jump has run; the half asks for the jump again as it is
+ * drawn, and only for its own sections. Here the late part is drawn by hand,
+ * so what is held is the hook's rule; `SettingsPage.arrival.test.tsx` holds
+ * the page's half calling it, against a chunk that is made to arrive late.
+ */
+describe('a part of the page that arrives late', () => {
+  function Late(): React.JSX.Element {
+    useJumpOnArrival(['connections']);
+    return (
+      <SettingsAnchor of="connections">
+        <p>The late part</p>
+      </SettingsAnchor>
+    );
+  }
+
+  it('lands on its own section, which the address named before it existed', async () => {
+    hash = SECTIONS.connections.anchor;
+    render(<Late />);
+
+    await waitFor(() => {
+      expect(document.activeElement?.id).toBe(SECTIONS.connections.anchor);
+    });
+  });
+
+  /**
+   * **The one it must not do**: the page already landed on the section the
+   * address names, and the person has moved on — here, into a field. A late
+   * part re-jumping to it would take them back and take the field's focus.
+   */
+  it('leaves a section it does not draw where the page left it', async () => {
+    hash = SECTIONS.trash.anchor;
+    const { rerender } = render(
+      <SettingsAnchor of="trash">
+        <input aria-label="Something being typed" />
+      </SettingsAnchor>,
+    );
+    const field = screen.getByLabelText('Something being typed');
+    field.focus();
+    const scrolled = vi.spyOn(Element.prototype, 'scrollIntoView');
+
+    rerender(
+      <>
+        <SettingsAnchor of="trash">
+          <input aria-label="Something being typed" />
+        </SettingsAnchor>
+        <Late />
+      </>,
+    );
+    await screen.findByText('The late part');
+
+    expect(document.activeElement).toBe(field);
+    expect(scrolled).not.toHaveBeenCalled();
+    scrolled.mockRestore();
   });
 });

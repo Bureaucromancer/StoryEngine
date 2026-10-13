@@ -597,3 +597,116 @@ copies `CheckboxField`'s markup rather than importing `ui/Field`. The entry
 measured **311.66**, then **311.84** with review's fixes: 0.16 kB under a
 ceiling this stage did not raise. *The next client change of any size meets it.*
 
+### 7.5 The administration half of Settings is a chunk of its own (2026-10-13)
+
+**What forced it was named in advance, and then chosen over a raise.**
+`tools/entry-budget.test.ts`'s raise to 317 at [P16](workplan/34-p16-world.md)'s
+final audit measured this split and named it as the next remedy;
+[P12A](workplan/35-p12a-the-look.md)'s opening audit (its §0.4) built it before
+the phase's first stage, because every stage of that phase is client work and
+the alternative was a raise at each. The entry measured **313.21 kB** at the
+phase's base (`e460b637`), under four kilobytes from the ceiling.
+
+**The boundary.** The half an administrator alone is drawn — accounts, the
+install's connections and role table, the install's settings, the install's
+backups — is one chunk, `settings/Administration.tsx`, with the four sections'
+anchors. `SettingsPage.tsx` keeps the half's heading and its anchor, the
+sentence while the chunk is on its way, and the `lazy()` with its boundary, all
+inside the one conditional that draws the half for an administrator — so
+[10 §15](10-ui-surfaces.md)'s *absent is absent* now holds for the code as well
+as for the requests: a non-admin's browser never fetches the chunk. *Not a
+route boundary*: Settings stays one route with two halves, which is what 10 §15
+keeps it for.
+
+**What the boundary taught**, which is the reason for this section:
+
+- ***A file read by both halves stays where its first reader is.*** §7.4's
+  lesson, met in the client's own code rather than in `shared`.
+  `Connections.tsx` held the personal panel (`MyConnections`, drawn for
+  anybody with `privateConnections`) and the install's panel, role table and
+  first-run question. With the personal panel on the entry, the whole file was
+  — so the install's half moved to `AdminConnections.tsx`, the file's name
+  before [P10.3](workplan/27-p10-implementation.md), and the first-run
+  question reaches the shared form through a slot instead of being drawn by it.
+  That split is **1.37 kB** of the drop: with `AdminConnections.tsx` re-exported
+  from `Connections.tsx`, which is the one-line regression, the entry measures
+  **311.67**.
+- ***An anchor a chunk draws arrives after the jump.*** The page follows its
+  address's hash when the hash or the account's role changes; the half's four
+  anchors arrive a moment after both, so `/settings#connections-section` —
+  pasted, reloaded, or a contents row pressed before the chunk was in — would
+  have left the page at the top. The half asks for the jump again as it is
+  drawn (`useJumpOnArrival`, in `settings/contents.tsx`), **once and only for
+  its own sections**: re-jumping to a section of the user half when the chunk
+  arrived would take a person back to where they had arrived after they moved
+  on, and take focus from a field they had started typing in.
+- ***A test that read the page at once read it before the chunk.*** Two of
+  `SettingsPage.test.tsx`'s tests passed only because an earlier test in the
+  file had already fetched the chunk — React caches a resolved `lazy` — and
+  failed run alone: the contents test read the anchors straight after the
+  half's heading, and the dead-end warning's test took the page's first
+  `status` for the warning, which while the chunk loads is the sentence saying
+  so. Both now wait for the half. Every test in that file was run alone to find
+  them.
+
+**Measured with the entry-budget test's compressor**, gzip level 9 over
+everything `index.html` pulls:
+
+| | Entry JavaScript | Files |
+| --- | --- | --- |
+| Before (`e460b637`) | **313.21 kB** | 10 |
+| The half imported statically, this change's states kept | 313.44 kB | 10 |
+| Lazy, with `AdminConnections.tsx` still reachable from the entry | 311.67 kB | — |
+| **Lazy, with `Connections.tsx` split** | **310.30 kB** | 16 |
+
+The chunk is **8.25 kB** on its own, and appended to the entry it would cost
+7.02: about 1.2 is compression it cannot borrow. **The drop is smaller than the
+chunk for a reason worth recording rather than tuning**: one more `import()` of
+modules the entry already holds made the bundler split more of them into files
+of their own, which `index.html` preloads — sixteen JavaScript files where there
+were ten — and a small file compresses worse than the same bytes inside a large
+one. The sixteen gzipped as one file would be **306.59**. That is §4.4's open
+question about deliberate common chunks, and the next few kilobytes are there
+rather than in another `lazy()`. The ceiling came down from 317 to **315**,
+to leave about the five kB of margin every raise in that file left.
+
+**The states, §7.2's, without the wizard's *Dismiss*** — nothing here was opened
+by a button.
+
+- *Pending* is a sentence under the half's heading, *Loading the administration
+  settings…*, announced as a `status`. The heading and its anchor are drawn
+  with the role, so a jump to the half itself lands at once.
+- *Failure* is a local boundary under the same heading. **Only a failed load
+  is told to reload**: the factory wraps the import's rejection in an error of
+  its own type, as the publish review's does, and anything else says the
+  settings stopped with an error. The user half — a person's own profile,
+  password, theme and backups — is outside it and stands either way; without
+  it the router's boundary would replace the whole page over sections only an
+  administrator has. While it shows, the contents still list the half's four
+  sections, and a row lands nowhere — the sentence under the heading is what
+  says why.
+- *No retry control*, for §7.2's reasons, which hold unchanged.
+
+**The guardrail reads the build for what it carries**, the publish review's
+shape: *keeps the administration half of Settings off the entry* finds a chunk
+named `Administration-*` and a sentence from each of the half's four files —
+`AdminAccounts.tsx`, `AdminConnections.tsx`, `AdminInstall.tsx`,
+`AdminBackups.tsx` — and asserts that none is in a file `index.html` pulls, each
+marker asserted present somewhere first. **It is the only check that catches
+the half imported statically**: at 315 the byte ceiling does not (313.44 is
+under it). Mutation-checked, each restored afterwards:
+
+- the half imported statically — no `Administration-*` chunk, entry 313.44;
+- `AdminConnections.tsx` re-exported from `Connections.tsx` — its sentence on an
+  entry file, entry 311.67;
+- the factory's rejection left unwrapped — `SettingsPage.load.test.tsx`;
+- the page without its boundary — the same;
+- the boundary telling every failure to reload — `SettingsPage.test.tsx`;
+- the half without its jump on arrival — `SettingsPage.arrival.test.tsx`;
+- the jump on arrival made for any section the address names —
+  `SettingsPage.test.tsx`.
+
+*Not walked in a browser* at this stage: no browser is installed where it was
+built. What would be looked at is §7.3's list — the settings page as a
+non-admin fetching no `Administration-*` file, the chunk arriving once for an
+administrator, and a pasted `#connections-section` landing.

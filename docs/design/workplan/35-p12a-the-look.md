@@ -547,6 +547,82 @@ evidence for buying the bytes.
 ([CLAUDE.md](../../../CLAUDE.md): a green suite closes a stage, not a phase).
 Branch `p12a`.*
 
+### Before P12A.0 — the entry's headroom
+
+*Not a stage of the skeleton — the remedy the note of 2026-10-11 above names
+and §0.4's first bullet decided to build first, recorded here because it is
+work on this branch and every stage after it spends what it bought.*
+
+***Built 2026-10-13.*** The administration half of Settings — accounts, the
+install's connections and role table, the install's settings, the install's
+backups — is one `lazy()` chunk, `settings/Administration.tsx`, reached from
+inside the conditional that draws the half for an administrator, so a
+non-admin's browser never fetches it. `SettingsPage.tsx` keeps the half's
+heading and anchor, a `status` sentence while the chunk is on its way, and the
+publish review's shape of boundary: the factory wraps the import's rejection in
+an error of its own, and only that failure is told to reload; the user half
+stands either way. `tools/entry-budget.test.ts` gained *keeps the
+administration half of Settings off the entry*, which looks for the chunk by
+name and for a sentence from each of the half's four files on every file
+`index.html` pulls. [21 §7.5](../21-client-loading.md) records the boundary.
+
+**What the note said and what turned out different:**
+
+- *It measured −1.85 kB to 310.50*; built, it is **313.21 → 310.30, −2.91**.
+  The note did not record what shape it measured. The larger part of the
+  difference is §0.4's own decision to split `Connections.tsx` rather than move
+  it whole: the install's half went to `AdminConnections.tsx` (the file's name
+  before P10.3), the shared panel was exported, and the first-run question
+  reaches the shared form through a slot instead of being drawn by it. With
+  `AdminConnections.tsx` reachable from the entry again, the entry measures
+  **311.67**, so that split is 1.37 of the drop.
+- *The drop is smaller than the chunk* (8.25 kB on its own): another
+  `import()` of modules the entry holds made the bundler split them into
+  sixteen preloaded files where there were ten, and small files compress
+  worse — the sixteen as one file would be 306.59. That is
+  [21 §4.4](../21-client-loading.md)'s open question, recorded and not tuned.
+- *Two things the note did not name, both found by building it.* **The jump to
+  the address's hash** (`useJumpToHash`) runs when the hash or the role
+  changes, and the half's four anchors arrive after both, so a link to
+  `#connections-section` landed nowhere; the half now asks for the jump as it
+  is drawn (`useJumpOnArrival`), once and only for its own sections, so a
+  person who arrived at a section of the user half and moved on is neither
+  taken back nor robbed of a field's focus. **Two tests in
+  `SettingsPage.test.tsx` read the page before the chunk** — the contents test
+  read the anchors straight after the half's heading, and the dead-end
+  warning's test took the page's first `status` for the warning — and passed
+  only because an earlier test had fetched the chunk; run alone, each failed.
+  Both now wait for the half, and every test in that file was run alone to find
+  them.
+- *The half's heading stays on the entry* rather than moving with the chunk:
+  the anchor a jump lands on then exists with the role, and the pending and
+  failure sentences sit under the heading they are about.
+- *The ceiling comes down, 317 to **315***, by `entry-budget.test.ts`'s own
+  convention — its changelog lowering left about five kB of margin rather than
+  the forty a split freed, and 317 would leave 6.70. 315 leaves **4.70** for
+  P12A.0 onward, against 3.79 before this. At 315 the byte ceiling no longer
+  catches the half imported statically (313.44); the structural check does.
+
+**Tests, each checked against a mutation and restored:**
+`SettingsPage.load.test.tsx` (new — the sentence while the chunk is on its way,
+then a chunk that never arrives: the reload sentence, the user half standing)
+fails with the factory's rejection left unwrapped and with the boundary
+removed; `SettingsPage.arrival.test.tsx` (new — a pasted `#connections-section`
+lands once the half arrives, and not before) fails with the half's jump on
+arrival removed; in `SettingsPage.test.tsx`, the boundary's two sentences fail
+with every failure told to reload, and *leaves a section it does not draw where
+the page left it* fails with the arrival jump made for any section the address
+names; the entry-budget check fails with the half imported statically (no
+`Administration-*` chunk) and with `AdminConnections.tsx` re-exported from
+`Connections.tsx` (its sentence found on an entry file); and
+`Connections.test.tsx`'s first-run test, unchanged but for its import, fails
+with the slot left unfilled and with the form ignoring it. *Not walked in a
+browser* — none is installed where it was built; 21 §7.5 lists what a look
+would check.
+
+**Entry after: 310.30 kB** of a 315 ceiling, CSS 7.81 — gzip level 9 over the
+files `index.html` pulls, the budget test's method.
+
 ### P12A.0 — The tokens every other stage spends
 
 `index.css` grows what §0.2's first fact says is missing, and nothing else:

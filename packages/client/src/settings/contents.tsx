@@ -2,7 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { useLocation } from '@tanstack/react-router';
-import { useEffect, type JSX, type ReactNode } from 'react';
+import { useEffect, useState, type JSX, type ReactNode } from 'react';
 
 import type { Account } from '../api.js';
 
@@ -78,6 +78,24 @@ function entry(key: SectionKey): ContentsEntry {
 }
 
 /**
+ * ***The administration half's sections, in the page's order*** — named once
+ * since 2026-10-13, because two readers need the list and they are no longer
+ * in one file.
+ *
+ * The contents list them, as before; and `Administration.tsx` — the half's own
+ * chunk, [21 §7.5](../../../../docs/design/21-client-loading.md) — draws their
+ * anchors and asks {@link useJumpOnArrival} to land on whichever of them the
+ * address names. A section added to the half and not here would be one the
+ * contents never offer and a link to it never reaches.
+ */
+export const ADMINISTRATION_SECTIONS = [
+  'accounts',
+  'connections',
+  'install',
+  'installBackups',
+] as const;
+
+/**
  * What the page draws for this account, in its order. The two conditions are
  * the page's own — `privateConnections` for *Your connections*, and the role
  * for the whole administration half — and `SettingsPage.test.tsx` checks that
@@ -96,12 +114,7 @@ export function settingsContents(
     yours: yours.map(entry),
     administration:
       account?.role === 'admin'
-        ? {
-            entry: entry('administration'),
-            sections: (['accounts', 'connections', 'install', 'installBackups'] as const).map(
-              entry,
-            ),
-          }
+        ? { entry: entry('administration'), sections: ADMINISTRATION_SECTIONS.map(entry) }
         : null,
   };
 }
@@ -190,7 +203,9 @@ export function jumpWhenShown(anchor: string, frames = 60): void {
  * pasted from elsewhere and a reload all land in the same place, by one path.
  *
  * Re-run when the account arrives or changes role, because the administration
- * anchors exist only once the page knows it is drawing them. The router's own
+ * anchors exist only once the page knows it is drawing them. *(2026-10-13: the
+ * half's own anchor does; the four inside it arrive with the half's chunk,
+ * later, and {@link useJumpOnArrival} lands on those.)* The router's own
  * scroll to a hash is turned off on the contents' links, so this is the one
  * owner of where the page is.
  */
@@ -199,4 +214,40 @@ export function useJumpToHash(ready: unknown): void {
   useEffect(() => {
     if (hash !== '') jumpToSection(hash);
   }, [hash, ready]);
+}
+
+/**
+ * ***And once more for a part of the page that arrives after it*** —
+ * 2026-10-13, [21 §7.5](../../../../docs/design/21-client-loading.md).
+ *
+ * The administration half is a chunk of its own now, fetched once the page
+ * knows the account is an administrator, so its four anchors are drawn a
+ * moment after {@link useJumpToHash} has run for the role and found nothing to
+ * land on. Nothing would run it again: the hash has not changed and the role
+ * has not either, so `/settings#connections-section` — pasted, reloaded, or a
+ * dock row pressed before the chunk was in — would leave the page at the top.
+ * The late part calls this as it is drawn, and the jump is made then, the
+ * first moment it can land.
+ *
+ * **Only for its own sections.** Any other section the address names was there
+ * from the start and has been landed on already, and jumping to it again when
+ * the late part arrives would be a second jump nobody asked for: it would take
+ * the person back to where they arrived after they had scrolled away, and take
+ * focus off a field they had started typing in. On a slow connection that is
+ * seconds after they began, which is exactly when it would be noticed.
+ *
+ * **Once, as it arrives** — where to land is decided from the address the part
+ * was drawn under and then held, so neither a later change of hash nor a
+ * re-render of the part jumps again. A later hash is {@link useJumpToHash}'s,
+ * which finds these anchors from then on like any other: one owner for every
+ * jump after the first.
+ */
+export function useJumpOnArrival(keys: readonly SectionKey[]): void {
+  const hash = useLocation({ select: (location) => location.hash });
+  const [landOn] = useState(() =>
+    keys.some((key) => SECTIONS[key].anchor === hash) ? hash : null,
+  );
+  useEffect(() => {
+    if (landOn !== null) jumpToSection(landOn);
+  }, [landOn]);
 }

@@ -313,7 +313,37 @@ const DIST = join(HERE, '..', 'packages', 'client', 'dist');
  * boundary and an off-the-entry check like the publish review's, which makes it
  * a loading decision of its own and not an audit fix's.
  */
-const JS_CEILING_KB = 317;
+/*
+ * ***Lowered to 315 on 2026-10-13 — the remedy named above, taken*** before
+ * the first stage of [P12A](../docs/design/workplan/35-p12a-the-look.md), whose
+ * opening audit decided it rather than a raise at each of a phase of client
+ * stages; [21 §7.5](../docs/design/21-client-loading.md) records the boundary.
+ * The administration half of Settings is one `lazy()` chunk,
+ * `settings/Administration.tsx`, fetched only for an administrator, and the
+ * install's half of `Connections.tsx` moved out to `AdminConnections.tsx` with
+ * it, since the user half keeps that file on the entry. Measured with this
+ * file's compressor: **313.21** at P12A's base (`e460b637`: the 312.91 P16's
+ * last build measured, with B20 on top), **310.30** after — **−2.91 kB**,
+ * with the chunk **8.25** on its own. Imported statically again, with this
+ * change's loading states kept, the half puts the entry at **313.44**; with only
+ * `AdminConnections.tsx` reachable from the entry again (re-exported from
+ * `Connections.tsx`), **311.67** — so splitting that file is 1.37 of the
+ * drop. *(No record says what shape the 310.50 above measured.)* **No new
+ * dependency.** *Why the drop is smaller than the chunk*: one more `import()`
+ * of modules the entry already holds made the bundler split more of them into
+ * files of their own that `index.html` preloads — sixteen JavaScript files
+ * where there were ten — and a small file compresses worse; the sixteen
+ * gzipped as one file would be 306.59. That is
+ * [21 §4.4](../docs/design/21-client-loading.md)'s open question about common
+ * chunks, recorded rather than tuned here. **The ceiling comes down** to leave
+ * about five kB of margin, as every raise above left and as the changelog's
+ * lowering did, rather than the 6.70 that 317 would leave for the next change
+ * to spend without saying so: **315 leaves 4.70.** *And at 315 this ceiling
+ * no longer catches the half imported statically* (313.44 is under it): the
+ * check below, which reads the build for the chunk and for a sentence from
+ * each of the half's four files, is what does.
+ */
+const JS_CEILING_KB = 315;
 
 /** The stylesheet, at 6.99 kB and growing with the design system rather than the app. */
 const CSS_CEILING_KB = 12;
@@ -494,6 +524,51 @@ describe('what a first load pays for', () => {
       expect(rule.includes(name), `${name} carries fileSet`).toBe(false);
       expect(review.includes(name), `${name} carries the publish review`).toBe(false);
       expect(name.startsWith('PublishPage-'), name).toBe(false);
+    }
+  });
+
+  /**
+   * ***The administration half of Settings is not on the entry, and this is the
+   * check that says so*** — [21 §7.5](../docs/design/21-client-loading.md),
+   * [P12A](../docs/design/workplan/35-p12a-the-look.md), 2026-10-13.
+   *
+   * The publish review's argument, a fifth time, and for the same reason: **the
+   * regression is not only a static import of the chunk's module.** The half is
+   * four files, and any one of them imported statically from anything the
+   * entry reaches would put that section back on every first load while an
+   * `Administration-*` chunk went on existing — the likeliest being
+   * `AdminConnections.tsx`, which was part of `Connections.tsx` until this
+   * split and is one re-export away from being part of it again. So this reads
+   * the build for one sentence from each of the four, each a plain string the
+   * minifier keeps: the accounts list's dead-end warning, the role table's way
+   * out of a refused write, the install form's note on the data directory, and
+   * the install's restore confirmation. Each is asserted present somewhere
+   * first, so a sentence reworded in its file fails here by name rather than
+   * passing because nothing matched.
+   */
+  it('keeps the administration half of Settings off the entry', () => {
+    const chunks = readdirSync(join(DIST, 'assets')).filter((name) => name.endsWith('.js'));
+    const carrying = (marker: string): string[] =>
+      chunks.filter((name) => readFileSync(join(DIST, 'assets', name), 'utf8').includes(marker));
+    const sections = {
+      'AdminAccounts.tsx': carrying('has no usable connection and cannot send a message'),
+      'AdminConnections.tsx': carrying('Apply my change to what is on disk'),
+      'AdminInstall.tsx': carrying('Changing it here would write to the old location.'),
+      'AdminBackups.tsx': carrying('Replace everything with this archive?'),
+    };
+    for (const [file, found] of Object.entries(sections)) {
+      expect(found, `no chunk carries ${file}: its marker no longer finds it`).not.toEqual([]);
+    }
+    expect(
+      chunks.filter((name) => name.startsWith('Administration-')),
+      'no chunk named Administration-* in dist/assets: the administration half is not a chunk of its own',
+    ).not.toEqual([]);
+
+    for (const name of entryAssets('.js')) {
+      for (const [file, found] of Object.entries(sections)) {
+        expect(found.includes(name), `${name} carries ${file}`).toBe(false);
+      }
+      expect(name.startsWith('Administration-'), name).toBe(false);
     }
   });
 });

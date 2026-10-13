@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import type { JSX } from 'react';
+import { Component, lazy, Suspense, type JSX, type ReactNode } from 'react';
 
 import { AboutBuild } from '../about/AboutBuild.js';
 import { UpdateBadge } from '../about/UpdateBadge.js';
+import { labels } from '../i18n/catalogue.js';
 import { useAuthState } from '../queries.js';
+import { AlertNote } from '../ui/Alert.js';
 import { page } from '../ui/classes.js';
+import { Note } from '../ui/Text.js';
 import { OpenDockButton } from '../workbench/OpenDockButton.js';
-import { AdminAccounts } from './AdminAccounts.js';
-import { AdminBackups } from './AdminBackups.js';
 import { Backups } from './Backups.js';
-import { AdminConnections, MyConnections } from './Connections.js';
-import { AdminInstall } from './AdminInstall.js';
+import { MyConnections } from './Connections.js';
 import { SettingsAnchor, useJumpToHash } from './contents.js';
 import { MyRoles } from './MyRoles.js';
 import { NotificationPrefs } from './NotificationPrefs.js';
@@ -50,6 +50,20 @@ import { UserSettings } from './UserSettings.js';
  * same place from the dock, from a pasted link or after a reload.
  * `SettingsPage.test.tsx` holds the anchors to the list for each kind of
  * account, so a section added here and not there fails.
+ *
+ * ***The administration half is a chunk of its own*** (2026-10-13,
+ * [21 §7.5](../../../../docs/design/21-client-loading.md)) — `Administration.tsx`,
+ * reached through the `lazy()` below from inside the one conditional, so the
+ * mechanism above holds for the code too: a non-admin's browser never fetches
+ * it. What stays here is the half's heading and anchor, the sentence while it
+ * is on its way, and {@link AdministrationLoad}, in *the publish review's
+ * shape* (`library/publish/PublishRoute.tsx`): the factory wraps the import's
+ * rejection in {@link AdministrationChunkError}, and the boundary tells only
+ * that failure to reload. *No retry control*, for [21 §7.2]'s reasons — React
+ * caches a rejected `lazy` load, and the failure a self-hosted install is
+ * likeliest to see is an upgrade under an open tab, which only a reload
+ * answers. The user half above it is outside the boundary and stands either
+ * way.
  */
 export function SettingsPage(): JSX.Element {
   const auth = useAuthState();
@@ -163,35 +177,74 @@ export function SettingsPage(): JSX.Element {
             <h2 id="administration" className="text-section text-ink">
               Administration
             </h2>
-            <SettingsAnchor of="accounts">
-              <AdminAccounts />
-            </SettingsAnchor>
             {/*
-            A third section under Administration rather than a tab or a route of
-            its own — [P2B §6]. The admin half is a single conditional, which is
-            what makes *absent is absent* a mechanism: these hooks never mount
-            for a non-admin, so that browser issues no request that could be
-            refused. A separate route would need the guard respelled.
-          */}
-            <SettingsAnchor of="connections">
-              <AdminConnections />
-            </SettingsAnchor>
-            <SettingsAnchor of="install">
-              <AdminInstall />
-            </SettingsAnchor>
-            {/**
-            ***After the settings form rather than before it***, because the
-            install's schedule *is* three config keys and the form above derives
-            its controls from the schema. This panel is the list and the two
-            buttons; a second copy of the schedule here would be a second thing
-            to keep true.
-          */}
-            <SettingsAnchor of="installBackups">
-              <AdminBackups locale={account.locale ?? undefined} />
-            </SettingsAnchor>
+              The four sections and their anchors arrive with the chunk, as
+              children of this column, so the gap between them is the one it
+              always was — neither the boundary nor `Suspense` draws an
+              element. The comments that sat beside them moved with them, to
+              `Administration.tsx`.
+            */}
+            <AdministrationLoad>
+              <Suspense fallback={<Note role="status">{WORDS.loading}</Note>}>
+                <LazyAdministration locale={account.locale ?? undefined} />
+              </Suspense>
+            </AdministrationLoad>
           </section>
         </SettingsAnchor>
       ) : null}
     </div>
   );
+}
+
+/** The administration half's code did not arrive — the one failure a reload answers. */
+export class AdministrationChunkError extends Error {
+  constructor(cause: unknown) {
+    super('The administration settings’ code could not be loaded.', { cause });
+    this.name = 'AdministrationChunkError';
+  }
+}
+
+const LazyAdministration = lazy(() =>
+  import('./Administration.js').then(
+    (module) => ({ default: module.Administration }),
+    (cause: unknown) => {
+      throw new AdministrationChunkError(cause);
+    },
+  ),
+);
+
+const WORDS = labels('settings.administration', {
+  loading: 'Loading the administration settings…',
+  chunk:
+    'The administration settings could not be loaded. If StoryEngine was updated since this page was opened, reload the page.',
+  render:
+    'The administration settings stopped with an error, so they cannot be changed from here. Your own settings above are unaffected.',
+});
+
+/**
+ * ***If the half never arrives, or fails once it has*** — local, under the
+ * half's heading, so everything above it stands: [21 §5]'s *a failed inspector
+ * should leave the page beside it usable*. Without it the nearest boundary is
+ * the router's, which would replace the whole of Settings — a person's own
+ * profile and password included — over sections only an administrator has.
+ * Exported for its test, which is what holds the two sentences apart.
+ */
+export class AdministrationLoad extends Component<
+  { children: ReactNode },
+  { failed: 'chunk' | 'render' | null }
+> {
+  override state: { failed: 'chunk' | 'render' | null } = { failed: null };
+
+  static getDerivedStateFromError(error: unknown): { failed: 'chunk' | 'render' } {
+    return { failed: error instanceof AdministrationChunkError ? 'chunk' : 'render' };
+  }
+
+  override render(): ReactNode {
+    if (this.state.failed === null) return this.props.children;
+    return (
+      <AlertNote role="alert">
+        {this.state.failed === 'chunk' ? WORDS.chunk : WORDS.render}
+      </AlertNote>
+    );
+  }
 }
