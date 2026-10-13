@@ -366,13 +366,19 @@ describe('an imported session is a session here', () => {
    * drops the id from every rendition it sends (`sessions/export.ts`), and the
    * World file's reader drops it again for its own files; this reader does
    * not, for two reasons. **A backup's merge reads through it** — the backup
-   * import hands its raw records to `importSession` — and a backup carries the
-   * connections themselves, which `backup/import.ts` brings in under their own
-   * ids so that nothing naming one is orphaned; the id in a backup's record
-   * still names something. **And a plain export already in somebody's
-   * hands** — alphas 5 and 6 wrote the id — lands as it arrived, which is
-   * what the decision says of those files. The record is injected as an older
-   * writer wrote it, past this build's writer, and read back from the store.
+   * import hands its raw records to `importSession` — and a backup is the
+   * account's own data, merged verbatim: its sessions keep `roles`,
+   * `stepRoles` and their calls' `resolved.connectionId`, and a rendition's id
+   * is kept the same way. That id names a connection only when the merge lands
+   * on the account that still holds it or takes a full archive's connections
+   * with it (`options.connections`, off by default; a redacted archive has
+   * none); on a default merge of somebody else's archive it names nothing, as
+   * before, and whether that merge should strip it is not decided — so it is
+   * left, and `routes/backups.test.ts` pins that the merge keeps it. **And a
+   * plain export already in somebody's hands** — alphas 5 and 6 wrote the
+   * id — lands as it arrived, which is what the decision says of those files.
+   * The record is injected as an older writer wrote it, past this build's
+   * writer, and read back from the store.
    */
   it('keeps the connection id a record arrived with', async () => {
     const { sessionId, turnId } = await aSessionSaying('The cathedral was three streets east.');

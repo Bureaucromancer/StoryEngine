@@ -1441,9 +1441,10 @@ renditions and keep the model — [22 §7](../22-internal-contracts.md), under
 with pictures as changed, once.** A session's digest hashes its export as it
 travels, every rendition record in it, and each record's binding is now
 `{ modelId }`; so a session holding a picture whose binding is not `null` —
-every picture an image model was asked for, where an Aventuras import's, or
-one asked for with nothing bound, is `null` — hashes otherwise than the
-ledger's line for it, though nothing was played or drawn since. With no turns added it is
+every picture an image model was asked for, where an Aventuras import's is
+`null` — hashes otherwise than the ledger's line for it, though nothing was
+played or drawn since. A picture that failed for want of a binding still
+carries the one it was asked with, and is changed too. With no turns added it is
 listed as *changed*, not played on, and the publish that follows writes the new
 digest, which every later one compares against. **No migration**: a ledger line
 holds only the hash, which cannot be re-keyed without the bytes it was taken

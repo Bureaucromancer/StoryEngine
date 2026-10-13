@@ -1232,7 +1232,9 @@ feature.
 the install~~. So §6's table gains no row — the rule is the admission.
 *(2026-10-13: the struck half stopped being true of the record at
 [P11.10](workplan/28-p11-implementation.md), which put it in the session export,
-and §7.1 says why it stayed here all the same. The narrower thing the clause
+and that stage's Done record says why it stayed here all the same: a registry
+entry would validate a foreign record against our shape, and the format exists
+to tolerate shapes we did not write. The narrower thing the clause
 might still be read to promise is now true of one field, by the owner's decision
 of 2026-10-13: a rendition record that travels in a session export or a World
 file carries no connection id — below, under `RenditionProvenance`. A backup is
@@ -1370,9 +1372,18 @@ a connection.
 - **Not on the way in elsewhere.** The plain session reader lands a record as it
   arrived: a session export written by alpha 5 or 6, which shipped it, keeps the
   id it carries. A backup's merge reads through the same reader and keeps it too,
-  because a backup carries the connections themselves under their own ids
-  (`backup/import.ts`), and the id in its records still names one. A backup
-  restore never parses a rendition at all.
+  because a backup is the account's own data, and its merge keeps ids verbatim:
+  its sessions keep `roles` and `stepRoles` naming connections and their calls'
+  `resolved.connectionId`, as `backup/import.ts` keeps the connections' own ids
+  (re-minting would orphan every binding that names one). Kept is not the same
+  as naming something. The id names a connection when the merge lands on the
+  account that still holds it, or when a full archive's connections are taken
+  with it — `options.connections`, off by default; a redacted archive carries
+  none, and a merge never brings a system connection in. Otherwise it names
+  nothing, as it did before this decision, which is harmless because nothing
+  reads it from a record (below); **whether a default merge of somebody else's
+  archive should strip it is not decided**. A backup restore never parses a
+  rendition at all.
 - **Why the model stays.** It is the picture's history: *Asked* in the workbench,
   the model a retry sends, and `recipeOfRendition`'s fallback. `binding: null`
   would have cost the name on nearly every record, because `answeredAs` is `null`

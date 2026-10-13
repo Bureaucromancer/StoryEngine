@@ -552,11 +552,16 @@ function tokensRenamed(value: string, ids: ReadonlyMap<string, string>): string 
  * install between P16.3c and this — or one made by hand still carries it, and
  * would land a sender's connection id on this account's records. *Here and
  * not in the session reader*, which a plain session import and a backup's
- * merge share: a backup carries the connections its records name, under
- * their own ids (`backup/import.ts`), so the id there still names one; and a
- * plain export already in somebody's hands lands as it arrived. Anything in
- * `renditions` that is not a record with a binding holding the key passes as
- * it is, for `importRenditions` to judge.
+ * merge share. A backup is the account's own data, merged verbatim — its
+ * sessions keep `roles`, `stepRoles` and their calls' `resolved.connectionId`
+ * too — and the id there names a connection only when the merge lands on the
+ * account that still holds it or takes a full archive's connections with it
+ * (`options.connections`, off by default; a redacted archive has none).
+ * Whether a default merge of somebody else's archive should strip it is not
+ * decided (`sessions/export.ts`'s `travellingRendition` says why it is left).
+ * And a plain export already in somebody's hands lands as it arrived.
+ * Anything in `renditions` that is not a record with a binding holding the
+ * key passes as it is, for `importRenditions` to judge.
  */
 function withoutBindings(read: SessionExport): SessionExport {
   const session = { ...(read.session as Record<string, unknown>) };

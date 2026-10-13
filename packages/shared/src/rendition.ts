@@ -300,10 +300,14 @@ export interface RenditionProvenance {
    *
    * *What stays as it was*: the record on the sender's disk, which keeps its
    * id; a plain session export already in the wild (alphas 5 and 6 wrote the
-   * id), which a plain import lands as it arrived; and a backup, which carries
-   * the connections themselves under their own ids, so that in its records the
-   * id still names one. And {@link Rendition.digest} still folds the sender's
-   * id in — see there.
+   * id), which a plain import lands as it arrived; and a backup, the account's
+   * own data, whose merge keeps ids verbatim as it keeps `roles` and the
+   * calls' `resolved.connectionId`. The id names a connection there only when
+   * that connection is already held or taken from a full archive
+   * (`options.connections`, off by default; a redacted archive has none) —
+   * otherwise it names nothing, as before, and whether such a merge should
+   * strip it is not decided. And {@link Rendition.digest} still folds the
+   * sender's id in — see there.
    */
   binding: { connectionId?: string; modelId: string } | null;
   /** What the endpoint said answered, when it is not what was asked for. */

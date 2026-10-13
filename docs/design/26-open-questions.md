@@ -804,7 +804,10 @@ rendition's binding as `{ modelId }` — the key absent, `binding` itself kept,
 builds on, and the World file's reader takes the id out again for a file
 written before this or by hand. The plain session reader and a backup's merge
 do not strip it: an alpha 5 or 6 export already in somebody's hands lands as it
-arrived, and a backup carries its connections under their own ids. The schema
+arrived, and a backup is the account's own data, merged verbatim, whose
+connections come with it only when asked (`options.connections`, off by
+default) — so on a default merge of somebody else's archive the id names
+nothing, as before, and whether that merge should strip it is not decided. The schema
 ids do not move, the stored `digest` is not recomputed — it still folds the
 sender's id in, one-way — and **a turn's recorded calls keep their
 `resolved.connectionId`**: the decision names renditions, and that parallel

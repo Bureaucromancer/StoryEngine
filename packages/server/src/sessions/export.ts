@@ -103,12 +103,21 @@ export async function exportSession(
  * export carrying the id while the World file did not, and the review would
  * measure a different document from the one the route sends. *The reader is
  * the wrong place for the only strip* because a backup's merge reads through
- * the same session reader, and a backup carries the connections themselves:
- * `backup/import.ts` brings each in under its own id, verbatim, because
- * re-minting would orphan every binding that names one — so in a backup's
- * records the id still names something. The World file's reader takes the id
- * out a second time (`import/world/session.ts`), for a file this writer did
- * not make.
+ * the same session reader, and a backup is the account's own data, whose
+ * merge lands each session verbatim: its `session.json` keeps `roles` and
+ * `stepRoles` naming connections and its turns keep `resolved.connectionId`,
+ * so a rendition's id is treated no differently — ids kept as they are, the
+ * argument `backup/import.ts` makes for the connections themselves, where
+ * re-minting would orphan every binding that names one. *That keeps the id; it
+ * does not make it name something.* It names a connection when the merge
+ * lands on the account that still holds it, or when a full archive's
+ * connections are taken with it (`options.connections`, off by default); a
+ * redacted archive carries none, and a merge never brings a system connection
+ * in. On a default merge of somebody else's archive, or of a redacted one, it
+ * names nothing, as it did before this decision — harmless, because nothing
+ * reads it from a record — and whether that merge should strip it is **not
+ * decided**. The World file's reader takes the id out a second time
+ * (`import/world/session.ts`), for a file this writer did not make.
  *
  * ***The key goes and `binding` stays.*** `null` stays `null`, which is *not
  * recorded*; a binding becomes `{ modelId }`, the `connectionId` key deleted
