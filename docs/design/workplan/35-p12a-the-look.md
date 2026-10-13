@@ -1078,7 +1078,10 @@ message region's sprites keep `ModeRegion`'s inline `<img>` and their label.
 the in-flow arm cannot be reached for it by accident. **The reading column takes
 the veil only while a picture shows** — `veiled`, `bg-veil` with two more
 classes this section's next list says why — and with none its class list is the
-one it had, which a test holds. A picture that fails to load (`onError`: an
+one it had, which a test holds. *(2026-10-13, after review: `veiled` is a
+marker now, `data-veiled`, and `<main>` paints the veil under the column — see*
+After review *below; the column's class list is the same with a picture or
+without.)* A picture that fails to load (`onError`: an
 object deleted, a file gone) is reported up (`useStage` remembers the last one
 lost) and the page treats it as no backdrop: no layer, no veil.
 
@@ -1140,7 +1143,13 @@ backdrop*.
   content runs past its box and `<main>` scrolls it: a background stops at its
   box, so everything past the first screenful — the composer among it — would
   have been drawn on the bare picture. Found by reasoning about the layout, not
-  in a browser, and not in any plan.
+  in a browser, and not in any plan. *(2026-10-13, after review: the problem was
+  real and this was the wrong answer to it. A column that scrolls itself is a
+  second scroller: its `sr-only` labels still made `<main>` scroll, so the
+  veiled box slid off the top and left bare picture under it, and switching
+  which box scrolls threw the reader's place away whenever a picture came or
+  went. `<main>` stays the one scroller and paints the veil — see* After review
+  *below.)*
 - *A layer behind the column* is **a portal into `document.body`**, not a child
   of the page: a `fixed` element is fixed to the nearest ancestor with a
   transform, a filter or containment, and the column and `<main>` are where a
@@ -1159,6 +1168,12 @@ backdrop*.
   [T0](#31-the-critical-list-and-why-each-row-is-on-it)'s *image on disk* has
   to go onto the session's treatment, a lorebook entry, a character or a World
   before T1 can choose it — a sentence for the walker, not an edit to the row.
+  *(2026-10-13, after review: "the galleries that exist" are a lorebook's two —
+  the book's Pictures and an entry's strip. A treatment, a setup, a character
+  and a World have no picture editor, so their pictures arrive only by import
+  or through the API, and T0's image goes into a lorebook the session uses. The
+  dialog's empty sentence, the guide and 05's note to the walker said
+  otherwise, and are corrected.)*
 - ***Set the scene* and the new control were hidden until *Stage a backdrop* had
   been flipped**, which no audit named. The session read sent
   `renditions.backdrop` when `se.backdrop.on` was **in the channel map**, and a
@@ -1190,7 +1205,12 @@ backdrop*.
   footer's `bg-surface`), the crossfade and the column's scrollbar are T1's to
   see.
 
-**Tests, each checked against a mutation and restored.** In the new
+**Tests, each checked against a mutation and restored.** *(2026-10-13, after
+review: and `PlayPage.test.tsx`'s* offers no choice for a mode with no backdrop
+*fails with Choose a backdrop… moved outside the `renditions.backdrop`
+condition; `ChooseBackdrop.test.tsx`'s* says where pictures come from when the
+session uses none *fails with the empty arm dropped and with No backdrop
+offered only beside a non-empty list. Neither had been seen to fail.)* In the new
 `routes/backdrops.test.ts`, *offers a picture from each thing the session uses,
 and nothing from what it does not* — a fixture with a picture on every kind the
 session uses and the same kind unused beside each — fails with the Worlds not
@@ -1243,6 +1263,137 @@ phase after P12A.1's 310.37 — gzip level 9 over the files `index.html` pulls,
 the budget test's method. **+1.52 kB**: the layer, the dialog, the two hooks,
 the recipe, and the import sentence's new words. **1.23 kB is left** for
 P12A.3 onward, which is the next stage's first number to read.
+
+***After review, 2026-10-13*** — a review of the stage's diff, each finding
+verified before it was acted on, found ten things: that the column's veil
+broke the page's scrolling in two ways, that the layer fetched on a phone and
+could draw one picture twice, that the dialog and the guide sent people to
+galleries that do not exist and claimed who made an imported story's
+backgrounds, and that the corpus was wrong or unchecked in four places.
+
+**The column scrolled itself, which was the wrong answer to a real problem.**
+Two findings, one remedy. *The first*: the veiled column was a scroller but
+not a containing block. An absolutely positioned descendant belongs to its
+nearest positioned ancestor, so every `sr-only` label in the column — the
+composer's own among them — was still `<main>`'s, sat at its static position
+below the fold, and gave `<main>` a scroll range as well. On a laptop-height
+window that was two scrollbars; scrolling the outer one slid the veiled box up
+and left a band of bare picture under it (268px in the reviewer's repro), with
+the composer clipped inside a scroller nobody had found. Its narrow remedy was
+`relative` on the column, `Shell.tsx`'s 2026-10-07 remedy for `<main>` one box
+further in. *The second*: switching which box scrolls throws the position away.
+A first staged picture arriving, a chosen one failing to load and *No backdrop*
+each took a reader at the bottom of the story back to the top of the panels, and
+while a picture showed, the wheel and the keyboard did nothing outside the
+column — the layout pushed around on a change, which 10 §2.3 rules out.
+`relative` would have fixed the first and not the second. The second's remedy
+takes the column's scroller away, and the first's cause with it, so it is the
+one built, and the column is not made `relative`.
+
+So **`veiled` is a marker**, `{ 'data-veiled': '' }`, spread onto the column
+while a picture is staged, and the column's class list is the same with a
+backdrop or without. **`<main>` paints the veil** — `veil` in `Shell.tsx`, four
+classes under `sm:has-[>[data-veiled]]:`: a gradient from `--color-veil` to
+itself, not repeated, centred, sized `min(100%, var(--container-reading))` by
+`100%`. A scroller's own background stays put while its content scrolls
+(`background-attachment: scroll`, the default), so the strip is under the column
+on every screenful and the column scrolls over it. `<main>` has no padding and
+the column is `page.reading`, so the strip is the column's footprint, an open
+dock included. `<main>` is `relative`, so it is painted over the layer at
+`-z-10`. Nothing changes overflow, so `<main>`'s `scrollTop` survives every
+arrival, failure and switch-off. The built stylesheet has each rule inside
+`@media (width>=40rem)` as
+`.sm\:has-\[\>\[data-veiled\]\]\:bg-center:has(>[data-veiled])`. *From `sm` up
+only*, matching the layer's `max-sm:hidden`: the column's `bg-veil` had been on
+at every width, and below the breakpoint the veil over the canvas was the
+canvas, so nothing there looks different. `Backdrop.tsx`'s `veiled` bullets, the
+column's comment in `PlayPage.tsx` and 10 §2.3's *the column scrolls itself*
+are struck, each with a dated note.
+
+**`tailwind-utilities.test.ts` could not see the strip.** Its `classShaped`
+refused a token holding `>`, `,` or `_`, so all four of the strip's classes were
+skipped: with the old line, `bg-no-repeat` misspelt in the strip passed. It
+admits them now, with a dated note; the test passes on the build, and fails with
+`bg-no-repeat` or `bg-size-[…]` misspelt in `Shell.tsx`.
+
+**A phone downloaded what it never showed.** `max-sm:hidden` stops the drawing
+and not the fetch, so every phone session with a backdrop fetched each
+full-size picture and never drew it. Both of the layer's pictures are
+`loading="lazy"` now: a picture that is not displayed never comes near the
+viewport, so it is never fetched, and from `sm` up the full-window layer is in
+view at once and loads as before. The crossfade already waits for `load`.
+
+**Going A → B → A before B had arrived drew A twice**, under and on top, as two
+siblings with one key — a quick pick and its Undo, or a staged picture a rewind
+replaced before its bytes came. The picture coming in is never kept underneath
+now: it has arrived already, so it is shown on top at once.
+
+**The dialog sent people to galleries that do not exist.** Only a lorebook has a
+picture editor, the book's *Pictures* and an entry's strip. The empty list's
+sentence, the guide's *Choosing a backdrop* and 05's note to T1's walker named
+the treatment's, a World's and a character's as well. The server's listing of
+those kinds is right, since an import or the API can fill them, and it is
+unchanged. The sentence keeps its first clause and sends a person to a lorebook
+the session uses, and says that pictures already on the other kinds, from an
+import, are offered too. The guide's sentence is corrected in place, since it is
+user prose. 05 has a dated correction after its walker note, and the T0
+sentence above has one beside it.
+
+***Made in this session* claimed who made the pictures.** An Aventuras story's
+backgrounds were drawn in Aventuras by another model, and a session export's can
+come from another install, but both are this session's renditions and were
+listed under that heading. That is the provenance claim the import's notes go
+out of their way not to make. The heading is ***This session’s own
+backgrounds*** now. `candidates.ts`'s `source` docstring and the comment over
+the renditions block say *held*, not *made*. 05's X19 note has the old name
+struck and the new one beside it, and the guide names the heading.
+
+**The corpus.** `index.css`'s motion block said nothing spends its tokens, and
+the crossfade spends `arrive` and `swap`: it has a dated note after the
+sentence, naming tokens only, since a class named in a comment is emitted. The
+guide said the text stays *as readable* over a backdrop as without, which this
+stage's own `ink-faint` finding contradicts; it says now that the story's text
+stays clearly readable and the faintest fine print is harder to read over a
+bright picture. `docs/api.md` struck a phrase it had never contained; that
+became a plain dated note saying what the session read did until this stage.
+And two of this stage's tests had never been seen to fail. They have now, as the
+dated note on the tests paragraph above records. 10 §2.3 also gains a dated note
+on the galleries that exist (*today, a lorebook's*) and one on the phone, which
+no longer downloads the pictures it hides.
+
+**Tests after review, each checked against a mutation and restored.**
+`PlayPage.test.tsx`'s *draws the stage behind the column rather than in it*
+asserts the marker, no `overflow-y-auto`, and a class list equal to the
+no-backdrop one. It fails with `overflow-y-auto` put back on the veiled column,
+with `bg-veil` put back, with the marker never set, and with the marker on the
+column's first row instead of the column. *Draws no frame and no veil* and
+*treats a picture that will not load as no backdrop* assert the marker absent,
+and both fail with the marker always set. The new `shell-layout.test.tsx`
+*the backdrop's veil*, on the real router, holds the join between the two files.
+*Is painted by main under the column* fails with the strip's classes taken off
+`<main>`, with the marker renamed in `Backdrop.tsx` alone, with the marker on the
+column's first row, with `overflow-y-auto` back on the column, and with
+`page.reading` moved off `max-w-reading`. *Is asked for by nothing on a session
+with no backdrop* fails with the marker always set. In `Backdrop.test.tsx`,
+the layer test's `loading` assertion fails with `lazy` taken off the top
+picture, and the crossfade's fails with it taken off either picture. The new
+*takes a room back before the next one has arrived without drawing it twice*
+fails against the old line, with both pictures drawn; it also spies on
+`console.error`. In `ChooseBackdrop.test.tsx`, the first test finds the new
+heading and fails with the old one, and the empty-list test asserts the lorebook
+and fails with the old sentence. jsdom applies no stylesheet, so none of this
+shows the strip being drawn: that is T1's look, and 05's note now asks T1's
+walker for the strip under the composer, one scrollbar, and the wheel and
+**Page Down** over the picture. *Not looked at in a browser*, still: none is
+installed where this was built.
+
+**Entry after: 313.90 kB** of the 315 ceiling, **CSS 8.34**, against **313.77
+and 8.16** at `8e2f7c29`, measured the budget test's way (gzip level 9 over the
+files `index.html` pulls). JavaScript is **+0.13 kB**: the corrected sentences,
+the `loading` attributes, the A → B → A guard and the marker's spread. CSS is **+0.18**: the strip's
+four rules. 0.01 of that is `.bg-veil` and `max-sm:overflow-visible`, which
+nothing uses now but which the struck bullets in `Backdrop.tsx` name, so
+Tailwind's scan keeps them. **1.10 kB is left** for P12A.3 onward.
 
 ### P12A.3 — Faces
 

@@ -1440,11 +1440,11 @@ reconcile*, as the renditions list is.
 
 *And the session read's `renditions.backdrop`* (the switch's value, which the
 page draws *Set the scene* and *Choose a backdrop…* under) is present for every
-session whose mode declares `se.backdrop.on`, from the first moment —
-~~present once the switch had been written on the head's path~~ *(2026-10-13,
-P12A.2: a session's channel map starts empty, so the old test hid both
-controls until *Stage a backdrop* had been flipped, and again on a rewind past
-the flip)*.
+session whose mode declares `se.backdrop.on`, from the first moment
+*(2026-10-13, P12A.2: until then it was sent only once the switch had been
+written on the head's path — a session's channel map starts empty, so both
+controls were hidden until **Stage a backdrop** had been flipped, and again on
+a rewind past the flip)*.
 
 ### `GET /sessions/:sessionId/renditions/:renditionId/asset`
 

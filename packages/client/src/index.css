@@ -240,7 +240,11 @@
      re-timing is one edit here rather than a search for `300`. Nothing
      spends them yet: P12A.6 builds the motions, and each one is a recipe in
      `ui/classes.ts`, which is the only file theme.test.ts lets write a
-     motion class at all.
+     motion class at all. *(2026-10-13, [P12A](../../../docs/design/workplan/35-p12a-the-look.md)
+     P12A.2: something does now — the backdrop's `crossfade` in
+     `ui/classes.ts` spends `arrive` and `swap`, the first of the five
+     motions P12A.6 names, which is why `:root` now carries those two;
+     `respond` is still unspent until P12A.6.)*
 
      `respond` answers something the person just did — a row of controls
      coming up under the pointer, a press acknowledged. 150ms is Tailwind's

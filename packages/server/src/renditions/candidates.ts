@@ -67,8 +67,12 @@ export interface BackdropCandidate {
   url: string;
   /**
    * Whose picture it is: the library object, by its folder's kind, its id and
-   * its name — or `null` for a picture this session made, which belongs to no
-   * object.
+   * its name — or `null` for a background rendition the session itself holds
+   * (one it made, or one it was imported with, such as an Aventuras story's
+   * backgrounds), which belongs to no library object. *Who drew it is not said
+   * here*, because a rendition carried in from another program or another
+   * install was not made by this session, and the dialog's heading for these
+   * rows names the holder for that reason.
    */
   source: { kind: string; id: string; name: string } | null;
   /**
@@ -107,7 +111,7 @@ const FROM_AN_ACTOR: ReadonlySet<string> = new Set(['reference', 'background']);
 
 /**
  * Every picture the session could stage, in the order a person would look for
- * one: what this session made, then its treatment, its setup, the Worlds it is
+ * one: the session's own backgrounds, then its treatment, its setup, the Worlds it is
  * in, its lorebooks (the treatment's and its own, as a turn reads them), and
  * its cast. **Each object once**, under the first of those it was reached by —
  * a book the treatment links and the session names again is one book.
@@ -141,12 +145,12 @@ export async function backdropCandidates(
   };
 
   /**
-   * ***What this session made*** — its background renditions, newest first,
-   * **and only those with pixels**: a failed or evicted one has nothing to
-   * show, and the stage would draw it as nothing. `hasPixels` is the
-   * renditions list's own test, so a picture this list offers is one that
-   * list would serve. Illustrations are left out: an illustration is a
-   * moment, and a backdrop is a place.
+   * ***What this session holds*** — its background renditions, those it made
+   * and those it was imported with, newest first, **and only those with
+   * pixels**: a failed or evicted one has nothing to show, and the stage would
+   * draw it as nothing. `hasPixels` is the renditions list's own test, so a
+   * picture this list offers is one that list would serve. Illustrations are
+   * left out: an illustration is a moment, and a backdrop is a place.
    */
   const made = [...(await readRenditions(layout, handle, session.id)).values()].filter(
     (one) => one.purpose === 'background' && one.asset !== null,

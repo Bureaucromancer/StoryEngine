@@ -28,6 +28,47 @@ import { useToggleChord } from './workbench/useToggleChord.js';
 import { AssistantPanel } from './assistant/AssistantPanel.js';
 import { Workbench } from './workbench/Workbench.js';
 
+/**
+ * ***The backdrop's veil, painted by `<main>` under the reading column***
+ * (2026-10-13, [P12A](../../../docs/design/workplan/35-p12a-the-look.md)
+ * P12A.2, after review).
+ *
+ * While a backdrop is staged, Play's column — `<main>`'s direct child —
+ * carries `veiled`'s marker (`play/Backdrop.tsx`, which says why the column
+ * itself must not change), and `<main>` paints the veil as its own background:
+ * one image of `--color-veil` (P12A.0's scrim), not repeated, centred, as wide
+ * as the column and as tall as `<main>`. Each part is load-bearing:
+ *
+ * - ***A scroller's background stays still while its content scrolls.***
+ *   `background-attachment: scroll`, the default, fixes a background to the
+ *   element's own box rather than to what scrolls inside it, so the strip is
+ *   under the column on every screenful — the composer at the bottom of a
+ *   long page as much as the heading at the top — and nothing about scrolling
+ *   changes. That is the whole point: `<main>` stays the one scroller, so a
+ *   picture arriving, failing or being switched off leaves the reader's
+ *   `scrollTop` where it was, and the wheel and the keyboard scroll the page
+ *   over the backdrop as they do over the canvas.
+ * - ***It lines up with the column without measuring it.*** `<main>` has no
+ *   padding and the column is `page.reading` — `mx-auto w-full
+ *   max-w-reading` — so the column is the smaller of `<main>`'s width and
+ *   `--container-reading`, centred; a strip of that same `min()`, centred,
+ *   is the column's footprint, including when an open dock narrows `<main>`.
+ *   A change to `page.reading`'s width has to change the size here.
+ * - ***It is drawn over the picture***, because `<main>` is `relative`: a
+ *   positioned box is painted after a layer at `-z-10`, so the strip covers
+ *   the picture and the column's ink sits on the veil.
+ * - ***From `sm` up only***, matching the layer's `max-sm:hidden`: under the
+ *   breakpoint there is no picture to veil.
+ * - ***Keyed on the direct child*** (`>`), so only the page's own column can
+ *   ask for it, and a session with no backdrop — no marker — draws `<main>`
+ *   exactly as before.
+ *
+ * *A gradient from the veil to the veil* because a background colour cannot
+ * be sized — it fills the whole box — and a one-colour image can.
+ */
+const veil =
+  'sm:has-[>[data-veiled]]:bg-[linear-gradient(var(--color-veil),var(--color-veil))] sm:has-[>[data-veiled]]:bg-no-repeat sm:has-[>[data-veiled]]:bg-center sm:has-[>[data-veiled]]:bg-size-[min(100%,var(--container-reading))_100%]';
+
 /** The signed-in frame: a header with the account and sign-out, and the page. */
 export function Shell(): JSX.Element {
   const auth = useAuthState();
@@ -268,7 +309,12 @@ export function Shell(): JSX.Element {
           a `flex: 1 1 0` item contributes its full content height to an
           auto-height container — the spec unclamps the contribution when an
           item is both growable and shrinkable — so the wrapper grew with the
-          column and main scrolled anyway. */}
+          column and main scrolled anyway.
+
+          *(2026-10-13, P12A.2, after review: bare but for one background —
+          the backdrop's veil, `veil` above, painted under Play's column only
+          while that column carries the backdrop's marker. The direct-child
+          rule is what keys it, too.)* */}
       {/* The dock row. The aside sits *after* main in source order, which in a
           flex row is the inline end in LTR and RTL alike — the right dock,
           spelled logically. Insetting is free: main is `flex-1`, so an open
@@ -299,8 +345,8 @@ export function Shell(): JSX.Element {
           tabIndex={-1}
           className={
             workbenchOpen || assistantOpen
-              ? 'relative min-w-0 flex-1 overflow-y-auto focus:outline-none max-sm:hidden print:overflow-visible'
-              : 'relative min-w-0 flex-1 overflow-y-auto focus:outline-none print:overflow-visible'
+              ? `relative min-w-0 flex-1 overflow-y-auto focus:outline-none max-sm:hidden print:overflow-visible ${veil}`
+              : `relative min-w-0 flex-1 overflow-y-auto focus:outline-none print:overflow-visible ${veil}`
           }
         >
           <Outlet />

@@ -327,8 +327,9 @@ describe('the measure', () => {
  * flow: it is a layer behind the window (`Backdrop.tsx`, whose own tests hold
  * the layer), and what only the page can show is the join — that the session's
  * stage surface reaches the layer, that the column wears the veil exactly while
- * a picture is behind it, and that a picture that will not load leaves the page
- * as it was with none.
+ * a picture is behind it *(2026-10-13, after review: the veil's marker —
+ * `<main>` paints the veil itself)*, and that a picture that will not load
+ * leaves the page as it was with none.
  */
 describe('the backdrop', () => {
   const STAGE = {
@@ -374,8 +375,18 @@ describe('the backdrop', () => {
     expect(column().contains(layer)).toBe(false);
     expect(column().querySelector(`img[src="${STAGE.image.url}"]`)).toBeNull();
     expect(screen.queryByRole('img', { name: 'Scene' })).toBeNull();
-    // The column is on the veil while a picture is behind it.
-    expect(column().classList.contains('bg-veil')).toBe(true);
+    // ~~The column is on the veil while a picture is behind it.~~
+    // *(2026-10-13, after review: the column carries the marker `<main>`
+    // paints the veil under — `shell-layout.test.tsx` holds that half — and
+    // nothing that changes its box. It is never a scroller of its own: a
+    // second scroller slid off its veil and threw the reader's place away
+    // whenever a picture came or went. So its class list is the one it has
+    // with no backdrop, to the class.)*
+    expect(column().hasAttribute('data-veiled')).toBe(true);
+    expect(column().classList.contains('overflow-y-auto')).toBe(false);
+    expect(column().className.split(/\s+/).sort()).toEqual(
+      `${page.reading} flex h-full flex-col gap-4`.split(' ').sort(),
+    );
   });
 
   /**
@@ -390,6 +401,7 @@ describe('the backdrop', () => {
     expect(column().className.split(/\s+/).sort()).toEqual(
       `${page.reading} flex h-full flex-col gap-4`.split(' ').sort(),
     );
+    expect(column().hasAttribute('data-veiled')).toBe(false);
   });
 
   it('treats a picture that will not load as no backdrop at all', async () => {
@@ -407,7 +419,7 @@ describe('the backdrop', () => {
     await waitFor(() => {
       expect(stageLayer()).toBeNull();
     });
-    expect(column().classList.contains('bg-veil')).toBe(false);
+    expect(column().hasAttribute('data-veiled')).toBe(false);
   });
 
   /**

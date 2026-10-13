@@ -98,7 +98,9 @@ service refused this one.*
 
 *Scene only.* A backdrop is a picture of where the story is, filling the window behind
 the page. The story's column is drawn over it on a pale veil (dark in the dark theme),
-so the text stays as readable as it is without one; with no backdrop the page is
+so the story's text stays clearly readable whatever the picture. The faintest small
+print in the column — labels, hints and figures around the story, and the placeholder
+in an empty box — is harder to read over a bright picture. With no backdrop the page is
 exactly as it is without the feature. A new backdrop fades in over the old one — or
 simply appears, if your system is set to reduce motion. On a phone-sized window there
 is no backdrop at all.
@@ -134,7 +136,7 @@ Turning **Stage a backdrop** off stops new backdrops but leaves the current one 
 the story, from what the session already uses:
 
 - the backdrops this session has made (and, for a story imported from Aventuras, the
-  backgrounds it came with);
+  backgrounds it came with), under **This session’s own backgrounds**;
 - pictures on its treatment, its setup, the Worlds it is in, its lorebooks and their
   entries — a picture with no name of its own is called by its entry;
 - from its characters, only a **reference** picture or one filed as a **background** —
@@ -147,11 +149,14 @@ Switching **Stage a backdrop** back on hands the choice back to the story, whose
 or reused backdrop replaces yours. A picture the story was already drawing when you
 chose still arrives, and replaces your choice once.
 
-To use a picture that is not on that list, add it to one of those first — the treatment's
-or a World's gallery, a lorebook entry, a character — in the library; there is no
-uploading straight into a session. Each choice is two steps in the story's record —
-the switch, then the picture — like any other change you make, each an empty row in the
-transcript: rewinding past them puts the earlier backdrop back.
+To use a picture that is not on that list, add it in the library to a lorebook the
+session uses — the book's **Pictures**, or an entry's strip. Only lorebooks have a
+picture editor ([Pictures on library objects](library.md#pictures-on-library-objects)),
+and pictures already on a treatment, setup, character or World (from an import, say) are
+offered as they are. There is no uploading straight into a session. Each choice is two
+steps in the story's record — the switch, then the picture — like any other change you
+make, each an empty row in the transcript: rewinding past them puts the earlier backdrop
+back.
 
 There is no control yet for retrying a backdrop that failed (**Set the scene** makes a new
 one), or for deleting pictures.

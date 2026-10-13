@@ -93,7 +93,11 @@ describe('choosing a backdrop', () => {
   it('lists both arms as the server sent them, under whose pictures they are', async () => {
     const dialog = await opened();
 
-    const made = await within(dialog).findByRole('region', { name: 'Made in this session' });
+    // *Whose*, not who made them (2026-10-13, after review): an imported
+    // story's backgrounds are the session's own and were not made in it.
+    const made = await within(dialog).findByRole('region', {
+      name: 'This session’s own backgrounds',
+    });
     expect(
       within(made)
         .getAllByRole('button')
@@ -217,9 +221,11 @@ describe('choosing a backdrop', () => {
     readBackdrops.mockResolvedValue({ candidates: [] });
     const dialog = await opened();
 
-    expect(
-      await within(dialog).findByText(/^Nothing this session uses has a picture yet\./),
-    ).toBeTruthy();
+    const said = await within(dialog).findByText(/^Nothing this session uses has a picture yet\./);
+    // And sends a person to a gallery that exists (2026-10-13, after review):
+    // only a lorebook has a picture editor, so the sentence names the lorebook
+    // rather than every kind the list reads.
+    expect(said.textContent).toContain('to a lorebook this session uses');
     // *No backdrop* is still there: off is always a choice.
     expect(within(dialog).getByRole('button', { name: 'No backdrop' })).toBeTruthy();
   });

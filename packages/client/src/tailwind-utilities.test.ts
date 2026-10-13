@@ -74,9 +74,18 @@ function escapeClass(name: string): string {
  * colon. Deliberately loose — a token that is not a class simply will not be in
  * the stylesheet either, and the calibration below is what keeps that from
  * mattering.
+ *
+ * ***And `>`, `,` and `_` inside a name*** (2026-10-13,
+ * [P12A](../../../docs/design/workplan/35-p12a-the-look.md) P12A.2, after
+ * review). The backdrop's veil is four classes on `<main>` keyed on a child —
+ * `has-[>…]` — with a gradient's two arguments and a two-part size in them,
+ * and a token holding any of those three was not read as a class at all: a
+ * typo in any of the four passed, which a mutation showed before this line
+ * changed. A comma or an underscore in prose sits next to a word that is
+ * not a utility, so the class-list test below still keeps a sentence out.
  */
 function classShaped(token: string): boolean {
-  if (!/^-?[a-z][a-z0-9]*(?:[-:.[\]()%]|[a-z0-9])*$/.test(token)) return false;
+  if (!/^-?[a-z][a-z0-9]*(?:[-:.[\]()%>,_]|[a-z0-9])*$/.test(token)) return false;
   if (!token.includes('-') && !token.includes(':')) return false;
   return !/\.(js|ts|tsx|md|json|css)$/.test(token);
 }

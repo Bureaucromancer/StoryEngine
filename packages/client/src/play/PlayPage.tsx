@@ -285,7 +285,8 @@ export function PlayPage({
    * ***The backdrop, and whether one is showing*** — [10 §2.3], P12A.2. Read
    * here because two things follow it: the layer behind the column, and the
    * column's own veil, which a page with no picture behind it does not wear
-   * (`Backdrop.tsx`).
+   * (`Backdrop.tsx`). *(2026-10-13, after review: the veil is `<main>`'s to
+   * paint now; the column carries the marker it is keyed on.)*
    */
   const stage = useStage(session.data?.surfaces);
   const auth = useAuthState();
@@ -1078,14 +1079,21 @@ export function PlayPage({
     // reader's line length.)*
     //
     // *(2026-10-13, P12A.2: and the veil, while a backdrop shows behind it —
-    // `veiled` in `Backdrop.tsx`, which says why it also scrolls itself then.
+    // ~~`veiled` in `Backdrop.tsx`, which says why it also scrolls itself then~~.
     // With none, the column is exactly the class list it was.)*
+    //
+    // *(2026-10-13, P12A.2, after review: it does not scroll itself, and wears
+    // no veil of its own. A second scroller here slid off its own veil and
+    // threw the reader's place away whenever a picture came or went, so the
+    // column only carries `veiled`'s marker while a picture is staged, and
+    // `<main>`, still the one scroller, paints the veil under it — `veiled`
+    // in `Backdrop.tsx` says why, `Shell.tsx` how. The class list is the same
+    // with a backdrop or without. And this element must stay `<main>`'s
+    // direct child for a second reason now: the strip is keyed on exactly
+    // that.)*
     <div
-      className={
-        stage.url === null
-          ? `${page.reading} flex h-full flex-col gap-4`
-          : `${page.reading} ${veiled} flex h-full flex-col gap-4`
-      }
+      className={`${page.reading} flex h-full flex-col gap-4`}
+      {...(stage.url === null ? {} : veiled)}
     >
       <div className="flex flex-wrap items-center gap-2">
         {/*

@@ -57,6 +57,10 @@ describe('the backdrop layer', () => {
     const [picture] = pictures();
     expect(picture?.getAttribute('alt')).toBe('');
     expect(picture?.getAttribute('src')).toBe(A);
+    // And not fetched on a phone (2026-10-13, after review): hiding stops the
+    // drawing, not the download, and a lazy picture that is not displayed is
+    // never fetched.
+    expect(picture?.getAttribute('loading')).toBe('lazy');
   });
 
   it('draws no frame at all when there is nothing to show', () => {
@@ -103,9 +107,34 @@ describe('the crossfade', () => {
     // Waiting, and with the motion on it, until its bytes are here.
     expect(shown(over)).toBe(false);
     expect(over?.className).toMatch(/\bduration-arrive\b/);
+    // Both pictures are lazy, the one underneath as much as the new one.
+    expect(pictures().map((image) => image.getAttribute('loading'))).toEqual(['lazy', 'lazy']);
 
     fireEvent.load(nth(1));
     expect(shown(nth(1))).toBe(true);
+  });
+
+  /**
+   * ***A → B → A before B has arrived*** (2026-10-13, after review): a quick
+   * pick and its Undo, or a staged picture a rewind replaces before its bytes
+   * are here. B never showed, so it is dropped, and A — still what was under
+   * it — must not be kept underneath *and* drawn on top: two siblings with one
+   * key, which React reports and may reconcile wrongly.
+   */
+  it('takes a room back before the next one has arrived without drawing it twice', () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    try {
+      const { rerender } = render(<Backdrop url={A} onLost={vi.fn()} />);
+      fireEvent.load(nth(0));
+      rerender(<Backdrop url={B} onLost={vi.fn()} />);
+      rerender(<Backdrop url={A} onLost={vi.fn()} />);
+
+      expect(pictures().map((image) => image.getAttribute('src'))).toEqual([A]);
+      expect(shown(nth(0))).toBe(true);
+      expect(error).not.toHaveBeenCalled();
+    } finally {
+      error.mockRestore();
+    }
   });
 
   it('shows a room it has drawn before as soon as it comes back', () => {

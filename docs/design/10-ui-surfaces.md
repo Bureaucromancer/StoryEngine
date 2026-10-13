@@ -633,8 +633,16 @@ is not. What each sentence above became:
   ([P12A](workplan/35-p12a-the-look.md) P12A.0's token). `contrast.test.ts`
   holds `ink`, `ink-muted` and `ink-subtle` (the player's line) to 4.5:1 over
   the veil composited over black and over white, which is every picture there
-  is. While a picture is behind it the column scrolls itself, so nothing in it
-  runs past the veil on a short window. *`ink-faint` cannot sit on the veil* —
+  is. ~~While a picture is behind it the column scrolls itself, so nothing in it
+  runs past the veil on a short window.~~ *(2026-10-13, after review: the
+  column does not scroll itself — as a second scroller it made two
+  scrollbars, slid off its own veil and threw the reader's place away whenever
+  a picture came or went, which is the layout being pushed around that the
+  next bullet rules out. The page's one scroller, `<main>`, paints the veil
+  instead, as a strip of the column's width that stays put while the column
+  scrolls over it, so nothing in the column runs past the veil on any
+  screenful and nothing moves when a picture arrives, fails or is turned
+  off.)* *`ink-faint` cannot sit on the veil* —
   it would need 99.5% — so the fine print the column still carries falls below
   its floor over a backdrop; it is tooling rather than prose, and
   [P12A](workplan/35-p12a-the-look.md) P12A.5's move of the panels is where
@@ -654,14 +662,20 @@ is not. What each sentence above became:
 - **It is not a status display.** Decorative: `alt=""`, and the layer hidden
   from assistive technology. The label *Scene* names the region, not the
   picture.
-- **On a phone**, `max-sm:hidden` — gone below the breakpoint.
+- **On a phone**, `max-sm:hidden` — gone below the breakpoint. *(2026-10-13,
+  after review: and not downloaded there either. Hiding a picture stops the
+  drawing, not the fetch, so each one is loaded lazily, which a picture that
+  is not displayed never is; the veil, too, is painted only from the
+  breakpoint up.)*
 
 ***"Generated or uploaded"*** is built as **generated or chosen**. *Choose a
 backdrop…*, beside *Set the scene*, lists the session's own background
 renditions and the pictures on what the session uses — its treatment, its
 lorebooks and their entries, its setup, its cast, the Worlds it is in — and an
 upload goes into one of those library objects first, through the galleries that
-exist, rather than into the session: no new arm of the channel's value, which
+exist *(2026-10-13, after review: today, a lorebook's — the book's own and an
+entry's; the other kinds' pictures arrive by import or through the API)*,
+rather than into the session: no new arm of the channel's value, which
 would be a migration under live sessions. **Choosing turns *Stage a backdrop*
 off in the same act**, and the dialog says so in the same sentence, because with
 staging on the story's next reuse or new picture would overwrite the pick;

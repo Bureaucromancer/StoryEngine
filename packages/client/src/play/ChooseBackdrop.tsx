@@ -32,7 +32,11 @@ import { WriteFailed } from './WriteFailed.js';
  * (`GET /sessions/:id/backdrops`, which says why there and not here). A new
  * picture goes into a library object first, through the galleries that
  * exist, and is offered from then on; there is no upload into a session,
- * which would need a new arm of the channel's value.
+ * which would need a new arm of the channel's value. *(2026-10-13, after
+ * review: the galleries that exist are a lorebook's two — the book's
+ * Pictures and an entry's strip. A treatment, a setup, a character or a World
+ * has no picture editor, so its pictures arrive by import or through the
+ * API, and the empty list's sentence sends a person to the lorebook.)*
  *
  * ***Choosing turns *Stage a backdrop* off, in the same act, and the dialog
  * says so in the same sentence.*** With staging on, the story's next reuse or
@@ -52,7 +56,7 @@ const WORDS = labels('play.backdrop', {
   title: 'Choose a backdrop',
   lead: 'Choosing a picture here, or No backdrop, stops the story staging its own: “Stage a backdrop” is switched off, so what you choose stays until you change it. Switching “Stage a backdrop” back on hands the choice back to the story.',
   none: 'No backdrop',
-  made: 'Made in this session',
+  held: 'This session’s own backgrounds',
   treatments: 'From the treatment “{name}”',
   setups: 'From the setup “{name}”',
   worlds: 'From the World “{name}”',
@@ -66,14 +70,14 @@ const WORDS = labels('play.backdrop', {
   loading: 'Looking for pictures…',
   failed: 'The pictures could not be listed.',
   empty:
-    'Nothing this session uses has a picture yet. A picture goes into the library first — on the treatment, a lorebook or one of its entries, the setup, a character, or a World the session is in — and is offered here from then on.',
+    'Nothing this session uses has a picture yet. Add one in the library to a lorebook this session uses — under the book’s Pictures, or on one of its entries — and it is offered here from then on. Pictures already on its treatment, setup, characters or Worlds, from an import, are offered too.',
   chooseFailed: 'That backdrop could not be chosen.',
   close: 'Close',
 });
 
 /** The heading a group of pictures goes under, by whose pictures they are. */
 function headingOf(source: BackdropCandidate['source']): string {
-  if (source === null) return WORDS.made;
+  if (source === null) return WORDS.held;
   const template =
     source.kind === 'treatments' ||
     source.kind === 'setups' ||
@@ -87,10 +91,19 @@ function headingOf(source: BackdropCandidate['source']): string {
 
 /**
  * The rows in the server's order, grouped by whose they are — one heading per
- * object, and one for the pictures this session made. *The order is the
- * server's* (what this session made, then its treatment, setup, Worlds,
- * lorebooks and cast), because it is the order a person looks for a place in,
- * and a client re-sorting it would be a second answer to one question.
+ * object, and one for the backgrounds the session itself holds — those it
+ * made, and those it was imported with. *The order is the server's* (the
+ * session's own backgrounds, then its treatment, setup, Worlds, lorebooks and
+ * cast), because it is the order a person looks for a place in, and a client
+ * re-sorting it would be a second answer to one question.
+ *
+ * ***The session's own heading says whose, not who made them*** (2026-10-13,
+ * after review). It read *Made in this session*, and an Aventuras story's
+ * backgrounds — drawn in Aventuras, by another model — are this session's
+ * renditions too, as are those a session export carried in from another
+ * install. Saying this session made them is the provenance claim the
+ * import's own notes go out of their way not to make, so the heading names
+ * the holder and leaves the maker alone.
  */
 function groupsOf(rows: readonly BackdropCandidate[]): {
   key: string;

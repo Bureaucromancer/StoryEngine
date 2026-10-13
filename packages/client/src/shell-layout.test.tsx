@@ -97,6 +97,14 @@ const TURN: TurnRecord = {
 };
 
 /**
+ * The session's mode surfaces, which only the backdrop's test sets — a
+ * picture on the stage region, which is what makes Play's column ask
+ * `<main>` for the veil. Read when the session is, so a test can set it
+ * before it navigates and put it back after.
+ */
+let surfaces: unknown[] | undefined;
+
+/**
  * `importOriginal` spread rather than a bare factory, so everything no route
  * here touches keeps its real implementation — the same reasoning as
  * `ActorEditorPage.test.tsx`. Static resolved values, no `vi.fn()`s: nothing
@@ -115,7 +123,12 @@ vi.mock('./api.js', async (importOriginal) => {
       readPrefs: () => Promise.resolve({ prefs: {} }),
     },
     listSessions: () => Promise.resolve({ sessions: [SESSION] }),
-    readSession: () => Promise.resolve({ session: SESSION, activeJob: null }),
+    readSession: () =>
+      Promise.resolve({
+        session: SESSION,
+        activeJob: null,
+        ...(surfaces === undefined ? {} : { surfaces }),
+      }),
     readTranscript: () => Promise.resolve({ turns: [TURN] }),
     readRenditions: () => Promise.resolve({ renditions: [], selection: {} }),
   };
@@ -128,7 +141,8 @@ vi.mock('./play/stream.js', () => ({
 }));
 
 const { router } = await import('./router.js');
-const { navLink } = await import('./ui/classes.js');
+const { navLink, page } = await import('./ui/classes.js');
+const { veiled } = await import('./play/Backdrop.js');
 const { applyCatalogue } = await import('./i18n/catalogue.js');
 const { MACHINE_FRENCH } = await import('./i18n/fr-x-machine.js');
 
@@ -293,6 +307,91 @@ describe('one main view', () => {
 
     const main = document.querySelector('main');
     expect(main?.className.split(' ')).toContain('relative');
+  });
+});
+
+/**
+ * ***The backdrop's veil, painted by `main` under Play's column*** (2026-10-13,
+ * [P12A](../../../docs/design/workplan/35-p12a-the-look.md) P12A.2, after
+ * review). The column first wore the veil itself and scrolled itself to keep
+ * it under everything: a second scroller, which slid off its own veil, made
+ * `main` scroll as well, and threw the reader's place away whenever a picture
+ * came or went. Now the column carries a marker and nothing else, and `main`
+ * — still the one scroller — paints a strip of the column's width under it,
+ * keyed on the marker being its *direct* child (`Shell.tsx`, `veil`).
+ *
+ * Held here, on the real router, because the join is between two files that
+ * never see each other: the page sets an attribute, the shell names it inside
+ * a selector. jsdom applies no stylesheet and lays nothing out, so what can be
+ * held is that the two halves meet — the classes on `main`, spelled with the
+ * marker the page exports and the width the column is, and the marker on the
+ * child the selector reads — not that the strip is drawn, which is T1's look.
+ *
+ * The falsifying mutations: the strip's classes off `main`, the marker
+ * renamed on one side, the marker put on an element inside the column, the
+ * column given its `overflow-y-auto` back, and `page.reading` moved off the
+ * width the strip is sized to.
+ */
+describe('the backdrop’s veil', () => {
+  const STAGE = {
+    region: 'stage',
+    key: 'se.backdrop',
+    channelId: 'se.backdrop',
+    scopeKey: null,
+    kind: 'image',
+    label: 'Scene',
+    image: { url: '/api/library/worlds/w-1/media/m-1', alt: 'Scene' },
+  };
+
+  it('is painted by main under the column, which is main’s own child and scrolls with it', async () => {
+    surfaces = [STAGE];
+    try {
+      renderApp();
+      await act(async () => {
+        await router.navigate({ to: '/play/$sessionId', params: { sessionId: SESSION_ID } });
+      });
+      await screen.findByRole('heading', { name: 'The Ashfall Road', level: 1 });
+
+      const main = document.querySelector('main');
+      if (main === null) throw new Error('the shell rendered no main');
+      const [marker] = Object.keys(veiled);
+      if (marker === undefined) throw new Error('the backdrop exports no marker');
+
+      // The column — the composer's — is the child of main that asks.
+      const column = await waitFor(() => {
+        const found = [...main.children].find((child) => child.hasAttribute(marker));
+        if (found === undefined) throw new Error('no child of main asks for the veil');
+        return found;
+      });
+      expect(column.contains(screen.getByPlaceholderText('What do you do?'))).toBe(true);
+      // And it does not scroll itself: main is the one scroller.
+      expect(column.classList.contains('overflow-y-auto')).toBe(false);
+
+      // main paints the strip for exactly that child, at the column's width.
+      const classes = main.className.split(/\s+/);
+      for (const part of [
+        'bg-[linear-gradient(var(--color-veil),var(--color-veil))]',
+        'bg-no-repeat',
+        'bg-center',
+        'bg-size-[min(100%,var(--container-reading))_100%]',
+      ]) {
+        expect(classes).toContain(`sm:has-[>[${marker}]]:${part}`);
+      }
+      expect(page.reading.split(' ')).toContain('max-w-reading');
+    } finally {
+      surfaces = undefined;
+    }
+  });
+
+  it('is asked for by nothing on a session with no backdrop', async () => {
+    renderApp();
+    await act(async () => {
+      await router.navigate({ to: '/play/$sessionId', params: { sessionId: SESSION_ID } });
+    });
+    await screen.findByPlaceholderText('What do you do?');
+
+    const [marker] = Object.keys(veiled);
+    expect(document.querySelector(`[${marker ?? 'data-veiled'}]`)).toBeNull();
   });
 });
 
