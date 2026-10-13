@@ -182,6 +182,17 @@ landed: **it still passes, and the exception is now used, exactly as named.**
 The lorebook artefact differs from its pinned form inside `LoreScope` only, by
 the `world` arm and the open arm that is how the arm lands; the test admits
 those two shapes and nothing else beside the arms `/1` shipped with.)*
+*(2026-10-13: **it fired once since, and not at World.**
+[26 B20](../26-open-questions.md)'s `MediaRecipe` — an optional `recipe` on
+`EmbeddedMedia`, the owner's decision of 2026-10-12, built on a branch beside P16
+and merged after it — is additive and lands in every kind that carries media, so
+the actor, treatment and setup artefacts and the lorebook's outside `LoreScope`
+all differ from their `ad47e39` pins by it. The test admits it as a **second
+named exception** rather than being re-pinned: the digests stay `ad47e39`'s, and
+each artefact is compared with that one property taken back out of every
+`EmbeddedMedia`, so a recipe anywhere else, or any other change, still fails —
+both checked by mutation. 7 of 7 at the merge. What the check says about World is
+unchanged: World touched no other portable schema.)*
 
 > **Write at 2.0 may change internal-tier shapes and may not break portable
 > ones.**

@@ -873,6 +873,14 @@ ahead of the Studio and of any front end that hands the library a picture,
 because the line is only checkable where it is code, and its test pins that no
 connection id and no unsent seed ever cross.
 
+*(2026-10-13, at the merge into `main`: [P16](workplan/34-p16-world.md)'s
+release check, `world-release-check.test.ts`, pins the actor, treatment and setup
+artefacts and the lorebook's outside `LoreScope` as they stood at alpha 6, and the
+recipe is the first change it caught. It is admitted there as a second named
+exception, this entry's, rather than re-pinned — the alpha 6 digests hold with the
+recipe taken back out of `EmbeddedMedia` and nowhere else — and recorded at
+[work plan §0.2](workplan/01-work-plan.md) and P16 §3.3.)*
+
 *[18 §5](18-character-studio.md), [00 §3.2](00-stance.md),
 [22 §7](22-internal-contracts.md), [06 §10.7](06-modes-and-turn-pipeline.md),
 [04 §3](04-schemas.md), [P9 §1.1](workplan/26-p9-implementation.md)*
