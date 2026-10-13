@@ -26,10 +26,17 @@ import type { MediaRecipe } from './schema/common.js';
  *   connection on one install, and on anybody else's install it names nothing,
  *   so a recipe has no use for it. *(Corrected 2026-10-13, at the merge into
  *   `main`: this said §3.2 keeps the id at home, and it does not — §3.2 keeps
- *   the connection, its URL and its key. A session export and a World file's
+ *   the connection, its URL and its key. ~~A session export and a World file's
  *   sessions carry the whole rendition record, id included, on P16's reasoning
- *   in `packaging/world-file.ts`: an id is not a connection. The recipe leaves
+ *   in `packaging/world-file.ts`: an id is not a connection.~~ The recipe leaves
  *   it out because it is useless there, not because it may not travel.)*
+ *   *(2026-10-13 again, the owner's decision the same day: the struck sentence
+ *   was true when it was written and is not now. A session export and a World
+ *   file's sessions carry the rendition record whole **except** this id — the
+ *   binding travels as `{ modelId }` (`sessions/export.ts`,
+ *   `travellingRendition`) — for the reason given here: on anybody else's
+ *   install it names nothing. Nothing about this function changes; the
+ *   projection never read the id, and an absent one projects the same model.)*
  * - **`seed` only when it was sent.** `seedSent` is the one field that says
  *   whether the picture was made from the seed the record states, and it reads
  *   three ways (`rendition.ts`): `true`, sent; `false`, not sent, so the

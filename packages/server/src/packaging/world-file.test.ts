@@ -828,6 +828,37 @@ describe('a World published from a real walk', () => {
     }
   });
 
+  /**
+   * ***Each picture's record, carried with its model and without its
+   * connection's id*** — the owner's decision of 2026-10-13. Both of the
+   * night's renditions are on Ned's disk bound to `c-1`; in the file each
+   * binding is `{ modelId }`, and no key anywhere in a carried rendition's
+   * provenance names a connection. Asserted on the zip's own member, so a
+   * strip in the plain export that `travelling()` somehow undid — or a World
+   * file built from somewhere else — fails here and not only in
+   * `sessions/export.test.ts`. *Only the renditions*: the turns' recorded calls
+   * keep `resolved.connectionId`, which this decision does not reach and this
+   * test does not pin either way.
+   */
+  it('carries each picture’s record with its model and no connection id', () => {
+    const keysOf = (value: unknown): string[] => {
+      if (Array.isArray(value)) return value.flatMap(keysOf);
+      if (typeof value !== 'object' || value === null) return [];
+      return Object.entries(value).flatMap(([key, inner]) => [key, ...keysOf(inner)]);
+    };
+    for (const file of [plain, withHistory]) {
+      const exported = json(file.entries, `sessions/${fixture.night.id}/session-export.json`) as {
+        renditions: { id: string; provenance: Record<string, unknown> }[];
+      };
+      expect(exported.renditions).toHaveLength(2);
+      for (const rendition of exported.renditions) {
+        expect(rendition.provenance['binding']).toEqual({ modelId: 'sdxl' });
+        expect(keysOf(rendition.provenance)).not.toContain('connectionId');
+        expect(JSON.stringify(rendition)).not.toContain('"c-1"');
+      }
+    }
+  });
+
   it('names the unchecked required book in leftBehind, required, from the treatment', () => {
     expect(manifest.leftBehind).toEqual([
       {

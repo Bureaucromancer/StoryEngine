@@ -57,11 +57,15 @@ export async function exportSession(
    * A session with no renditions, or a store that would not answer: **an export
    * missing its pictures is worth having and an export that failed is not.**
    * The records travel and the pixels do not — see `SessionExport.renditions`.
+   * *And each record without its binding's connection id* (2026-10-13, the
+   * owner's decision): {@link travellingRendition}.
    */
   const held = await readRenditions(context.sessions.layout, handle, sessionId).catch(
     () => new Map<string, Rendition>(),
   );
-  const renditions: Rendition[] = [...held.values()].sort((one, two) => (one.id < two.id ? -1 : 1));
+  const renditions: Rendition[] = [...held.values()]
+    .sort((one, two) => (one.id < two.id ? -1 : 1))
+    .map((one) => travellingRendition(one));
 
   return {
     schema: SESSION_EXPORT_SCHEMA,
@@ -81,4 +85,63 @@ export async function exportSession(
     turns,
     renditions,
   };
+}
+
+/**
+ * ***A rendition as it travels: the model it was asked of, never the
+ * connection's id*** — the owner's decision of 2026-10-13, which answers what
+ * [26 B20](../../../../docs/design/26-open-questions.md) and
+ * [22 §7](../../../../docs/design/22-internal-contracts.md) left *not decided*
+ * the same morning.
+ *
+ * **Why here, in the writer, and not in `travelling()` or the reader.** Every
+ * road a rendition record takes off this install starts in
+ * {@link exportSession}: the session export route, the World file (whose
+ * `travelling()` builds on this), the review's `measureSession`, and the
+ * session digest the publish ledger records. One strip here keeps all four
+ * saying the same thing — a strip in `travelling()` alone would leave the plain
+ * export carrying the id while the World file did not, and the review would
+ * measure a different document from the one the route sends. *The reader is
+ * the wrong place for the only strip* because a backup's merge reads through
+ * the same session reader, and a backup carries the connections themselves:
+ * `backup/import.ts` brings each in under its own id, verbatim, because
+ * re-minting would orphan every binding that names one — so in a backup's
+ * records the id still names something. The World file's reader takes the id
+ * out a second time (`import/world/session.ts`), for a file this writer did
+ * not make.
+ *
+ * ***The key goes and `binding` stays.*** `null` stays `null`, which is *not
+ * recorded*; a binding becomes `{ modelId }`, the `connectionId` key deleted
+ * from a copy rather than set to `undefined` or `''` — absent is what says
+ * *this record travelled* (`RenditionProvenance.binding`), and an empty string
+ * would be a value claiming to name a connection. Removing `binding` itself is
+ * the one shape that breaks a reader: the workbench's *Asked* row reads
+ * `binding.modelId` whenever it is not `null`.
+ *
+ * *Read as `unknown` below `provenance`*, because the record is whatever is
+ * on disk: `readRenditions` checks the seed and the workflow and not the
+ * binding, so a hand-edited file can hold anything there, and anything that is
+ * not an object holding the key is passed on as it is — the writer's job is to
+ * drop one field, not to judge the record. *A copy, never the record*: the
+ * file on this install keeps its id, which retries and the reuse key are
+ * computed beside.
+ *
+ * ***What it does not touch.*** `Rendition.digest`, which still folds the id
+ * in (one-way, and only ever compared — see its docstring in `rendition.ts`);
+ * and the turns' recorded calls, `ModelCall.resolved`, which carry the same
+ * kind of id — which connection answered each call — and are **not** decided
+ * by this: the decision names renditions only, and the calls stay as they are
+ * written.
+ */
+export function travellingRendition<T>(record: T): T {
+  if (typeof record !== 'object' || record === null) return record;
+  const provenance: unknown = (record as Record<string, unknown>)['provenance'];
+  if (typeof provenance !== 'object' || provenance === null) return record;
+  const binding: unknown = (provenance as Record<string, unknown>)['binding'];
+  if (typeof binding !== 'object' || binding === null || !('connectionId' in binding)) {
+    return record;
+  }
+  const kept: Record<string, unknown> = { ...binding };
+  delete kept['connectionId'];
+  return { ...record, provenance: { ...provenance, binding: kept } };
 }

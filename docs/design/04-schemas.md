@@ -2440,6 +2440,12 @@ is not in `PORTABLE_SCHEMAS` — an envelope is not an object somebody edits.
   open, in P16's record. **And a ticked session's prompt blocks the budget
   dropped** travel as their rows with empty `text` — the session never sent
   those words.)*
+  *(2026-10-13, the owner's decision: **and each of a ticked session's
+  rendition records travels without its binding's connection id** — the
+  binding as `{ modelId }`, the model it was asked of kept. The session export
+  writes it so, for the plain export and this file alike, and the reader drops
+  the id from a file written before that. [22 §7](22-internal-contracts.md) has
+  the shape and the reasons.)*
 - **The manifest is the integrity check.** Each object's `contentHash` is checked
   on arrival and a mismatch refuses that object alone; a picture is checked
   against its `sha256` name. The zip's CRCs are parsed and enforced nowhere, as
@@ -2461,6 +2467,13 @@ is not in `PORTABLE_SCHEMAS` — an envelope is not an object somebody edits.
   nor, since [P16.3f](workplan/34-p16-world.md), a session's archived date: an
   archive is the sender's tidiness, and a session landing archived would be
   hidden from the person it was sent to.
+  *(2026-10-13: "a connection" has always meant the connection — its URL, its
+  key — and never its id, which a session's records name in two places. **A
+  picture's record no longer does**, by the owner's decision of that date: its
+  binding travels as the model alone. **A turn's recorded calls still do** —
+  `resolved.connectionId`, which connection answered each call — as P16 chose,
+  on *an id is not a connection*; the decision names renditions, and whether the
+  calls should follow is not decided.)*
 
 ## 10. Not defined here, deliberately
 

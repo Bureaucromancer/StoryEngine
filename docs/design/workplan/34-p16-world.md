@@ -989,12 +989,16 @@ load-bearing claims against the code, which found most of them true, two
   sibling sessions, unticked ones included, and are stripped from every session
   that travels; the leak test checks an unticked session's **id** as well as its
   name (P16.3c). A turn's recorded calls name the connection that answered —
-  an id, never the connection — and stay; its recorded prompt may quote memory
-  drawn from another session, and the review says so rather than scrubbing what
-  the session sent (P16.3g). *(2026-10-11, the final audit: what it **sent** —
-  the record also kept the words of every block the budget dropped, which the
-  session never sent, and they travelled; such a block now travels as its row
-  with no text.)*
+  an id, never the connection — and stay *(2026-10-13: a rendition's record
+  named one too, `provenance.binding.connectionId`, and by the owner's decision
+  of that date it no longer travels — the binding goes as `{ modelId }`, and the
+  reader drops the id from a file written before. The calls' id is not that
+  decision's, and still travels; whether it should is not decided)*; its
+  recorded prompt may quote memory drawn from another session, and the review
+  says so rather than scrubbing what the session sent (P16.3g). *(2026-10-11,
+  the final audit: what it **sent** — the record also kept the words of every
+  block the budget dropped, which the session never sent, and they travelled;
+  such a block now travels as its row with no text.)*
 - *Gaps*: the World landing refuses a nested World envelope itself, since only
   `addMembers` did (P16.3e) — *and `addMembers` only under the new schema id,
   until the final audit*; tag ids name the sender's tag registry and are
@@ -1431,6 +1435,25 @@ card re-spliced to drop a removed picture is not one. The entry is unchanged at
   on the same page, the diff says so and compares again on *Look again*, rather
   than describing the file two back.
 
+*(2026-10-13, the owner's decision to drop the connection id from travelling
+renditions and keep the model — [22 §7](../22-internal-contracts.md), under
+`RenditionProvenance`: **the first re-publish after it reads a carried session
+with pictures as changed, once.** A session's digest hashes its export as it
+travels, every rendition record in it, and each record's binding is now
+`{ modelId }`; so a session holding a picture whose binding is not `null` —
+every picture an image model was asked for, where an Aventuras import's, or
+one asked for with nothing bound, is `null` — hashes otherwise than the
+ledger's line for it, though nothing was played or drawn since. With no turns added it is
+listed as *changed*, not played on, and the publish that follows writes the new
+digest, which every later one compares against. **No migration**: a ledger line
+holds only the hash, which cannot be re-keyed without the bytes it was taken
+over, and only dev installs that published on `p16` or `main` since 2026-10-11
+hold such a line — this phase is in no release. The precedent is this phase's
+own: `withoutUnsentText` (`6dfb9f0`) changed the travelling bytes the same way
+on 2026-10-11, two hours after the digest arrived, and wrote no ledger handling
+either. Sessions with no pictures are untouched, and so is the plain session
+export, whose bytes no ledger records.)*
+
 ### P16.3 — what it closes
 
 **All three end clauses are tests on `p16`, and the stage is built**:
@@ -1550,6 +1573,11 @@ italics. Each item says whose it is.
     world…*: the file it wrote is still read. **A plot hook's *Involves* and
     *Blocked by* take only what they offer**: a typed name that matches nothing is
     no longer saved as a reference to nobody, which retired the hook quietly.
+    *(Added 2026-10-13, with the owner's decision on the connection id:)* **A
+    session export no longer names the connection each picture was made
+    through** — it keeps the model's name — and neither does a published
+    World's session. A session exported by alpha 5 or 6 still loads, as it
+    was.
   - ***Known.*** **Alphas 5 and 6 cannot read a World file as a World** — given
     one, they bring in its objects alone — and **refuse, whole, a lorebook
     scoped to a World**. Alpha 5's Known line — *World will rename them and go

@@ -4,6 +4,7 @@
 import {
   type ImportItemReport,
   type ImportNote,
+  type Rendition,
   type SessionExport,
   uuidv7Timestamp,
   WORLD_FILE_SESSION_EXPORT,
@@ -11,6 +12,7 @@ import {
 
 import { sessionHolding } from '../../index-db/sessions.js';
 import { storeAttachment } from '../../sessions/attachments.js';
+import { travellingRendition } from '../../sessions/export.js';
 import { importSession, landNewTurns, readSessionExport } from '../../sessions/import.js';
 import { producedTurnId } from '../../sessions/producer.js';
 import { readSession, readTurns, scopeOf, type SessionContext } from '../../sessions/store.js';
@@ -24,7 +26,8 @@ import { idsNamedIn, rewriteIds } from './rewrite.js';
  * [P16.3f](../../../../../docs/design/workplan/34-p16-world.md).
  *
  * **What arrives**: `sessions/<id>/session-export.json` — P11.10's export,
- * unchanged but for the bindings and associations the writer took out — with
+ * unchanged but for the bindings and associations the writer took out, each
+ * rendition's connection id among them since 2026-10-13 — with
  * the pictures its renditions name under `assets/` and the pictures its moves
  * carried under `attachments/` (the owner's answer of 2026-10-10: a session's
  * pictures travel). It lands through the one session reader there is
@@ -540,6 +543,20 @@ function tokensRenamed(value: string, ids: ReadonlyMap<string, string>): string 
  * and `memory.associations` is keyed by the sender's other sessions' ids. And
  * `archivedAt` (2026-10-11, the P16.3f review): the sender's housekeeping,
  * which would land the session hidden from the recipient's list.
+ *
+ * ***And each rendition's connection id*** (2026-10-13, the owner's decision:
+ * a travelling rendition keeps `binding.modelId` and loses
+ * `binding.connectionId`). The writer drops it (`sessions/export.ts`'s
+ * `travellingRendition`, which this calls so the two cannot describe different
+ * shapes), and a World file from before that — every one written on a dev
+ * install between P16.3c and this — or one made by hand still carries it, and
+ * would land a sender's connection id on this account's records. *Here and
+ * not in the session reader*, which a plain session import and a backup's
+ * merge share: a backup carries the connections its records name, under
+ * their own ids (`backup/import.ts`), so the id there still names one; and a
+ * plain export already in somebody's hands lands as it arrived. Anything in
+ * `renditions` that is not a record with a binding holding the key passes as
+ * it is, for `importRenditions` to judge.
  */
 function withoutBindings(read: SessionExport): SessionExport {
   const session = { ...(read.session as Record<string, unknown>) };
@@ -552,7 +569,15 @@ function withoutBindings(read: SessionExport): SessionExport {
     delete kept['associations'];
     session['memory'] = kept;
   }
-  return { ...read, session: session as SessionExport['session'] };
+  // Read as unknown, as `importRenditions` reads it: a file says what it says.
+  const listed = (read as unknown as Record<string, unknown>)['renditions'];
+  return {
+    ...read,
+    session: session as SessionExport['session'],
+    ...(Array.isArray(listed)
+      ? { renditions: listed.map((one: unknown) => travellingRendition(one)) as Rendition[] }
+      : {}),
+  };
 }
 
 function turnIdsIn(doc: SessionExport): string[] {

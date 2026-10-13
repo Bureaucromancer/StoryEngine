@@ -789,12 +789,28 @@ says so now. *(2026-10-13, at the merge into `main`: ~~never leaves it~~ was wid
 than this decision, and two earlier ones disagree with it. A session export
 (P11.10, which froze the rendition record) and a World file's carried sessions
 ([P16](workplan/34-p16-world.md)'s `world-file.ts`) carry `Rendition` records
-whole, the binding's id included, on the reasoning that *an id is not a
+whole, ~~the binding's id included~~, on the reasoning that *an id is not a
 connection — no URL, no key*. [00 §3.2](00-stance.md) as amended here governs the
 connection, its URL and its key, not the id. What this entry decides is that the
 id never enters a recipe or a library object, and that stands; whether it should
 also leave a travelling rendition record is not decided by this entry, and
 [22 §7](22-internal-contracts.md) carries the same note.)*
+*(Answered later on 2026-10-13, by the owner: **drop the connection id on
+travelling renditions; keep the model name itself.** So the id does not leave
+with a travelling record either, and the struck words are no longer what the
+two writers carry. A session export and a World file's sessions write each
+rendition's binding as `{ modelId }` — the key absent, `binding` itself kept,
+`null` left `null` — in the session export's writer, which the World file
+builds on, and the World file's reader takes the id out again for a file
+written before this or by hand. The plain session reader and a backup's merge
+do not strip it: an alpha 5 or 6 export already in somebody's hands lands as it
+arrived, and a backup carries its connections under their own ids. The schema
+ids do not move, the stored `digest` is not recomputed — it still folds the
+sender's id in, one-way — and **a turn's recorded calls keep their
+`resolved.connectionId`**: the decision names renditions, and that parallel
+case is not decided. [22 §7](22-internal-contracts.md) has the whole answer,
+under `RenditionProvenance`. 00 §3.2's line is unchanged by it — the id was
+never the connection — so this entry's resolution stands as written.)*
 
 **What the decision fixes.**
 

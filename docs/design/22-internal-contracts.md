@@ -1228,8 +1228,15 @@ to the type and none wrote it down — the same shape of gap
 fallback layer, and the reason P9's first stage is a contract rather than a
 feature.
 
-**Admitted by §6's own rule**: something is built against it and it never leaves
-the install. So §6's table gains no row — the rule is the admission.
+**Admitted by §6's own rule**: something is built against it and ~~it never leaves
+the install~~. So §6's table gains no row — the rule is the admission.
+*(2026-10-13: the struck half stopped being true of the record at
+[P11.10](workplan/28-p11-implementation.md), which put it in the session export,
+and §7.1 says why it stayed here all the same. The narrower thing the clause
+might still be read to promise is now true of one field, by the owner's decision
+of 2026-10-13: a rendition record that travels in a session export or a World
+file carries no connection id — below, under `RenditionProvenance`. A backup is
+the data directory itself and keeps it.)*
 
 ```ts
 interface Rendition {
@@ -1279,6 +1286,13 @@ session already here was refused, or a session deleted and imported back while
 its job rows stayed — the rendition job table is keyed by session and id
 together (`STEPS[7]`).
 
+*(2026-10-13: and the first change after the freeze that **takes away** rather
+than adds — `provenance.binding.connectionId`, absent on a record that has
+travelled, by the owner's decision of that date. It is recorded under the
+freeze's own rule, *a promise not to tighten*: no reader, this build's or alpha
+5's or 6's, reads the id from a record, so its absence tightens nothing, and
+neither schema id moves. Below, under `RenditionProvenance`.)*
+
 **Three fields of [06 §10.1]'s sketch are typed differently here, and each is a
 correction rather than a preference.**
 
@@ -1310,15 +1324,22 @@ absent is a record from before the adapter sent seeds at all.
 anything decided, and the code says otherwise in two places that predate it. A
 session export (P11.10, [P11](workplan/28-p11-implementation.md)) and a World file's
 carried sessions ([P16](workplan/34-p16-world.md)) carry `Rendition` records
-whole, the binding's id included — `packaging/world-file.ts` on the reasoning
+whole, ~~the binding's id included~~ — `packaging/world-file.ts` on the reasoning
 that *an id is not a connection — no URL, no key*, which is this type's own *the
 id, never the connection* below. What [26 B20](26-open-questions.md) decided is
 narrower and holds: no recipe, and so no library object, carries it.)*
+*(Answered later on 2026-10-13, by the owner: **drop the connection id on
+travelling renditions; keep the model name itself.** The note above found the id
+travelling with nothing having decided that it should — B20 says so in as many
+words — and this decides it: it does not. The struck words are no longer what
+either writer carries; each rendition's binding travels as `{ modelId }`. The
+shape, where it is enforced and what it leaves alone follow the interface
+below.)*
 
 ```ts
 interface RenditionProvenance {
   at: string | null                                            // null while pending
-  binding: { connectionId: string; modelId: string } | null    // the id, never the connection
+  binding: { connectionId?: string; modelId: string } | null   // the id, never the connection — and no id once it has travelled
   answeredAs: string | null
   /** The sampling seed. A **number**, which is what makes it unmixable with the other reading. */
   seed: number | null
@@ -1328,6 +1349,58 @@ interface RenditionProvenance {
   workflow: Readonly<Record<string, string | number | boolean>>
 }
 ```
+
+***`connectionId` is optional, and absent means the record travelled***
+*(2026-10-13, the owner's decision: drop the connection id on travelling
+renditions; keep the model name itself — the interface line above was
+`connectionId: string` until then).* A session export and a World file's carried
+sessions write each rendition's binding as `{ modelId }`: the key deleted from a
+copy, never set to `undefined` or `""`, and `binding` itself never removed —
+`null` is *not recorded*, and the workbench's *Asked* row reads
+`binding.modelId` whenever the binding is not `null`. `seedSent` is the precedent
+for an absent key that means something; a `""` would be a value claiming to name
+a connection.
+
+- **Where.** In the writer, `exportSession` (`sessions/export.ts`,
+  `travellingRendition`), which every road off the install starts from — the
+  session export route, the World file, the review's measure and the publish
+  ledger's session digest — so all four carry the same records. And again in the
+  World file's reader (`import/world/session.ts`, beside the strip of `roles`),
+  for a file an older writer or a hand made.
+- **Not on the way in elsewhere.** The plain session reader lands a record as it
+  arrived: a session export written by alpha 5 or 6, which shipped it, keeps the
+  id it carries. A backup's merge reads through the same reader and keeps it too,
+  because a backup carries the connections themselves under their own ids
+  (`backup/import.ts`), and the id in its records still names one. A backup
+  restore never parses a rendition at all.
+- **Why the model stays.** It is the picture's history: *Asked* in the workbench,
+  the model a retry sends, and `recipeOfRendition`'s fallback. `binding: null`
+  would have cost the name on nearly every record, because `answeredAs` is `null`
+  whenever the endpoint answered as asked.
+- **Why the id can go.** Nothing reads it from a record. A retry resolves the
+  connection the account has now (`renditions/worker.ts`) and sends the
+  record's `modelId`; the reuse digest is computed from the live binding, never
+  from a record's. On anybody else's install the id names nothing.
+- **No version moves.** `storyengine.session-export/1` and
+  `storyengine.rendition/1` are exact-matched by every reader, and the readers of
+  alphas 5 and 6 accept `{ modelId }` already — their provenance check reads
+  `seed` and `workflow` and nothing else, and their *Asked* row reads `modelId`.
+  A bumped id would make those builds refuse a file they can read, or drop every
+  picture in it. Under [P11.10](workplan/28-p11-implementation.md)'s freeze, *a
+  promise not to tighten*, a removal no reader depends on tightens nothing.
+- ***`digest` is not recomputed.*** A travelling record's `digest` still folds the
+  sender's connection id in. The hash is one-way, so it gives none of the id
+  back; it is only ever compared, never re-derived from a record; and on a
+  recipient it matches only a binding with that same connection, model and
+  fragments — in practice never, which is how a landed backdrop behaved before.
+  The interface's *the fragments as sent, plus the resolved binding* is still
+  how every digest was made; on a travelled record it can no longer be checked
+  against the record's own fields, and nothing checks it.
+- ***The turns' recorded calls are not this decision.*** `ModelCall.resolved`
+  (§1.4) carries the same kind of id — which connection answered each call — and
+  both writers still carry it, as [P16](workplan/34-p16-world.md) chose: *an id
+  is not a connection*. The decision names renditions; whether a call's id
+  should go the same way is the parallel case, and it is **not decided**.
 
 ***`seedSent` is a second fact about the seed, not a second seed.*** `seed` is
 the recipe's and is known before the call; `seedSent` is what the call did with
