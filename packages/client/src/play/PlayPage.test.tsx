@@ -3,7 +3,7 @@
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
-import { act, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -1808,6 +1808,43 @@ describe('pictures on a move', () => {
 
     expect(await screen.findByText('a lantern')).toBeTruthy();
     expect(screen.getByText(/only its description travelled here/)).toBeTruthy();
+  });
+
+  /**
+   * ***A picture that goes missing keeps its slot's shape*** (P12A.0, after
+   * review). The stand-in sits in a row of pictures that did arrive, so it
+   * wears their radius: on the control radius it was the one tile in the row
+   * with a rounder corner. Read off the classes rather than a pixel, because
+   * jsdom draws nothing — what is held is that the stand-in and the picture
+   * beside it name the same radius token, whatever that token's value becomes.
+   * The picture is lost by its load failing, which is the path a person meets
+   * when a picture's bytes have been cleared since the move was made.
+   */
+  it('keeps a picture that fails to load the shape of the pictures beside it', async () => {
+    readTranscript.mockResolvedValue({
+      turns: [
+        {
+          ...TURN,
+          input: {
+            ...TURN.input!,
+            attachments: [
+              { id: '0', kind: 'image', digest: DIGEST, caption: 'a lantern' },
+              { id: '1', kind: 'image', digest: `sha256:${'e'.repeat(64)}`, caption: 'a harbour' },
+            ],
+          },
+        },
+      ],
+    });
+    renderPage();
+
+    fireEvent.error(await screen.findByRole('img', { name: 'a lantern' }));
+
+    const radius = (element: Element | null | undefined): string[] =>
+      (element?.className ?? '').split(/\s+/).filter((name) => name.startsWith('rounded-'));
+    const standIn = (await screen.findByText(/only its description travelled here/)).parentElement;
+    const beside = screen.getByRole('img', { name: 'a harbour' });
+    expect(radius(beside)).toEqual(['rounded-media']);
+    expect(radius(standIn)).toEqual(radius(beside));
   });
 
   /**

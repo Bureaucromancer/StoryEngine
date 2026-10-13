@@ -266,8 +266,13 @@ function MovePicture(props: { sessionId: string; picture: TurnAttachment }): JSX
   const [broken, setBroken] = useState(false);
   const digest = props.picture.digest;
   if (digest === undefined || broken) {
+    // The stand-in takes the picture's slot, and so the picture's radius: it
+    // sits in a row beside pictures that did arrive, and on `rounded-control`
+    // it was the one tile in the row with a rounder corner — a slot whose
+    // shape changed because its bytes went missing. The actor editor's
+    // portrait placeholder follows its picture the same way.
     return (
-      <div className="flex aspect-square w-full items-center rounded-control border border-dashed border-line p-2">
+      <div className="flex aspect-square w-full items-center rounded-media border border-dashed border-line p-2">
         <Fine>{WORDS['missing']}</Fine>
       </div>
     );

@@ -665,9 +665,11 @@ row, an account's card and the new-account form, a connection's card and the
 connection form, a connection test's text answer, the first-run question's box
 and form), six controls (the revision-rename input, four selector chips, the
 *Shadowed* badge), three pictures (the actor's portrait, its placeholder, a
-connection test's picture) — and the six pictures already on another token moved to
+connection test's picture) — and the ~~six~~ *seven* pictures already on another token moved to
 `rounded-media`: a rendition, two in *Pictures*, the media strip's, the mode
-region's image and the reading view's illustration. The three `shadow-lg`
+region's image and the reading view's illustration *(2026-10-13, after review:
+and the moves grid's stand-in for a missing picture, which this paragraph first
+left on `rounded-control` — see* After review *below)*. The three `shadow-lg`
 overlays spend `shadow-overlay`. 10 §1.2 has a dated note.
 
 **What the stage text said and what turned out different:**
@@ -801,6 +803,33 @@ tests and their neighbours — twenty-two files — pass unchanged.
 are a few bytes longer), **CSS 7.98** (7.81 before: the two colours' fallbacks
 in both dark blocks, the reduced-motion block and the new radii) — gzip level 9
 over the files `index.html` pulls, the budget test's method.
+
+***After review, 2026-10-13*** — a review of the stage's diff, each finding
+verified before it was acted on, found one thing, reported twice. **A picture's
+stand-in stayed behind when its picture moved.** `MovePicture` in
+`play/Pictures.tsx` draws a dashed stand-in in a picture's slot when the move's
+picture has no bytes here or its `<img>` fails to load; the picture moved to
+`rounded-media` above and the stand-in did not, so a row of a move's pictures
+with one lost had one tile 2px rounder at the corner than the tiles beside it —
+a slot that changed shape because its bytes went missing. That mismatch did not
+exist before this stage, and *every picture 2px tighter* in the first bullet
+above did not cover it. The actor editor's portrait placeholder had followed its
+picture; this one had not, and the paragraph did not say why — there was no
+reason. It spends `rounded-media` now, with a comment saying a stand-in takes its
+picture's radius because it takes its picture's slot. `Rendition`'s status line
+stays on `rounded-control`: it is a line of text in a box, not a slot shaped like
+a picture.
+
+*Test, checked against a mutation and restored*: `PlayPage.test.tsx`'s *keeps a
+picture that fails to load the shape of the pictures beside it* gives a move two
+pictures, fails the first one's load, and holds the stand-in to the same radius
+token as the picture beside it, read off the classes because jsdom draws nothing.
+It fails with the stand-in back on `rounded-control` (*expected
+`rounded-control` to deeply equal `rounded-media`*), and with the load failure
+not handled, when no stand-in is drawn at all. `theme.test.ts`'s calibration now
+counts ten `rounded-media` spenders — eight pictures and the two stand-ins — and
+its floor is ten, which the same revert fails at nine. **Entry after: 310.33 kB, CSS 7.98**, unchanged, by the same
+method.
 
 ### P12A.1 — The story face, and the two surfaces that wear it
 

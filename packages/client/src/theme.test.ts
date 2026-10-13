@@ -510,15 +510,16 @@ describe('radius, elevation and motion are spent by name', () => {
   it('reads the class lists it is meant to', () => {
     // Calibrated, so a reader that stopped finding strings cannot pass: the
     // client spends `rounded-control` some seventy times, its three overlays
-    // spend `shadow-overlay`, its nine pictures `rounded-media`, and `reveal`
-    // is the one `transition-*`. `field-sizing-content` is written only after
+    // spend `shadow-overlay`, its eight pictures and the two stand-ins that
+    // take a picture's slot `rounded-media`, and `reveal` is the one
+    // `transition-*`. `field-sizing-content` is written only after
     // a `${control}` hole, in the composer and the chat's edit box, so it is
     // the proof that a template literal's text is read at all.
     const count = (utility: string): number =>
       scanned.filter((found) => found.utility === utility).length;
     expect(count('rounded-control')).toBeGreaterThanOrEqual(50);
     expect(count('shadow-overlay')).toBeGreaterThanOrEqual(3);
-    expect(count('rounded-media')).toBeGreaterThanOrEqual(9);
+    expect(count('rounded-media')).toBeGreaterThanOrEqual(10);
     expect(count('transition-opacity')).toBeGreaterThanOrEqual(1);
     expect(count('field-sizing-content')).toBeGreaterThanOrEqual(2);
   });
