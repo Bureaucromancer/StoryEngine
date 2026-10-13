@@ -770,7 +770,7 @@ its workflow scalars are the picture's history. 00 §3.2 says so now.
   rendition whose `seedSent` is `false` projects `seed: null` — its endpoint drew
   its own, so the recipe does not know the seed, and saying otherwise would make
   *re-created* mean *approximately*, which [06 §10.7](06-modes-and-turn-pipeline.md)
-  refuses.
+  refuses. *(And an absent `seedSent` too, found while building it — below.)*
 - **Additive inside 1.0**: an optional field, kept by any reader under 04 §2 —
   `EmbeddedMedia` does not forbid unknown properties, so an older build keeps
   the recipe it cannot read. *Not B16's question*, which is about closed unions.
@@ -786,9 +786,10 @@ would give:
   again. *Recommended*: a decimal string held to digits by pattern, which also
   makes it impossible to validate a prompt where a seed belongs. The other
   answer is a safe-integer bound with the rest refused.
-- ***`EmbeddedMedia.generated`.*** Nothing has ever written it. *Recommended*:
+- ***`EmbeddedMedia.generated`.*** Nothing has ever written it. ~~*Recommended*:
   replace it with the recipe before beta rather than carry two provenance
-  slots on one row, one of which means nothing for a picture.
+  slots on one row, one of which means nothing for a picture.~~ *Not taken:
+  removal is a version under 04 §2 — see* Built *below.*
 - ***What a foreign workflow says about its author's disk.*** Another tool's
   parameters can name checkpoint files and local paths. That is not a 00 §3.2
   question — a path repoints nothing — but it is an export one, and the export
@@ -803,6 +804,34 @@ invisible to the library, and gone the moment anything redraws the picture —
 which the lorebook entry strip did until the same day
 ([10 §11.2b](10-ui-surfaces.md)). So an importer may **read** one into the typed
 record, and the typed record is where it lives.
+
+***Built 2026-10-13*** — `MediaRecipe` in `schema/common.ts`, optional on
+`EmbeddedMedia` as `recipe`, emitted into the five schemas that carry media and
+listed in [04 §3](04-schemas.md). Of the three things left to the build, one was
+taken as recommended, one was not, and one stays where it was put:
+
+- ***The seed is digits*** — canonical, unsigned, at most twenty, by pattern.
+  As recommended, and the pattern is doing two jobs: a 64-bit seed fits, and a
+  prompt cannot pass for a seed at validation.
+- ***`EmbeddedMedia.generated` stays*** — **the recommendation was wrong**.
+  [04 §2](04-schemas.md) makes *"removals, renames and semantic changes"* a
+  version, and retiring the field would have bumped five published schemas for
+  something nothing ever wrote. It is kept, marked superseded, read and
+  preserved like any field a file carries, and written by nothing; a replaced
+  picture in the library strip drops it along with its recipe, since both
+  describe bytes that are gone.
+- ***A foreign workflow's paths*** are still the export surface's question and
+  were not touched. This build's own generators send `{}`.
+
+**The projection is `recipeOfRendition`** (`shared/src/media-recipe.ts`), and
+building it sharpened one rule above: a seed crosses **only when `seedSent` is
+`true`**, not merely when it is not `false`. An absent `seedSent` is a record
+from before 2026-10-03, when the OpenAI-compatible adapter sent no seed at all
+while every record named one — the same reason, one case further. *Nothing calls
+it yet*, because nothing in 1.0 keeps a rendition as library media; it ships
+ahead of the Studio and of any front end that hands the library a picture,
+because the line is only checkable where it is code, and its test pins that no
+connection id and no unsent seed ever cross.
 
 *[18 §5](18-character-studio.md), [00 §3.2](00-stance.md),
 [22 §7](22-internal-contracts.md), [06 §10.7](06-modes-and-turn-pipeline.md),

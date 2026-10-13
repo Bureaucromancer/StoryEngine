@@ -134,6 +134,36 @@ interface GeneratedFieldProvenance {
   unreviewed: boolean
 }
 
+/** What made a picture, and enough to make it again — [26 B20](26-open-questions.md),
+ *  added 2026-10-13. A *record*, never a setting ([00 §3.2](00-stance.md)): it
+ *  says what happened and acts on nothing, so it travels with the picture. No
+ *  connection, endpoint or key — those stay on the install that made the call.
+ *
+ *  Not `GeneratedFieldProvenance`, whose `seed` is the prompt an assist ran
+ *  from and whose `original` means nothing for a picture. Every field is
+ *  required and `null` is how a maker says it does not know (§2). */
+interface MediaRecipe {
+  at: string | null          // when the pixels were made
+  /** What ran it: "StoryEngine", or another tool by its own name. Free text. */
+  generator: string | null
+  /** The model as the endpoint answered. A name, never a binding — resolved
+   *  locally if anything resolves it, like `ModelHint`. */
+  model: string | null
+  /** The sampling seed as canonical digits — `^(0|[1-9][0-9]{0,19})$`. A string
+   *  because seeds run to 2^64 − 1 and a JSON number past 2^53 is rounded by
+   *  every JavaScript reader; and a pattern no prompt satisfies, so this
+   *  cannot be mistaken for the other `seed`. Null when the maker cannot vouch
+   *  for one — including a seed drawn and never sent. */
+  seed: string | null
+  /** The prompt as sent, after capping. */
+  prompt: string | null
+  /** Everything else the endpoint was asked for. Scalars only: compared and
+   *  re-sent verbatim, which a nested object cannot be without a
+   *  canonicaliser. A large integer is spelled as a string, for `seed`'s
+   *  reason. */
+  workflow: Record<string, string | number | boolean>
+}
+
 /** Two genuinely different things, so two lists rather than one with a flag:
  *  a written opening is content, a seed is an instruction. [03 §6] */
 interface Openings {
@@ -254,7 +284,13 @@ interface EmbeddedMedia {
   width?: number
   height?: number
   crop?: SourceRect
+  /** Superseded by `recipe` and kept, because §2 makes a removal a version and
+   *  this one would bump five schemas for a field nothing ever wrote. Read and
+   *  preserved; written by nothing. */
   generated?: GeneratedFieldProvenance
+  /** What made this picture. Absent on one nobody generated, or whose maker
+   *  kept no record. Optional, so an addition and not a version (§2). */
+  recipe?: MediaRecipe
 }
 
 /** Bulk asset, stored in the object's folder. Always a relative path inside

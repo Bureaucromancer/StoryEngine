@@ -1302,7 +1302,10 @@ model and prompt in a portable recipe of its own — never in
 `GeneratedFieldProvenance`, whose `seed` still means the prompt. What never
 leaves the install is `binding.connectionId`, which names a connection on it;
 and `seedSent` travels only as its consequence — a seed that was never sent is
-projected as `null`, because the picture was not made with it.
+projected as `null`, because the picture was not made with it. *Built 2026-10-13*:
+the projection is `recipeOfRendition` in `shared/src/media-recipe.ts`, and it
+offers a seed only when `seedSent` is `true` — absent is a record from before
+the adapter sent seeds at all.
 
 ```ts
 interface RenditionProvenance {

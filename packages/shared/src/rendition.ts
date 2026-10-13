@@ -235,9 +235,10 @@ export interface AssembledPrompt {
  * that last reason does not.* A seed, the model as answered and the prompt are
  * provenance rather than production settings, and a picture kept as library
  * media carries them as a **portable recipe of its own** — this record
- * projected onto it, `binding.connectionId` dropped and a seed that was never
- * sent (`seedSent: false`) written as null. This type stays internal because
- * of the binding, not because of the seed.
+ * projected onto it by `recipeOfRendition` (`media-recipe.ts`),
+ * `binding.connectionId` dropped and a seed written only when `seedSent` is
+ * `true`. This type stays internal because of the binding, not because of the
+ * seed.
  *
  * ***`workflow` holds scalars only, and the restriction is the recipe's.*** These
  * values are re-sent verbatim on re-creation and hashed into the digest, and a

@@ -60,6 +60,10 @@ export * from './tags.js';
 // sentence: a rendition hangs off a turn, travels with the session directory,
 // and graduates to `schema/` when the turn record does ([26 B12]'s freeze).
 export * from './rendition.js';
+// A rendition's recipe as a picture in the library carries it — the one place
+// the line between the internal record and the portable one is code
+// ([26 B20](../../../docs/design/26-open-questions.md)).
+export * from './media-recipe.js';
 // What a turn *would* assemble to — the stateless preview's answer ([P3.4]).
 // Beside the record rather than in it: it is never written to disk.
 export * from './preview.js';

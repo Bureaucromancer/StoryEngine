@@ -517,6 +517,93 @@
                 "type": "boolean"
               }
             }
+          },
+          "recipe": {
+            "title": "MediaRecipe",
+            "description": "What made a picture: when, by what tool and model, from which seed and prompt, and with what parameters. A record of what happened, never a setting — no connection, endpoint or key, which stay on the install that made the call.",
+            "type": "object",
+            "required": [
+              "at",
+              "generator",
+              "model",
+              "seed",
+              "prompt",
+              "workflow"
+            ],
+            "properties": {
+              "at": {
+                "anyOf": [
+                  {
+                    "format": "date-time",
+                    "description": "ISO 8601 timestamp. Never epoch milliseconds.",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "generator": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "model": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "seed": {
+                "anyOf": [
+                  {
+                    "pattern": "^(0|[1-9][0-9]{0,19})$",
+                    "description": "A sampling seed as canonical decimal digits: no sign, no leading zero. A string because seeds run to 2^64 - 1, past what a JSON number holds exactly.",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "prompt": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "workflow": {
+                "type": "object",
+                "patternProperties": {
+                  "^(.*)$": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "boolean"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
           }
         }
       }

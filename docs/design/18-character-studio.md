@@ -185,7 +185,8 @@ is the one that is not recoverable.
   consistently, which defeats the purpose. *(Corrected 2026-10-12. The type
   this named keeps the **prompt** in its `seed` and has nowhere for a sampling
   seed or a workflow; [P9.0](workplan/26-p9-implementation.md) found that for
-  renditions on 2026-09-16 and the finding never reached this line.)*
+  renditions on 2026-09-16 and the finding never reached this line. Built
+  2026-10-13 as `EmbeddedMedia.recipe` — [04 §3](04-schemas.md).)*
 - **Crop as a stored rectangle** rather than a destructive edit
   ([03 §5.2.1](03-data-model.md)). *(2026-10-12: the lorebook entry strip broke
   this until that day, and keeps the original now —

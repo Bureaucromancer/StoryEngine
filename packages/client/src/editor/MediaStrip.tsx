@@ -159,6 +159,12 @@ export function squareOf(width: number, height: number): SourceRect | null {
  * role, label and tags are the author's decisions about a slot; its crop and
  * size were measurements of a picture that is no longer there, and a rectangle
  * kept across a replace would frame the new picture by the old one's shape.
+ *
+ * ***And its recipe goes with them*** (2026-10-13, [26 B20]). A recipe says
+ * what made *these* bytes — a seed, a model, a prompt — so one left on a
+ * replaced row would tell the next tool that the new picture can be re-created
+ * from the old one's recipe, which is a false claim in exactly the field that
+ * exists to be trusted. The superseded `generated` goes for the same reason.
  */
 function reframed(
   row: EmbeddedMedia,
@@ -169,6 +175,8 @@ function reframed(
   delete next.crop;
   delete next.width;
   delete next.height;
+  delete next.recipe;
+  delete next.generated;
   if (crop !== null) next.crop = crop;
   return next;
 }

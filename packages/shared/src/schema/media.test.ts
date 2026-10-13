@@ -4,7 +4,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { newActor, newLoreEntry, newLorebook } from '../factories.js';
-import type { EmbeddedMedia } from './common.js';
+import type { EmbeddedMedia, MediaRecipe } from './common.js';
 import type { Lorebook } from './lorebook.js';
 import { validate } from './registry.js';
 
@@ -170,5 +170,93 @@ describe('EmbeddedMedia.tags', () => {
     // for the same reasons a lore gallery wants "winter".
     const actor = { ...newActor('Vera Solano'), media: [media({ role: 'gallery', tags: [] })] };
     expect(validate(actor).valid).toBe(true);
+  });
+});
+
+/**
+ * ***`EmbeddedMedia.recipe`*** — [26 B20](../../../../docs/design/26-open-questions.md):
+ * what made a picture travels with it, as a portable record of its own.
+ *
+ * The published schema is what a stranger's tool validates against, so the
+ * claims that matter are made of the schema rather than of our writer: a
+ * 64-bit seed fits, a seed has one spelling, a prompt cannot pass for one, the
+ * workflow stays flat, and every field is said rather than left out.
+ */
+describe('EmbeddedMedia.recipe', () => {
+  function recipe(overrides: Partial<MediaRecipe> = {}): MediaRecipe {
+    return {
+      at: '2026-10-13T09:00:04.000Z',
+      generator: 'ComfyUI',
+      model: 'sdxl-base-1.0',
+      seed: '18446744073709551615',
+      prompt: 'a woman with cropped grey hair at a rail',
+      workflow: { steps: 30, cfg: 7, sampler: 'euler', noise_seed: '18446744073709551615' },
+      ...overrides,
+    };
+  }
+
+  function actorWith(row: Record<string, unknown>): unknown {
+    return { ...newActor('Vera Solano'), media: [row] };
+  }
+
+  it('carries the recipe of a picture another tool made, at the full 64-bit seed', () => {
+    // ComfyUI's sampler takes any unsigned 64-bit value. As a JSON number this
+    // seed would be 18446744073709552000 in every JavaScript reader.
+    const result = validate(actorWith({ ...media({ role: 'reference' }), recipe: recipe() }));
+    expect(result.valid ? [] : result.issues).toEqual([]);
+  });
+
+  it('accepts a recipe whose maker knew nothing but the workflow', () => {
+    const blank = recipe({ at: null, generator: null, model: null, seed: null, prompt: null });
+    expect(validate(actorWith({ ...media(), recipe: { ...blank, workflow: {} } })).valid).toBe(
+      true,
+    );
+  });
+
+  it('gives a seed one spelling, and a prompt none', () => {
+    const refuses = (seed: unknown): boolean =>
+      !validate(actorWith({ ...media(), recipe: { ...recipe(), seed } })).valid;
+
+    expect(refuses('007')).toBe(true);
+    expect(refuses('-1')).toBe(true);
+    expect(refuses('')).toBe(true);
+    expect(refuses('123456789012345678901')).toBe(true);
+    // `GeneratedFieldProvenance.seed` is a string too, and holds the prompt.
+    // The pattern is what keeps the two from being handed in for each other.
+    expect(refuses('a woman with cropped grey hair')).toBe(true);
+    // A number is refused outright, so nobody can write one that was rounded.
+    expect(refuses(918_273)).toBe(true);
+
+    expect(refuses('0')).toBe(false);
+  });
+
+  it('keeps the workflow flat', () => {
+    const nested = recipe({ workflow: { sampler: { name: 'euler' } } as never });
+    expect(validate(actorWith({ ...media(), recipe: nested })).valid).toBe(false);
+  });
+
+  it('wants every field said — null is how a maker says it does not know', () => {
+    const withoutSeed: Record<string, unknown> = { ...recipe() };
+    delete withoutSeed['seed'];
+    expect(validate(actorWith({ ...media(), recipe: withoutSeed })).valid).toBe(false);
+  });
+
+  it('round-trips beside the superseded `generated`, which a file may still carry', () => {
+    // [04 §2] makes a removal a version, so `generated` stays readable; a file
+    // an older writer gave one keeps it, next to the field that replaced it.
+    const row = {
+      ...media(),
+      generated: {
+        original: '',
+        at: '2026-09-01T00:00:00.000Z',
+        model: null,
+        seed: null,
+        unreviewed: true,
+      },
+      recipe: recipe(),
+    };
+    const actor = actorWith(row);
+    expect(validate(actor).valid).toBe(true);
+    expect(JSON.parse(JSON.stringify(actor))).toEqual(actor);
   });
 });

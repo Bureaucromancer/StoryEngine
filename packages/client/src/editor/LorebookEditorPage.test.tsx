@@ -2067,6 +2067,63 @@ describe('image slots on a book and its entries', () => {
     expect(entryMedia[0]).not.toHaveProperty('crop');
   });
 
+  /**
+   * ***A recipe describes its bytes*** ([26 B20](../../../../docs/design/26-open-questions.md)).
+   * Replace swaps the bytes and keeps the slot, so a recipe left on the row
+   * would claim the new picture can be re-created from the old one's seed and
+   * prompt — false in the one field that exists to be trusted.
+   */
+  it('drops the recipe of a picture it replaces', async () => {
+    const book = makeBook();
+    const at = book.entries.findIndex((one) => one.id === HARBOUR);
+    book.entries[at] = {
+      ...book.entries[at]!,
+      media: [
+        {
+          id: 'made-elsewhere',
+          role: 'reference',
+          tags: [],
+          ref: 'assets/made.png',
+          digest: 'sha256:made',
+          bytes: 4,
+          mime: 'image/png',
+          recipe: {
+            at: '2026-10-13T09:00:04.000Z',
+            generator: 'ComfyUI',
+            model: 'sdxl-base-1.0',
+            seed: '42',
+            prompt: 'a quay at dawn',
+            workflow: {},
+          },
+        },
+      ],
+    };
+    server.handEdit(book);
+    uploads();
+    const client = renderApp();
+    await openEditor(HARBOUR);
+
+    const strip = entryStrip();
+    await userEvent.click(await within(strip).findByRole('button', { name: 'Replace picture 1' }));
+    await act(async () => {
+      fireEvent.change(pickerIn(strip), {
+        target: { files: [new File(['mine'], 'mine.png', { type: 'image/png' })] },
+      });
+      await Promise.resolve();
+    });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByText('Saved.');
+    await settled(client);
+
+    const row = server.stored().entries.find((one) => one.id === HARBOUR)?.media[0];
+    // The slot is the author's and stays; the bytes and their history are new.
+    expect(row?.id).toBe('made-elsewhere');
+    expect(row?.role).toBe('reference');
+    expect(row?.ref).toBe('assets/1.png');
+    expect(row).not.toHaveProperty('recipe');
+  });
+
   it('measures the centred square of a tall picture, and nothing of a square one', () => {
     expect(squareOf(200, 400)).toEqual({ x: 0, y: 0.25, width: 1, height: 0.5 });
     expect(squareOf(300, 300)).toBeNull();
