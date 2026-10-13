@@ -105,6 +105,35 @@ describe('starting in a world that wants what this install lacks', () => {
 });
 
 describe('starting from a setup for a mode this install lacks', () => {
+  /**
+   * ***The door most likely to meet a missing mode*** (2026-10-13, the review
+   * of *build the promise*): a Setup's page sends `setup` alone, and the
+   * route's answer is the Setup's own mode, substituted. Without `degraded`
+   * on the retry, Start anyway would send the same request, meet the same
+   * refusal, and reopen the same dialog for as long as anyone kept pressing it.
+   */
+  it('lists it in a dialog, and Start anyway sends the same request with degraded', async () => {
+    createSession.mockRejectedValueOnce(
+      unmet([{ kind: 'mode', id: 'storyengine.campaign', installed: null, substituted: true }]),
+    );
+    renderDoor(<StartSession setupId="setup-1" />);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Start a session' }));
+    const dialog = await screen.findByRole('alertdialog');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Start anyway' }));
+
+    await waitFor(() => {
+      expect(navigate).toHaveBeenCalledWith({
+        to: '/play/$sessionId',
+        params: { sessionId: 'new-1' },
+      });
+    });
+    expect(createSession.mock.calls).toEqual([
+      [{ setup: 'setup-1' }],
+      [{ setup: 'setup-1', degraded: true }],
+    ]);
+  });
+
   it('sends nothing more when the dialog is cancelled', async () => {
     createSession.mockRejectedValueOnce(
       unmet([{ kind: 'mode', id: 'storyengine.campaign', installed: null, substituted: true }]),

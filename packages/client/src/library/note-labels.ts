@@ -187,8 +187,18 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
   // another library's registry lands with them as plain names (P16.3e review).
   'import.world.tagsDropped':
     '{count} tags on {objects} objects belong to the library that wrote this file; they came in as plain names.',
+  /**
+   * ~~'This world asks for…'~~ — 2026-10-13: said on the manifest's row too,
+   * of a file with no World (a Setup published alone, a selection's snapshot,
+   * a file whose World was refused), so it names the file and not a world.
+   * *This file* is true of every row these notes are read from — the World's
+   * and the manifest's alike — and *this world* was true of one of them, and
+   * read, on the other, as a world that is not there. The four sentences of
+   * what a file asks for below say it the same way, as `requiresDropped`
+   * already did; the keys and their params are unchanged.
+   */
   'import.world.requiresMode':
-    'This world asks for the {mode} mode, at version {minVersion} or later, which this install does not have. It came in anyway; what needs that mode may not play.',
+    'This file asks for the {mode} mode, at version {minVersion} or later, which this install does not have. It came in anyway; what needs that mode may not play.',
   /**
    * ***Every other kind of requirement, and what was dropped*** — 2026-10-13,
    * the owner's answer to *"Build the promise, or narrow the notes"*: build
@@ -201,11 +211,11 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
    * that rather than that one was looked for.
    */
   'import.world.requiresCapability':
-    'This world needs a model for “{capability}”, and none is set for you here. It came in anyway; what needs it goes without until one is chosen in Settings, under Which models your stories use.',
+    'This file needs a model for “{capability}”, and none is set for you here. It came in anyway; what needs it goes without until one is chosen in Settings, under Which models your stories use.',
   'import.world.requiresCapabilityUnknown':
-    'This world asks for “{capability}”, which this build cannot check for. It came in anyway; what needs it may not work.',
+    'This file asks for “{capability}”, which this build cannot check for. It came in anyway; what needs it may not work.',
   'import.world.requiresExtension':
-    'This world asks for the {extension} extension, version {minVersion} or later. This build loads no extensions, so it is not available here. It came in anyway; what needs it may not work.',
+    'This file asks for the {extension} extension, version {minVersion} or later. This build loads no extensions, so it is not available here. It came in anyway; what needs it may not work.',
   'import.world.requiresDropped':
     'This file’s list of what it needs had {count} entries this build could not read, and they were left out.',
   // ~~This build does not bring sessions in from a world’s file yet~~ — since

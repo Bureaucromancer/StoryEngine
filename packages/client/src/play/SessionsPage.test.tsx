@@ -1187,6 +1187,50 @@ describe('starting a session in a world', () => {
       });
     });
 
+    /**
+     * ***Start anyway on the Setup branch*** (2026-10-13, the review of *build
+     * the promise*). The form builds two requests — one from a Setup, one from
+     * its own fields — and each spreads `degraded` for itself; the World test
+     * above goes through the second. This goes through the first, which is
+     * where a Setup for a missing mode arrives: without `degraded` on the
+     * retry, the route refuses the same request again and the dialog reopens.
+     */
+    it('starts the world’s setup anyway on a word, with degraded on the retry alone', async () => {
+      withWorlds(ONE_SETUP);
+      createSession.mockRejectedValueOnce(
+        new ApiError(
+          422,
+          'unmet-requirements',
+          'Not here.',
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          [{ kind: 'mode', id: 'storyengine.campaign', installed: null, substituted: true }],
+        ),
+      );
+      renderPage();
+      await userEvent.click(await screen.findByText(/Nothing chosen yet/));
+      await chooseWorldNamed('The ledger set');
+      expect(setupValue()).toBe('setup-ledger');
+
+      await userEvent.click(screen.getByRole('button', { name: 'Start' }));
+      const dialog = await screen.findByRole('alertdialog');
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Start anyway' }));
+
+      await waitFor(() => {
+        expect(createSession).toHaveBeenCalledTimes(2);
+      });
+      expect(createSession).toHaveBeenLastCalledWith(
+        expect.objectContaining({ setup: 'setup-ledger', world: 'w-ledger', degraded: true }),
+      );
+      expect(createSession.mock.calls[0]?.[0]).toEqual({
+        setup: 'setup-ledger',
+        world: 'w-ledger',
+      });
+      expect(createSession.mock.calls[0]?.[0]).not.toHaveProperty('degraded');
+    });
+
     /** A person's own Setup outranks the World's, and survives the World going. */
     it('never replaces a setup the person chose', async () => {
       withSetups(OTHER);

@@ -902,9 +902,14 @@ fixed.
   reads the World first, and its sole Setup becomes the Setup the session starts
   from before anything reads one — opening, mode and its answers, persona,
   party, preset, hooks, goals — held to every check a named Setup is
-  (`unknown-mode`, `setup-invalid`, `too-many-actors`, `conflicting-openings`,
-  `unknown-preset`). The World's books join the Setup's and its treatment is
-  used only if the Setup names none, as before. `setup: null` says *no Setup*
+  (~~`unknown-mode`~~ *(2026-10-13: a Setup's mode this install lacks, named or
+  a World's sole one, is now `422 unmet-requirements` and starts with
+  `degraded: true` in the default mode. That is the owner's "build the
+  promise", recorded under the open disagreements below. Only a `mode` the
+  caller names outright is still `unknown-mode`)*, `setup-invalid`,
+  `too-many-actors`, `conflicting-openings`, `unknown-preset`). The World's
+  books join the Setup's and its treatment is used only if the Setup names
+  none, as before. `setup: null` says *no Setup*
   beside a World, which is how a person choosing **None** is honoured. An
   `opening` sent with a World alone takes its Setup's opening.
 - **Two or more Setups choose none**, as two treatments do; **a sole Setup no
@@ -1538,8 +1543,14 @@ italics. Each item says whose it is.
   dropped; `POST /api/sessions` refuses `unmet-requirements` with the list and
   starts with `degraded: true`, recording `startedWithout`; every start door asks
   in a dialog; the session's page says what it started without. A `mode` the
-  caller names outright is still `unknown-mode`. 04 §9's struck *with the
-  warning* is restored by a dated note; [16 §4](../16-publish.md)'s claim that
+  caller names outright is still `unknown-mode`. *Left as it is* (the review,
+  2026-10-13): a file with no World says what it asks for on the manifest's
+  row, which the report counts as **skipped** and lists under *Deliberately not
+  taken* — the row an unread file and dropped tags already use — so a Setup
+  published alone counts one *Skipped* beside its *Imported*; the sentences say
+  *this file* rather than *this world*, which is true of both rows. A row of
+  the file's own is not built. 04 §9's struck *with the warning* is restored
+  by a dated note; [16 §4](../16-publish.md)'s claim that
   extension and capability requirements are derived is struck, dated — only
   modes are, and always were.
 - **One code comment, for the next code change.** The docstrings in
