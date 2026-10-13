@@ -783,8 +783,18 @@ nothing. The format already agreed — `GeneratedFieldProvenance.model` has carr
 *which model* in portable files since P1 — and so does `ModelHint`, a
 preference that travels because it is resolved locally. **The line runs through
 `RenditionProvenance` itself**: its `binding.connectionId` names something on
-one install and never leaves it; its model as answered, its seed, its prompt and
-its workflow scalars are the picture's history. 00 §3.2 says so now.
+one install and ~~never leaves it~~ *never enters a recipe*; its model as answered,
+its seed, its prompt and its workflow scalars are the picture's history. 00 §3.2
+says so now. *(2026-10-13, at the merge into `main`: ~~never leaves it~~ was wider
+than this decision, and two earlier ones disagree with it. A session export
+(P11.10, which froze the rendition record) and a World file's carried sessions
+([P16](workplan/34-p16-world.md)'s `world-file.ts`) carry `Rendition` records
+whole, the binding's id included, on the reasoning that *an id is not a
+connection — no URL, no key*. [00 §3.2](00-stance.md) as amended here governs the
+connection, its URL and its key, not the id. What this entry decides is that the
+id never enters a recipe or a library object, and that stands; whether it should
+also leave a travelling rendition record is not decided by this entry, and
+[22 §7](22-internal-contracts.md) carries the same note.)*
 
 **What the decision fixes.**
 

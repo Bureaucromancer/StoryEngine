@@ -2096,18 +2096,25 @@ describe('image slots on a book and its entries', () => {
   /**
    * jsdom has no `createImageBitmap`, so the strip measures nothing unless a
    * test says what the picture is — and every test that does not, uploads a
-   * picture with no crop, which is the strip's failure path working.
+   * picture with no crop, which is the strip's failure path working. The stub
+   * is handed back so a test can ask what it was called with.
+   *
+   * Sizes are given out one per *picture*, not one per call: a picture
+   * measured twice is the same size both times, as a real decoder would say.
+   * Handing out one per call meant a second look at the same file — the old
+   * redraw's, say — found the queue empty and fell back, which hid it.
    */
-  function picturesMeasuring(...sizes: { width: number; height: number }[]): void {
+  function picturesMeasuring(...sizes: { width: number; height: number }[]) {
     const queue = [...sizes];
-    vi.stubGlobal(
-      'createImageBitmap',
-      vi.fn(() => {
-        const size = queue.shift();
-        if (size === undefined) return Promise.reject(new Error('no size given'));
-        return Promise.resolve({ ...size, close: () => undefined });
-      }),
-    );
+    const known = new WeakMap<Blob, { width: number; height: number }>();
+    const measure = vi.fn((source: Blob) => {
+      const size = known.get(source) ?? queue.shift();
+      if (size === undefined) return Promise.reject(new Error('no size given'));
+      known.set(source, size);
+      return Promise.resolve({ ...size, close: () => undefined });
+    });
+    vi.stubGlobal('createImageBitmap', measure);
+    return measure;
   }
 
   function entryStrip(): HTMLElement {
@@ -2222,10 +2229,25 @@ describe('image slots on a book and its entries', () => {
    * file picked** — the same object, so no redraw can have happened in between
    * — and **the square is on the row**, where a later crop control can move it
    * and an export carries it.
+   *
+   * *(2026-10-13, at the merge into `main`: the first half guarded nothing as
+   * written.* jsdom has no canvas — `getContext` answers `null` — and the old
+   * redraw handed back the file it was given when it could not draw, so with
+   * the redraw restored the identity below still held. **A canvas that draws is
+   * stubbed in**, and a redraw would now send `redrawn` rather than `picked`;
+   * checked by putting the old helper back. And the square is the upright
+   * picture's, so the measurement is asked to read the file's orientation.)*
    */
   it('sends an entry picture as it was picked, and keeps its square as a crop', async () => {
     const { sent } = uploads();
-    picturesMeasuring({ width: 400, height: 200 });
+    const measure = picturesMeasuring({ width: 400, height: 200 });
+    const redrawn = new Blob(['redrawn'], { type: 'image/png' });
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+      drawImage: vi.fn(),
+    } as never);
+    vi.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation((done) => {
+      done(redrawn);
+    });
     const client = renderApp();
     await openEditor(HARBOUR);
 
@@ -2242,6 +2264,10 @@ describe('image slots on a book and its entries', () => {
 
     expect(sent).toEqual([picked]);
     expect(sent[0]).toBe(picked);
+    expect(measure).toHaveBeenCalledWith(
+      picked,
+      expect.objectContaining({ imageOrientation: 'from-image' }),
+    );
     const row = server.stored().entries.find((one) => one.id === HARBOUR)?.media[0];
     expect(row?.crop).toEqual({ x: 0.25, y: 0, width: 0.5, height: 1 });
   });
@@ -2304,7 +2330,9 @@ describe('image slots on a book and its entries', () => {
    * ***A recipe describes its bytes*** ([26 B20](../../../../docs/design/26-open-questions.md)).
    * Replace swaps the bytes and keeps the slot, so a recipe left on the row
    * would claim the new picture can be re-created from the old one's seed and
-   * prompt — false in the one field that exists to be trusted.
+   * prompt — false in the one field that exists to be trusted. *The superseded
+   * `generated` slot goes with it* (2026-10-13: the row carried none until then,
+   * so nothing here would have noticed it staying).
    */
   it('drops the recipe of a picture it replaces', async () => {
     const book = makeBook();
@@ -2327,6 +2355,13 @@ describe('image slots on a book and its entries', () => {
             seed: '42',
             prompt: 'a quay at dawn',
             workflow: {},
+          },
+          generated: {
+            original: '',
+            at: '2026-10-13T09:00:04.000Z',
+            model: 'sdxl-base-1.0',
+            seed: 'a quay at dawn',
+            unreviewed: true,
           },
         },
       ],
@@ -2355,6 +2390,7 @@ describe('image slots on a book and its entries', () => {
     expect(row?.role).toBe('reference');
     expect(row?.ref).toBe('assets/1.png');
     expect(row).not.toHaveProperty('recipe');
+    expect(row).not.toHaveProperty('generated');
   });
 
   it('measures the centred square of a tall picture, and nothing of a square one', () => {
