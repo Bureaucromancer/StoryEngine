@@ -243,7 +243,10 @@ of prose once the column's padding was off, whatever the face: something like
 ninety characters a line in a book serif. Nothing here named a target, so
 whether it held could not be checked. The target is **about seventy characters
 of the story face**, the middle of the range typographers cite for one column
-of prose, as `--container-story: 70ch`. **It is spent on the prose and not on
+of prose, as ~~`--container-story: 70ch`~~ *`--container-story: 55ch`
+(2026-10-13, after review: a `ch` is the zero, about 1.26× the average advance
+of running prose in the stack's serifs, so seventy characters is about 55ch,
+and `70ch` set nearly ninety)*. **It is spent on the prose and not on
 the column**, because a `ch` is the zero of the face of the element it is
 resolved on, and the column is set in the interface face. So the measure
 follows the face: the same seventy is a different width in each face of the

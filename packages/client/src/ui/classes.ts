@@ -198,19 +198,21 @@ export const control =
  * ***The recipe is still the story column's; the measure it is built on is
  * not*** — [home, revised]. Home renders the changelog as prose, and [10 §1.2]
  * says what makes prose prose: **type** (`text-story font-story`), **measure**
- * (`--container-reading`) and **chrome** (none). Home takes the first two, for
- * that one block, and none of the third — because it sits beside the workbench
- * and carries a control. So it is a reading column *inside* a tooling column
+ * (~~`--container-reading`~~ *`--container-story`, on the prose — 2026-10-13,
+ * P12A.1*) and **chrome** (none). Home takes the first two, for that one
+ * block, and none of the third — because it sits beside the workbench and
+ * carries a control. So it is a reading column *inside* a tooling column
  * rather than a page that has quietly become a reading surface, and it spells
- * ~~`max-w-reading`~~ at its own call site as the layout that is, rather than
- * reaching for this recipe: `reading`'s `mx-auto` and padding are a *page
- * column*, and nesting one inside another is how a measure becomes an indent.
- * The struck sentence was right about the recipe and was read as a claim about
- * the token; this is the distinction it was missing. *(2026-10-13, P12A.1: the
- * measure it spells is the story's now, through `story` below, which carries
- * the step and the face with it. The argument stands — the prose takes a
- * measure and not a page column — and the measure has stopped being a column
- * width at all, for anyone.)*
+ * ~~`max-w-reading`~~ *`story` below (2026-10-13, P12A.1)* at its own call
+ * site as the layout that is, rather than reaching for this recipe:
+ * `reading`'s `mx-auto` and padding are a *page column*, and nesting one
+ * inside another is how a measure becomes an indent. The struck sentence was
+ * right about the recipe and was read as a claim about the token; this is the
+ * distinction it was missing. *(2026-10-13, P12A.1: the measure it spells is
+ * the story's now, through `story` below, which carries the step and the face
+ * with it. The argument stands — the prose takes a measure and not a page
+ * column — and the measure has stopped being a column width at all, for
+ * anyone.)*
  *
  * **Pages own their column; the shell does not wrap the outlet.** The reason
  * is mechanical rather than aesthetic: Play's column must be the scroll
@@ -273,18 +275,21 @@ export const page = {
  * fourteen paragraphs of story and held together by a test that read every
  * class string for the pair. The measure was not on the prose at all: it was
  * the column's width, `page.reading` above, which made it 45em whatever the
- * face — ninety-odd characters a line in a book serif.
+ * face — from about ninety to over a hundred and ten characters a line in
+ * the stack's serifs, by the measurement `index.css` gives.
  *
  * **The measure moves onto the prose, and that is the reason this is one
  * recipe rather than a third word to remember.** It is `--container-story`,
- * about seventy characters held in `ch`, and a `ch` is resolved against the
- * font of the element that carries the `max-width`. On the column, which is
- * set in the interface face, it would count characters of the sans and set
- * the serif to some other number. On the element that carries `font-story`
- * it counts the face the reader is reading, which is the point of writing
- * the measure in characters at all. A recipe is how the two cannot come apart:
- * the step, the face and the measure are one string, and theme.test.ts
- * refuses any of the three spelled anywhere else.
+ * about seventy characters held in `ch` — 55ch, because a `ch` is the zero,
+ * and in the stack's serifs the zero is about 1.26 times the average advance
+ * of running prose (`index.css` gives each face's figures) — and a `ch` is
+ * resolved against the font of the element that carries the `max-width`. On
+ * the column, which is set in the interface face, it would count zeros of
+ * the sans and set the serif to some other number. On the element that
+ * carries `font-story` it counts the face the reader is reading, which is
+ * the point of writing the measure in characters at all. A recipe is how the
+ * two cannot come apart: the step, the face and the measure are one string,
+ * and theme.test.ts refuses any of the three spelled anywhere else.
  *
  * **The column stays the reading column**, 48rem, because the composer and
  * the HUD are in it, and neither is prose: a text box narrowed to the story's
@@ -295,11 +300,15 @@ export const page = {
  * and the composer keep one start edge, and the room the measure gives back
  * is on the far side.
  *
- * Where the space is already narrower than seventy characters — a chat line
- * beside its portrait in a small window, Compare's two columns side by side —
- * the cap is never reached, and costs nothing. **The paper is the call
- * site's business, as the column's is**: the reading view releases both for
- * print, because there the page's margins are the measure.
+ * Where the space is already narrower than the cap, it is never reached and
+ * costs nothing: Compare's two columns side by side, about 26em each, are
+ * under it in every face measured, Liberation Serif's 55ch being the
+ * narrowest at 27.5em. **A chat line is capped like any other** once the
+ * window gives the column its width: beside its portrait the column leaves
+ * about 42.5em, and 55ch is about 30.6em of Charter and 35em of DejaVu
+ * Serif, the widest face measured. **The paper is the call site's business,
+ * as the column's is**: the reading view releases both for print, because
+ * there the page's margins are the measure.
  */
 export const story = 'text-story font-story max-w-story';
 

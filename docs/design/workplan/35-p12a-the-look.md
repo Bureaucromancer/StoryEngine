@@ -241,7 +241,13 @@ friction to route around.
 - **Not the reading view's rebuild.** [10 §12](../10-ui-surfaces.md) shipped at
   P11 and is on the right side of this direction already. ~~It gains the story
   face at P12A.1 and nothing else.~~ *It has the story face already —
-  [polish §17](06-polish.md), 2026-10-01 — so this phase changes nothing in it.*
+  [polish §17](06-polish.md), 2026-10-01 — ~~so this phase changes nothing in it.~~*
+  *(2026-10-13, P12A.1, under §0.4: one thing — its `<article>` spends the
+  `story` recipe and so takes the story's measure, about seventy characters of
+  the story face, and releases it for print beside the column's own; see
+  P12A.1's record in §2. Beyond that it moves only with the tokens every page
+  spends: P12A.0's radii, and its illustration onto `rounded-media` with every
+  other picture. It is not rebuilt.)*
 - **Not a mobile-first pass.** [10 §1](../10-ui-surfaces.md)'s 1.0 bar —
   responsive and genuinely usable — is unchanged. ~~P12A.7~~ *P12A.8 (2026-10-13,
   §0.4)* enforces two rules that
@@ -843,7 +849,8 @@ does not say it measured. ~~Cheap, visible, and it is the stage that proves
 P12A.0's tokens reach a surface.~~
 
 ***Built 2026-10-13***, under §0.4's decision for this stage: **the measure**.
-`index.css`'s `@theme` names **`--container-story: 70ch`**, beside
+`index.css`'s `@theme` names ~~**`--container-story: 70ch`**~~
+*(**`55ch`**, 2026-10-13, after review — see* After review *below)*, beside
 `--container-reading`, and `ui/classes.ts` names one recipe that spends it,
 **`story`** — `text-story font-story max-w-story`, the step, the face and the
 measure in one string. The fourteen class strings that paired the step and the
@@ -860,12 +867,17 @@ at the call site, and the room the measure gives back is on the far side.
 
 **The target, and why.** About **seventy characters of the story face** — the
 middle of the range typographers commonly cite for a single column of prose,
-which is §0.4's wording, held by the test to the band sixty to eighty either
-side of it. It replaces a measure nobody chose: 45em of prose once the column's
-padding is off, whatever the face, which the audit estimated at ninety to a
+which is §0.4's wording, held by the test to the band ~~sixty to eighty either
+side of it~~ *(fifty to sixty `ch`, 2026-10-13, after review — which is about
+sixty-three to seventy-six characters)*. It replaces a measure nobody chose:
+45em of prose once the column's padding is off, whatever the face, which the
+audit estimated at ninety to a
 hundred characters of a text serif. *A `ch` is the zero, not the average
-letter*, so seventy `ch` is a width that holds about seventy characters of
-running text in a face whose figures are about as wide as its lower case; how
+letter*, ~~so seventy `ch` is a width that holds about seventy characters of
+running text in a face whose figures are about as wide as its lower case;~~
+*(2026-10-13, after review: unchecked, and no face in the stack is such a face
+— a serif's zero is about 1.26 times its running text's average advance, so
+seventy `ch` held nearly ninety characters; see* After review *below.)* How
 many a real line holds in Charter, Sitka Text or Noto Serif needs a browser,
 and §3.1 already files a second platform's rendering as a standing row rather
 than a critical one.
@@ -878,9 +890,9 @@ than a critical one.
 | The transcript's prose, five strings (`IllustratedProse`) | Each `MentionOverlay` paragraph | The prose narrows; a picture between two halves of a turn is the paragraphs' sibling, so it keeps the column's width, as it did. |
 | The player's line (`TurnView`) | Its `<p>` | Narrows like the prose it precedes. |
 | The turn being written, three strings (`LiveTurn`) | The joined text, a narrator's line, and a named speaker's line beside a portrait | Arrives at the measure it will have when it lands, so a finished turn does not reflow. |
-| A chat's lines, two strings (`ChatMessages`) | The input line and each message, beside a `w-8` portrait and a `gap-2` | The column there is about 42.5em, so the cap applies wherever seventy characters of the face come to less, and costs nothing where they do not. |
+| A chat's lines, two strings (`ChatMessages`) | The input line and each message, beside a `w-8` portrait and a `gap-2` | The column there is about 42.5em, so the cap applies wherever seventy characters of the face come to less, and costs nothing where they do not. *(2026-10-13, after review: at 55ch the cap is 27.5em to 35em in every face measured, so a chat line is capped like every other paragraph of story once the window gives the column its width.)* |
 | Home's changelog (`home/HomeRelease.tsx`) | The `<article>`, which drops its `max-w-reading` for the recipe | The widest prose in the client was this one — 48em, having no padding to take off — and it narrows most. |
-| Compare's two outputs, one string (`compare/ComparePage.tsx`) | Each output's `<p>` | **Harmless, and said so at the call site**: side by side each column is about 26em of the tooling width, well inside the cap; below the two-column breakpoint one output takes the width and is a block of prose like any other. |
+| Compare's two outputs, one string (`compare/ComparePage.tsx`) | Each output's `<p>` | **Harmless, and said so at the call site**: side by side each column is about 26em of the tooling width, well inside the cap *(2026-10-13, after review: inside it still at 55ch, though not well inside — Liberation Serif's 55ch, the narrowest measured, is 27.5em)*; below the two-column breakpoint one output takes the width and is a block of prose like any other. |
 
 **What the stage text said and what turned out different:**
 
@@ -906,26 +918,36 @@ than a critical one.
 - *The test file's lexer moved*: `strip` and `literals`, written in P12A.0 for
   the radius scan, are hoisted to module scope in `theme.test.ts` so the
   recipe's scan reads string literals the same way, template text included.
+  *(2026-10-13, after review: and `utilityOf` after them, so the recipe's scan
+  reads each class as the utility it names, as the radius scan does.)*
 - *Comments and the corpus*: 10 §1.1 and §1.2 have dated notes, the measure's
   `--container-reading` struck where they named it; `ui/classes.ts`'s `page`
   docstring and the play column's comment carry dated notes beside what they
   said.
 
 **The emitted CSS**, from `packages/client/dist/assets/index-*.css`:
-`--container-reading:48rem;--container-story:70ch` in `:root`, and
+`--container-reading:48rem;--container-story:70ch` *(`55ch` after review)* in `:root`, and
 `.max-w-story{max-width:var(--container-story)}` — the `var()` survives, and no
 `@property` registers the token, so `ch` resolves on the element.
 
 **Tests, each checked against a mutation and restored.** In `theme.test.ts`, a
 new describe, *the story's measure*: *holds the measure in characters, about
-seventy of them* fails with the step at `38rem`, at `90ch`, at `50ch`, and
-undeclared; *spends it on the prose, through the recipe that sets the face*
-fails with the recipe lacking `max-w-story`, with the column spending
+seventy of them* fails with the step at `38rem`, at `90ch`, ~~at `50ch`,~~ and
+undeclared *(2026-10-13, after review: `50ch` is inside the band now, which is
+fifty to sixty; the mutations against it are listed below)*; *spends it on the
+prose, through the recipe that sets the face* fails with the recipe lacking
+`max-w-story`, with the column spending
 `max-w-story` in place of `max-w-reading`, and with the column carrying both;
 *is spelled nowhere but the recipe* fails with the pair re-typed at Compare,
 with the pair written beside a `${reveal}` hole on the player's line, with
 `max-w-story` written on home's article outside the recipe, and with
-`font-story` alone on a heading — and its calibration, the recipe found exactly
+`font-story` alone on a heading *(2026-10-13, after review: and with
+`sm:font-story` on a heading, `md:max-w-story` on a heading, `md:text-story`
+on the player's line, `print:max-w-story` and `print:font-story` on home's
+article, and `!max-w-story` and `text-story/7` on Compare's output — the scan
+reads a class's utility now, through the radius scan's `utilityOf`, rather
+than a whitespace-bounded name, so a variant, `!` or the line-height modifier
+no longer hides a spelling)* — and its calibration, the recipe found exactly
 once, fails with the lexer made blind; *is spent wherever the story is set*
 (at least fourteen holes) fails with Compare's output losing the recipe. The
 faces describe's pairing test, *never sets the story step without the story
@@ -946,6 +968,84 @@ was built.
 imported at five sites), **CSS 7.99** (7.98 before: the new token and its
 utility) — gzip level 9 over the files `index.html` pulls, the budget test's
 method.
+
+***After review, 2026-10-13*** — a review of the stage's diff, each finding
+verified before it was acted on, found that the stage missed its own target,
+that its scan could be walked round, and that the corpus was behind the code in
+four places.
+
+**Seventy `ch` held nearly ninety characters, not seventy.** The premise struck
+in *the target, and why* above was never measured, and no face in the stack is
+the face it supposed. A `ch` is the advance of the zero, and a serif's zero is
+wider than its running text. Measured here from advance widths — Bitstream
+Charter's AFM file, and PIL's `getlength` at 1000px for the TrueType faces —
+over 1,262 characters of English novel prose, spaces and punctuation included,
+in thousandths of an em:
+
+| Face | The zero | Running prose, on average | Ratio | `70ch` holds | `55ch` holds | `55ch` is |
+|---|---|---|---|---|---|---|
+| Bitstream Charter | 556 | 434 | 1.28 | 90 characters | 70 | 30.6em |
+| Liberation Serif | 500 | 397 | 1.26 | 88 | 69 | 27.5em |
+| DejaVu Serif | 636 | 507 | 1.25 | 88 | 69 | 35.0em |
+
+Two other samples, the prose of 10 and of `CHANGELOG.md` with markdown and code
+taken out, put the ratio between 1.26 and 1.30 and `55ch` at 69 to 71
+characters in every face. Sitka Text, Cambria and Noto Serif are not installed
+here and were not measured, and Charter on macOS stands in the table only
+through Bitstream Charter, the same design; a real line on each platform is
+still §3.1's standing row, a person's look. By the same measurement the measure
+this stage replaced, 45em, held about 89 characters of DejaVu Serif, 104 of
+Charter and 113 of Liberation Serif, so the audit's *ninety to a hundred* was if
+anything low.
+
+So the step is **`--container-story: 55ch`**. That is §0.4's target converted
+rather than a new one: about seventy characters of the story face. The three
+comments that state the value — `index.css`'s, the `story` recipe's and the
+test's — say why it is 55, and give the figures.
+
+**The chat row changes, and Compare's holds.** At `55ch` the cap is 27.5em to
+35em in every face measured, under the 42.5em a chat line has beside its
+portrait, so a chat line is capped like every other paragraph of story whenever
+the window gives the column its width. Compare's two columns, about 26em each
+side by side, stay under the cap in every face measured, Liberation Serif's
+27.5em being the narrowest, so that row stands, though not *well inside*. The
+recipe's docstring says both, and Compare's call site says its own.
+
+**The band is fifty to sixty `ch`**, and the test's comment gives the ratio it
+assumes: the sixty to eighty characters typographers cite is about 48ch to 64ch
+at 1.26, and the band is tightened round the 55 that is seventy. *Holds the
+measure in characters, about seventy of them* fails with the step at `70ch`
+(*expected 70 to be less than or equal to 60*), at `45ch`, at `62ch`, at
+`38rem` and undeclared, and passes at `50ch` and `60ch`, the band's two ends.
+
+**The scan could be walked round.** *Is spelled nowhere but the recipe* matched
+the three names bounded by whitespace, so a class under a variant (a breakpoint,
+`print:`, a state), or with `!` or a line-height modifier, was not read as the
+step, the face or the measure it sets. P12A.8, the phone stage, is the one most
+likely to write such a class. The scan now reads each token through
+`utilityOf`, which is hoisted from the radius scan to module scope beside
+`strip` and `literals`, with its body unchanged; the column's check in *spends
+it on the prose* reads the same way. With the old scan, each of the following
+stayed green: `sm:font-story` and `md:max-w-story` on an editor's heading,
+`md:text-story` on the player's line, `print:max-w-story` and
+`print:font-story` on home's article, and `!max-w-story` and `text-story/7` on
+Compare's output. With the new scan, each one fails (*expected [ Array(1) ] to
+deeply equal []*), and `md:max-w-story` on the column fails *spends it on the
+prose* as well. Every mutation the record lists above still fails. The
+calibration still fails when the lexer is made blind, and it still finds the
+recipe exactly once.
+
+**The corpus.** §0.3 said this phase changes nothing in the reading view. That
+clause is struck, with a dated note saying what changed. 10 §1.2's `70ch` is
+struck with a note beside it. `ui/classes.ts`'s `page` docstring still named
+`--container-reading` as 10 §1.2's measure, and `max-w-reading` as home's.
+Both are struck now, each with an inline replacement. The P12A row in
+[the manual-testing plan](05-manual-testing.md) is brought up to date in a
+docs commit after this one.
+
+**Entry after: 310.37 kB, CSS 7.99**, unchanged, by the same method; one value
+in the stylesheet changed, and the built `:root` reads
+`--container-story:55ch`.
 
 ### P12A.2 — The backdrop becomes a backdrop
 

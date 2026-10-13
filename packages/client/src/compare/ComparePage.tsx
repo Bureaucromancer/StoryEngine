@@ -360,11 +360,12 @@ function Output({ label, text }: { label: string; text: string | undefined }): J
         <Note>This turn produced no output.</Note>
       ) : (
         // The story recipe, measure and all (2026-10-13, P12A.1), though side
-        // by side each column is about 26em of the tooling width, well inside
-        // seventy characters, so the cap is never reached there. It is spent
-        // anyway because the pair is one recipe, and because below the
-        // two-column breakpoint one output takes the whole width and is then
-        // a block of prose like any other.
+        // by side each column is about 26em of the tooling width, under the
+        // cap in every face measured (Liberation Serif's 55ch, the narrowest,
+        // is 27.5em), so the cap is not reached there. It is spent anyway
+        // because the pair is one recipe, and because below the two-column
+        // breakpoint one output takes the whole width and is then a block of
+        // prose like any other.
         <p className={`whitespace-pre-wrap ${story} text-ink`}>{text}</p>
       )}
     </div>

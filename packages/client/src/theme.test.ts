@@ -397,6 +397,26 @@ function literals(source: string): string[] {
 }
 
 /**
+ * The utility a class names, without its variants, its `!` or its sign.
+ *
+ * *Hoisted out of the radius scan* (2026-10-13, [P12A.1], after review),
+ * because the story recipe's scan reads a class the same way: a step or a
+ * face written under a breakpoint, a state or a `!` is still that step or
+ * that face, and a scan that matched the bare name alone let one through.
+ */
+function utilityOf(token: string): string {
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < token.length; i += 1) {
+    const char = token[i];
+    if (char === '[' || char === '(') depth += 1;
+    else if (char === ']' || char === ')') depth -= 1;
+    else if (char === ':' && depth === 0) start = i + 1;
+  }
+  return token.slice(start).replace(/^!|!$/g, '').replace(/^-/, '');
+}
+
+/**
  * ***Radius, elevation and motion are spent by name*** (2026-10-13) — [P12A.0].
  *
  * The palette rule's other half. ESLint refuses a palette scale because a
@@ -445,19 +465,6 @@ describe('radius, elevation and motion are spent by name', () => {
       if (!/\.tsx?$/.test(entry.name) || /\.test\.tsx?$/.test(entry.name)) return [];
       return [path];
     });
-  }
-
-  /** The utility a class names, without its variants, its `!` or its sign. */
-  function utilityOf(token: string): string {
-    let depth = 0;
-    let start = 0;
-    for (let i = 0; i < token.length; i += 1) {
-      const char = token[i];
-      if (char === '[' || char === '(') depth += 1;
-      else if (char === ']' || char === ')') depth -= 1;
-      else if (char === ':' && depth === 0) start = i + 1;
-    }
-    return token.slice(start).replace(/^!|!$/g, '').replace(/^-/, '');
   }
 
   /** What `--<namespace>-<name>` tokens in @theme let a class say. */
@@ -683,15 +690,18 @@ describe('the two faces', () => {
  * [P12A.1], under P12A §0.4's decision.
  *
  * The measure was the reading column's width, which made it 45em of prose
- * whatever the face: ninety-odd characters a line in a book serif, against
- * the seventy or so typographers cite, and nothing in the corpus said which
- * it should be. It is `--container-story` now, about seventy `ch`, and the
- * trap that comes with `ch` is the reason most of this describe exists: a
- * `ch` is the zero of **the element it is resolved on**. Spent on the
- * column, which is set in the interface face, seventy would be seventy
- * characters of the sans and some other number of the serif. So the measure
- * is spent only by the recipe that also sets the face, and the recipe is the
- * only place any of the three is spelled.
+ * whatever the face: ninety to a hundred and ten characters a line in a book
+ * serif, by the first test's measurement, against the seventy or so
+ * typographers cite, and nothing in the corpus said which it should be. It is
+ * `--container-story` now, about seventy characters of the story face held in
+ * `ch`, and the trap that comes with `ch` is the reason most of this describe
+ * exists: a `ch` is the zero of **the element it is resolved on**. Spent on the
+ * column, which is set in the interface face, it would count zeros of the sans
+ * and some other number of the serif's letters. So the measure is spent only by
+ * the recipe that also sets the face, and the recipe is the only place any of
+ * the three is spelled.
+ * *(And the number is not seventy, because the zero is not the average
+ * letter — the first test below says by how much. 2026-10-13, after review.)*
  *
  * What none of this can see is a line on a screen. jsdom lays nothing out,
  * so how many characters a real line holds in Charter, Sitka or Noto Serif
@@ -712,19 +722,42 @@ describe("the story's measure", () => {
     });
   }
 
-  /** The step, the face and the measure — any of them, as a class. */
-  const STORY = /(?:^|\s)(?:text-story|font-story|max-w-story)(?:\s|$)/;
+  /** The step, the face and the measure, any of them, as the utility a class names. */
+  const STORY = new Set(['text-story', 'font-story', 'max-w-story']);
+
+  /**
+   * Whether a string spells one of them, under any variant, `!` or `/`
+   * modifier — read token by token through `utilityOf`, as the radius scan
+   * reads a class, because a step or a face written under a breakpoint is
+   * still that step or that face at that breakpoint, without the measure
+   * (2026-10-13, after review: a whitespace-bounded match of the bare name
+   * let every prefixed spelling through).
+   */
+  const spellsStory = (text: string): boolean =>
+    text
+      .split(/\s+/)
+      .some((token) => token !== '' && STORY.has(utilityOf(token).split('/')[0] ?? ''));
 
   it('holds the measure in characters, about seventy of them', () => {
     // In `ch` and nothing else: a measure in `rem` or `em` is a width, and
-    // a width is what the column already was. Sixty to eighty is the band
-    // the target sits in the middle of; outside it the number has stopped
-    // being the decision P12A §0.4 recorded and wants a new one.
+    // a width is what the column already was.
+    //
+    // **And the band is in zeros, not in characters.** A `ch` is the advance
+    // of the zero, and in the stack's serifs the zero is about 1.26 times the
+    // average advance of running prose, spaces and punctuation included —
+    // Bitstream Charter's zero is 556 thousandths of an em against about
+    // 434, Liberation Serif's 500 against about 397, DejaVu Serif's 636
+    // against about 507 (2026-10-13, after P12A.1's review, which found the
+    // step first written as seventy `ch` and setting nearly ninety a line).
+    // So the sixty to eighty characters typographers cite is about 48–64ch,
+    // and the band is tightened round the 55 that is seventy: fifty to
+    // sixty. Outside it the number has stopped being the decision P12A §0.4
+    // recorded, and wants a new one rather than a wider band.
     const measure = /^(\d+(?:\.\d+)?)ch$/.exec(light.get('--container-story') ?? '');
     expect(measure, '--container-story is not a number of ch').not.toBeNull();
-    const characters = Number(measure?.[1]);
-    expect(characters).toBeGreaterThanOrEqual(60);
-    expect(characters).toBeLessThanOrEqual(80);
+    const zeros = Number(measure?.[1]);
+    expect(zeros).toBeGreaterThanOrEqual(50);
+    expect(zeros).toBeLessThanOrEqual(60);
   });
 
   it('spends it on the prose, through the recipe that sets the face', () => {
@@ -737,19 +770,21 @@ describe("the story's measure", () => {
     // for the composer and the panels, and a story measure on it would
     // count characters of the interface face.
     expect(page.reading.split(/\s+/)).toContain('max-w-reading');
-    expect(page.reading).not.toMatch(STORY);
+    expect(spellsStory(page.reading)).toBe(false);
   });
 
   it('is spelled nowhere but the recipe, so no paragraph takes one half of it', () => {
     // Every string literal in the client, template text included, through
     // the lexer the radius scan uses — so `${story} text-ink` is read as
-    // ` text-ink` and a pair re-typed beside a hole is still found.
+    // ` text-ink` and a pair re-typed beside a hole is still found — and
+    // each class in it by the utility it names, so a breakpoint, a state,
+    // `!` or a line-height modifier does not hide one.
     // Calibrated by the recipe itself: a reader that went blind would not
     // find it, and the count would be nought rather than one.
     const recipe = `${RECIPES}: ${story}`;
     const spelled = sources(ROOT).flatMap((path) =>
       literals(strip(readFileSync(path, 'utf8')))
-        .filter((text) => STORY.test(text))
+        .filter(spellsStory)
         .map((text) => `${path.slice(ROOT.length)}: ${text.trim()}`),
     );
     expect(spelled.filter((found) => found !== recipe)).toEqual([]);
