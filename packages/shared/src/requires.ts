@@ -26,7 +26,10 @@
  *   `minVersion` is absent when nobody stated one: a Setup names its mode by id
  *   alone (`Setup.mode` has no version), and the versions a World file's
  *   manifest derives are not kept when it lands, so only a World's *authored*
- *   `requires` can say *at least 2*.
+ *   `requires` can say *at least 2*. **`substituted`** marks the one mode the
+ *   session itself would play — its Setup's — when it is absent: started
+ *   anyway, the session plays the default mode in its place, which is a
+ *   different thing to tell somebody than *a mode the World also asks for*.
  * - **`capability`** — ***the vocabulary is the model roles***, the lead's
  *   decision of 2026-10-13, recorded in 04 §9 and open to the owner's reversal.
  *   A string that is one of `MODEL_ROLES` (`prose`, `image`, …) is met when that
@@ -41,7 +44,13 @@
  *   missing*.
  */
 export type UnmetRequirement =
-  | { kind: 'mode'; id: string; minVersion?: string; installed: string | null }
+  | {
+      kind: 'mode';
+      id: string;
+      minVersion?: string;
+      installed: string | null;
+      substituted?: true;
+    }
   | { kind: 'capability'; id: string; checkable: boolean }
   | { kind: 'extension'; id: string; minVersion: string };
 

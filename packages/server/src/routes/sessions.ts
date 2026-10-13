@@ -17,11 +17,15 @@ import {
   type OutputMessage,
   type Turn,
   type TurnAttachment,
+  UNMET_REQUIREMENTS,
+  type UnmetRequirement,
 } from '@storyengine/shared';
 
 import { type AppServices, requireAccount } from '../app.js';
 import { LibraryError, read } from '../library.js';
 import { addMembers, worldContribution, type WorldContribution } from '../library/worlds.js';
+import { rolesThatResolve } from '../providers/account-roles.js';
+import { unmetRequirements } from '../requires.js';
 import { walkPath } from '../sessions/segments.js';
 import {
   childrenByParent,
@@ -606,6 +610,22 @@ const CreateBody = Type.Object(
         maxProperties: 32,
       }),
     ),
+    /**
+     * ***Start anyway*** — 2026-10-13, the owner's answer to *"Build the
+     * promise, or narrow the notes"*: build it. [04 §9] and [03 §7.2] promise
+     * a warning per unmet requirement *"with a degraded-start option rather
+     * than a hard block where possible"*, and this is the option.
+     *
+     * Without it, a start whose World or Setup wants what this install lacks
+     * is `422 unmet-requirements` with the list; with it, the same request
+     * starts, each requirement degraded as the handler says, and the session
+     * records what it started without (`startedWithout`). *The restore's
+     * shape* — `acceptRedacted` in `routes/backups.ts`: refused with a reason,
+     * then asked again with a flag that says the person saw it. **Optional, and
+     * absent is no**: a client that never heard of this gets the refusal, which
+     * says what is missing, never a session that quietly lacks it.
+     */
+    degraded: Type.Optional(Type.Boolean()),
   },
   { additionalProperties: false },
 );
@@ -1224,6 +1244,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       lore?: string[];
       openings?: Record<string, string>;
       world?: string;
+      degraded?: boolean;
     };
 
     /**
@@ -1343,6 +1364,18 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
      * ([00 §3.3]). Creating a new session naming a mode that does not exist is a
      * different thing: nobody's story depends on it yet, and silently giving
      * them a different mode than they asked for is the surprise.
+     *
+     * ***When the caller names it*** (2026-10-13, the owner's answer to
+     * *"Build the promise, or narrow the notes"*). `mode` in the body is the
+     * person's own choice — a form only offers installed modes, so one naming
+     * another is a caller's mistake — and it is still `unknown-mode`, as
+     * above. **A Setup's mode is not that**: it arrived with the Setup, often
+     * from somebody else's World file, and the person starting it chose a
+     * story, not a mode. So a Setup naming a mode this install lacks is a
+     * requirement unmet, said with the rest below (`unmet-requirements`), and
+     * started in the default mode when the caller says *start anyway* — never
+     * silently, and never with a different mode than the one the person was
+     * told about.
      */
     /**
      * **An empty mode id on a Setup means *unset*, not *a mode called ""***.
@@ -1351,9 +1384,84 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
      * which is the same reading the preset resolution below already takes of an
      * empty id.
      */
-    const named = body.mode ?? (from?.mode.id === '' ? undefined : from?.mode.id);
-    const mode = modeById(named ?? DEFAULT_MODE_ID);
+    if (body.mode !== undefined && modeById(body.mode) === null) {
+      return reply.code(422).send({ error: 'unknown-mode', message: 'No such mode.' });
+    }
+    const setupMode = body.mode === undefined && from?.mode.id !== '' ? from?.mode.id : undefined;
+
+    /**
+     * ***What the World and the Setup ask of this install*** — 2026-10-13,
+     * [04 §9]'s promise built: each unmet requirement said, and a degraded
+     * start offered rather than a hard block.
+     *
+     * **What is checked at start**: the World's **authored** `requires` —
+     * modes at the version its author wrote, capabilities, extensions — when
+     * starting in a World; and, **whenever the mode comes from a Setup** (the
+     * caller's or the World's sole one) rather than from `mode`, that the
+     * Setup's mode is installed. *Versions only where an author wrote one*: a
+     * Setup names its mode by id alone, and the versions a World file's
+     * manifest derived are not kept when it lands (`worldContribution` says
+     * why). A capability is a model role, checked against this account's
+     * roles as `GET /me/roles` resolves them — read only when the World names
+     * one; an extension is unmet by construction, since this build loads none.
+     *
+     * ***Refused with the list, unless the caller says start anyway*** — the
+     * restore's shape (`routes/backups.ts`, `needs-confirmation` and
+     * `acceptRedacted`): `422 unmet-requirements` carries `unmet`, every item
+     * in the shared `UnmetRequirement` shape the client words, and the same
+     * request with `degraded: true` starts. *A 422 where the restore's is a
+     * 409*: every refusal of this route's body is 422 — well-formed, and not
+     * what can be started as it stands — and a client reads the class, never
+     * the status. *Before anything is created*, so a refusal leaves nothing
+     * behind. What *anyway* means, per kind:
+     *
+     * | Unmet | Started |
+     * |---|---|
+     * | the Setup's mode is not installed | in the default mode, the Setup's mode answers dropped (they answer a wizard that is not here; Scene's accepts exactly `{}`), the preset falling back as it always does |
+     * | a mode older than its author asked | on the installed version, which is the only one there is |
+     * | a model role that does not resolve | as it is — what needs the role goes without at play (an unbound `image` already leaves pictures out of the plan) |
+     * | a capability nothing can check | as it is |
+     * | an extension | without it: there is none to load |
+     *
+     * …and the session records it (`startedWithout`), so its page can say what
+     * it plays without.
+     */
+    const wanted = world?.requires ?? { modes: [], extensions: [], capabilities: [] };
+    const roles =
+      wanted.capabilities.length === 0
+        ? null
+        : await rolesThatResolve(services.layout, account.handle, account.capabilities);
+    const unmet: UnmetRequirement[] = unmetRequirements(wanted, roles);
+    const substituted = setupMode !== undefined && modeById(setupMode) === null;
+    /**
+     * ***The Setup's own mode first, marked `substituted`***: it is the one the
+     * session would play, so *anyway* means another mode in its place — which
+     * the dialog has to say, and a mode the World merely also asks for does
+     * not. A World naming the same mode at a version keeps its version on the
+     * one item.
+     */
+    if (substituted) {
+      const at = unmet.findIndex((one) => one.kind === 'mode' && one.id === setupMode);
+      const listed = at < 0 ? undefined : unmet.splice(at, 1)[0];
+      unmet.unshift({
+        ...(listed?.kind === 'mode' ? listed : { kind: 'mode', id: setupMode, installed: null }),
+        substituted: true,
+      });
+    }
+    if (unmet.length > 0 && body.degraded !== true) {
+      return reply.code(422).send({
+        error: UNMET_REQUIREMENTS,
+        message:
+          'This needs something this install does not have, listed in `unmet`. Start it anyway to play without it.',
+        unmet,
+      });
+    }
+    const startedWithout = unmet.length === 0 ? undefined : { at: new Date().toISOString(), unmet };
+
+    const mode = modeById(body.mode ?? (substituted ? undefined : setupMode) ?? DEFAULT_MODE_ID);
     if (mode === null) {
+      // Only when the default itself is not registered — a unit test's world,
+      // never a server's: every other way here was refused or substituted above.
       return reply.code(422).send({ error: 'unknown-mode', message: 'No such mode.' });
     }
 
@@ -1382,7 +1490,11 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
      * the one value the Setup and the wizard both name. `Setup.mode.config` is
      * *"whatever the mode's own setup collected"*, which is exactly this.
      */
-    const answers = body.modeConfig ?? asAnswers(from) ?? {};
+    // ***None, for a mode started in place of the Setup's*** (2026-10-13): the
+    // answers are to the missing mode's wizard, and the default's is not that
+    // one — Scene's accepts exactly `{}`, so carried over they would only be
+    // refused below as answers to questions nobody asked.
+    const answers = substituted ? {} : (body.modeConfig ?? asAnswers(from) ?? {});
 
     /**
      * The rest of the Setup's defaults, each overridden by its own parameter.
@@ -1573,6 +1685,8 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
          * was made with when the mode's declared values change.
          */
         ...chatSettingsAtCreation(mode.definition),
+        // What it was started without, past `unmet-requirements` (2026-10-13).
+        ...(startedWithout === undefined ? {} : { startedWithout }),
         ...(cast === undefined ? {} : { cast }),
         ...(treatment === undefined ? {} : { treatment }),
         ...(lore === undefined ? {} : { lore }),

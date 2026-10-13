@@ -35,6 +35,12 @@ import type { SessionFile } from './types.js';
  * pack with what the mode shipped after it was taken (`presetOf`). The panel
  * edits the pack it is shown and writes it back whole, so showing the file's
  * would offer no way to switch off a block every turn now assembles from.
+ *
+ * ***`startedWithout` goes as it is*** (2026-10-13): what a session started
+ * past `unmet-requirements` did without — a mode, a model role, an extension
+ * — is no spoiler and is meant to be seen, since the session's page says it
+ * in one line (*this session started without …; it plays without them*). So
+ * it rides the spread above untouched, and a test pins that it arrives.
  */
 export type PresentedSession = Omit<SessionFile, 'hooks' | 'setup' | 'goals'> & {
   setup?: { id: string; name: string };

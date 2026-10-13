@@ -2192,6 +2192,21 @@ paragraph above stands as written, and the build meets it:
 - *Publishing still derives modes only* ([16 §4](16-publish.md), dated there):
   a capability or an extension is in a file only when its author wrote it into
   the World's `requires`, by hand, since no editor offers the field.
+- **The degraded start** — `POST /api/sessions` checks a World's **authored**
+  `requires`, and whether a Setup it starts through names a mode this install
+  has, before it creates anything. Anything unmet is
+  `422 unmet-requirements` with the list; the same request with
+  `degraded: true` starts anyway — a missing mode in the default one, the
+  Setup's answers to the missing mode's wizard dropped; an older mode on the
+  installed version; an unbound role as it is, what needs it going without;
+  extensions left out — and the session records what it started without
+  (`startedWithout`), which its page says. **A hard block remains only where
+  the caller named a `mode` outright** (`unknown-mode`): that is a person's own
+  choice, not imported content. *Versions are checked only where an author
+  wrote one*: the versions a manifest derives are not kept when a World file
+  lands — the World is written as its author wrote it, so importing your own
+  file back is `unchanged` — and a Setup names its mode by id alone
+  ([docs/api.md](../api.md) has the route).
 
 ### 9.1 One action produces a package
 

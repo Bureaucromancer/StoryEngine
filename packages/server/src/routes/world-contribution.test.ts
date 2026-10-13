@@ -709,6 +709,14 @@ describe('starting in a World through its only Setup', () => {
    * ***Held to what a named Setup is held to*** — every refusal the route makes
    * of a Setup, with its code: a mode this build does not have, and answers the
    * mode would not accept. *As if the caller had named it* cuts both ways.
+   *
+   * ***The mode's refusal is `unmet-requirements` now*** — re-pinned
+   * deliberately on 2026-10-13, with the owner's *build the promise*. A
+   * Setup's mode this install lacks is a requirement unmet, listed and
+   * startable anyway (`sessions-requires.test.ts` has the rest), where it was
+   * `unknown-mode`, which stays for a `mode` the caller names. It is still a
+   * refusal of the World's Setup exactly as of a named one, which is this
+   * test's claim.
    */
   it('refuses the World’s Setup for what it would refuse a named one', async () => {
     registerMode(SETUP_MODE);
@@ -719,7 +727,10 @@ describe('starting in a World through its only Setup', () => {
     await created('worlds', strange);
     const refused = await start({ world: strange.id });
     expect(refused.status).toBe(422);
-    expect(refused.body.error).toBe('unknown-mode');
+    expect(refused.body.error).toBe('unmet-requirements');
+    const named = await start({ setup: unknownMode.id });
+    expect(named.status).toBe(422);
+    expect(named.body.error).toBe('unmet-requirements');
 
     const misfit = await aSetup('Impossible', {
       mode: { id: SETUP_MODE_ID, config: { premise: 'Rain.', difficulty: 'impossible' } },

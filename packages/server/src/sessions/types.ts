@@ -9,6 +9,7 @@ import type {
   PlotHook,
   Preset,
   Setup,
+  StartedWithout,
 } from '@storyengine/shared';
 import type { ParticipantPolicy } from '@storyengine/sdk';
 
@@ -436,6 +437,34 @@ export interface SessionFile {
    * make "restorable, never swept" a second code path instead of a flag.
    */
   archivedAt?: string;
+  /**
+   * ***What this session was started without*** — 2026-10-13, the owner's
+   * answer to *"Build the promise, or narrow the notes"*: build it.
+   *
+   * Written **once, at creation**, when `POST /api/sessions` was refused
+   * `unmet-requirements` and asked again with `degraded: true`: the World's
+   * or the Setup's requirements this install did not meet, as the person was
+   * shown them — a mode it lacks (the session plays the default instead), one
+   * older than asked (it plays the installed one), a model role that does not
+   * resolve (it plays without what needs it), a capability nothing can check,
+   * an extension (none is loaded in this build). Never rewritten: installing
+   * the mode later does not make this session one that started with it.
+   *
+   * **On the record rather than in a log** — [06 §4.2]'s *a persistent banner
+   * on that session, not a modal and not a log line*. The session's own page
+   * reads it (`GET /sessions/:id` sends it as it is; `present.ts` keeps it),
+   * so whoever opens the session — today, or after it travels — can see why it
+   * plays as it does. *It travels*: a session export carries the document
+   * whole and the import spreads it, so the record arrives with the session.
+   * *It is not a setting*: **make a setup from here** reads the session
+   * through `CarrySource`'s `Pick`, which leaves it out, so a Setup made from
+   * a degraded session does not inherit what its start lacked — it names the
+   * mode the session actually played.
+   *
+   * Absent on every other session, one sent `degraded: true` that lacked
+   * nothing included.
+   */
+  startedWithout?: StartedWithout;
 }
 
 /**
