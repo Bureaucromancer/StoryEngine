@@ -178,7 +178,13 @@ every colour, radius and type step the app uses — `--color-surface`,
 redefining the colours for the dark theme. It is the only file in the client
 permitted to name a Tailwind scale like `slate-800`; everywhere else that is a
 build error, because a component reaching past the tokens is a component that
-stays light when the rest of the app goes dark.
+stays light when the rest of the app goes dark. *(2026-10-13,
+[P12A](workplan/35-p12a-the-look.md) P12A.0: the block now names elevation and
+motion too — two shadows whose colour is a token, two durations and two easings
+— and radii that differ; one more block, under `prefers-reduced-motion`, zeroes
+every duration. Radius, shadow and motion classes are held to the tokens by a
+source scan in `theme.test.ts` rather than by ESLint, and a motion class may be
+written only in a recipe in `ui/classes.ts`.)*
 
 **The look is `packages/client/src/ui/`.** `Button`, `Alert`, `Badge`, `Panel`,
 `Dialog`, the type steps, and the two field primitives. They spend token names

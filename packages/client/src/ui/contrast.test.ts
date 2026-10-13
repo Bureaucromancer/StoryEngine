@@ -93,6 +93,16 @@ function palette(): Map<string, Rgb> {
 }
 
 /**
+ * What a colour token resolves to: the ramp step it names, and how much of it
+ * is there. Every token but a few is a plain alias, `alpha` 1; the overlay,
+ * the shadow and the veil are a step thinned toward transparent.
+ */
+interface Colour {
+  step: string;
+  alpha: number;
+}
+
+/**
  * Our tokens, per theme, read out of `index.css`.
  *
  * The three blocks are the three states [10 §1.2] commits to: bare `:root` is
@@ -100,18 +110,46 @@ function palette(): Map<string, Rgb> {
  * `[data-theme='dark']` block is an explicit choice. The last two must agree,
  * and a token defined in only one of them is the exact shape of the bug this
  * file exists for — so they are read separately and compared.
+ *
+ * ***Two spellings are read, not one*** (2026-10-13, P12A.0). It read only
+ * `var(--color-<step>)`, which made a `color-mix()` token invisible rather than
+ * a failure — the overlay was never so much as read, and the backdrop's veil,
+ * whose whole purpose is a contrast floor, could not have been measured. It reads
+ * `color-mix(in oklab, var(--color-<step>) N%, transparent)` as well now, which
+ * is a step at an opacity: mixing with `transparent` in a premultiplied space
+ * keeps the colour and scales its alpha. **And `reads every colour` below
+ * fails on any third spelling**, so the next token this cannot read is a
+ * failure here rather than a colour nobody measures. Comments are blanked
+ * before either is read, so a declaration quoted in prose is not a token.
  */
-function tokensByTheme(): { light: Map<string, string>; dark: Map<string, string>[] } {
-  const css = readFileSync(join(HERE, '..', 'index.css'), 'utf8');
-  const light = new Map<string, string>();
-  const dark: Map<string, string>[] = [];
+function tokensByTheme(): {
+  light: Map<string, Colour>;
+  dark: Map<string, Colour>[];
+  /** How many colours each block declares, light first, read or not. */
+  declared: number[];
+} {
+  const css = readFileSync(join(HERE, '..', 'index.css'), 'utf8').replace(
+    /\/\*[\s\S]*?\*\//g,
+    (comment) => comment.replace(/[^\n]/g, ' '),
+  );
+  const light = new Map<string, Colour>();
+  const dark: Map<string, Colour>[] = [];
+  const declared: number[] = [];
 
-  const assignments = (block: string, into: Map<string, string>): void => {
+  const assignments = (block: string, into: Map<string, Colour>): void => {
     for (const match of block.matchAll(
       /--color-([a-z-]+):\s*var\(--color-([a-z]+-\d+|white|black)\)/g,
     )) {
-      const [, token, value] = match;
-      if (token !== undefined && value !== undefined) into.set(token, value);
+      const [, token, step] = match;
+      if (token !== undefined && step !== undefined) into.set(token, { step, alpha: 1 });
+    }
+    for (const match of block.matchAll(
+      /--color-([a-z-]+):\s*color-mix\(in oklab, var\(--color-([a-z]+-\d+|white|black)\) ([\d.]+)%, transparent\)/g,
+    )) {
+      const [, token, step, percent] = match;
+      if (token !== undefined && step !== undefined) {
+        into.set(token, { step, alpha: Number(percent) / 100 });
+      }
     }
   };
 
@@ -130,14 +168,16 @@ function tokensByTheme(): { light: Map<string, string>; dark: Map<string, string
       at += 1;
     }
     const body = css.slice(start, at - 1);
-    const block = new Map<string, string>();
+    const block = new Map<string, Colour>();
     assignments(body, block);
+    declared.push([...body.matchAll(/--color-([a-z-]+)\s*:/g)].length);
     dark.push(block);
     lightSource = lightSource.replace(body, '');
   }
   assignments(lightSource, light);
+  declared.unshift([...lightSource.matchAll(/--color-([a-z-]+)\s*:/g)].length);
 
-  return { light, dark };
+  return { light, dark, declared };
 }
 
 /** Text token → the surfaces it is actually painted on, from the components. */
@@ -187,17 +227,68 @@ const GRAPHICS: [mark: string, on: string[]][] = [
   ['accent', ['surface', 'canvas', 'surface-muted']],
 ];
 
+/**
+ * ***Over a picture*** (2026-10-13) — [P12A.0], for P12A.2's backdrop and
+ * [10 §2.3]'s *the prose wins, always*.
+ *
+ * The veil is the canvas at an opacity, and what shows through it is whatever
+ * the picture holds — so these pairs are measured over the worst pixel a
+ * picture can put there rather than over a surface. The browser composites in
+ * gamma-encoded sRGB, channel by channel, which is what `over` does; the
+ * composite's luminance rises with every channel of the pixel underneath, so
+ * across every possible picture it runs exactly from the veil over **black**
+ * to the veil over **white**. If the ink lies outside that span, the nearer
+ * end is the worst case there is, and measuring both ends measures every
+ * picture. Those are the two assertions below, and why the first is not
+ * decoration: an ink inside the span has some pixel that matches it.
+ *
+ * `ink-subtle` is here because it is the quietest ink a turn is set in — the
+ * player's own line — and it is what the veil's opacity was worked out for.
+ * `ink-faint` is not, and cannot be: in light it needs the veil at 99.5%.
+ */
+const OVER_A_PICTURE: [ink: string, veil: string][] = [
+  ['ink', 'veil'],
+  ['ink-muted', 'veil'],
+  ['ink-subtle', 'veil'],
+];
+const WORST_PIXELS: [name: string, pixel: Rgb][] = [
+  ['black', { r: 0, g: 0, b: 0 }],
+  ['white', { r: 1, g: 1, b: 1 }],
+];
+
 describe('the palette is legible', () => {
   const ramp = palette();
-  const { light, dark } = tokensByTheme();
+  const { light, dark, declared } = tokensByTheme();
+  const themes = [['light', light], ...dark.map((block) => ['dark', block] as const)] as const;
 
-  function resolve(theme: Map<string, string>, token: string): Rgb {
-    const step = theme.get(token);
-    expect(step, `${token} is not defined in this theme`).toBeDefined();
-    const colour = ramp.get(step ?? '');
-    expect(colour, `${step ?? '?'} is not a Tailwind colour`).toBeDefined();
-    return colour ?? { r: 0, g: 0, b: 0 };
+  function step(theme: Map<string, Colour>, token: string): Rgb {
+    const colour = theme.get(token);
+    expect(colour, `${token} is not defined in this theme`).toBeDefined();
+    const rgb = ramp.get(colour?.step ?? '');
+    expect(rgb, `${colour?.step ?? '?'} is not a Tailwind colour`).toBeDefined();
+    return rgb ?? { r: 0, g: 0, b: 0 };
   }
+
+  /** An opaque token. A translucent one has no colour until it is over something. */
+  function resolve(theme: Map<string, Colour>, token: string): Rgb {
+    expect(theme.get(token)?.alpha, `${token} is translucent; measure it over a pixel`).toBe(1);
+    return step(theme, token);
+  }
+
+  /** A translucent token over one pixel, as the browser composites it. */
+  function over(theme: Map<string, Colour>, token: string, pixel: Rgb): Rgb {
+    const alpha = theme.get(token)?.alpha ?? 1;
+    const top = step(theme, token);
+    const mix = (a: number, b: number): number => alpha * a + (1 - alpha) * b;
+    return { r: mix(top.r, pixel.r), g: mix(top.g, pixel.g), b: mix(top.b, pixel.b) };
+  }
+
+  it('reads every colour the stylesheet declares', () => {
+    // A token in a spelling this file cannot read is not measured and is not
+    // a failure either — which is how the overlay went unread. So the count
+    // of what was read is held to the count of what is there.
+    expect([light.size, ...dark.map((block) => block.size)]).toEqual(declared);
+  });
 
   it('clears 4.5 to 1 in the light theme', () => {
     for (const [ink, surfaces] of PAIRS) {
@@ -234,6 +325,36 @@ describe('the palette is legible', () => {
           }
         }
       }
+    }
+  });
+
+  it('keeps the prose above 4.5 to 1 over any picture, in both themes', () => {
+    for (const [theme, block] of themes) {
+      for (const [ink, veil] of OVER_A_PICTURE) {
+        const colour = resolve(block, ink);
+        const [darkest, lightest] = WORST_PIXELS.map(([, pixel]) => over(block, veil, pixel));
+        const [low, high] = [relativeLuminance(darkest!), relativeLuminance(lightest!)];
+        const inside = relativeLuminance(colour) > low && relativeLuminance(colour) < high;
+        expect(inside, `${ink} matches some picture under the ${veil} (${theme})`).toBe(false);
+        for (const [name, pixel] of WORST_PIXELS) {
+          const measured = ratio(colour, over(block, veil, pixel));
+          expect(measured, `${ink} on ${veil} over ${name} (${theme})`).toBeGreaterThanOrEqual(
+            FLOOR,
+          );
+        }
+      }
+    }
+  });
+
+  it('thins the canvas rather than some other colour', () => {
+    // The column's ground is the canvas whether a picture is behind it or
+    // not, so a veil of another step would re-tint the column when a backdrop
+    // arrives. It names the step rather than `var(--color-canvas)` because
+    // the build's fallback for `color-mix()` resolves a token inside it
+    // against the light theme (index.css says how that was found); this is
+    // the guarantee the token name would have given.
+    for (const [theme, block] of themes) {
+      expect(block.get('veil')?.step, `the veil (${theme})`).toBe(block.get('canvas')?.step);
     }
   });
 

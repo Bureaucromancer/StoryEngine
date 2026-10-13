@@ -241,7 +241,7 @@ function Illustrated(props: {
        * the only case the class was right for. `max-w-full` keeps the ceiling
        * and drops the floor; `mx-auto` centres what comes in narrower.
        */
-      className="mx-auto h-auto max-w-full rounded-panel"
+      className="mx-auto h-auto max-w-full rounded-media"
     />
   );
 

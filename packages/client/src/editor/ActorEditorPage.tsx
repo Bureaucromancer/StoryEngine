@@ -241,12 +241,12 @@ function Editor(props: { initial: LibraryObject; unsaved?: boolean }): JSX.Eleme
               has no card to show, and asking for one by an id the server has
               never heard of would be a 404 rendered as a broken image. */}
             {unsaved ? (
-              <div className="h-20 w-20 rounded-md border border-line bg-surface-muted" />
+              <div className="h-20 w-20 rounded-media border border-line bg-surface-muted" />
             ) : (
               <img
                 src={api.avatarUrl(base.id, base.contentHash)}
                 alt=""
-                className="h-20 w-20 rounded-md border border-line bg-surface-muted object-cover"
+                className="h-20 w-20 rounded-media border border-line bg-surface-muted object-cover"
               />
             )}
             <div>
@@ -310,7 +310,7 @@ function Editor(props: { initial: LibraryObject; unsaved?: boolean }): JSX.Eleme
       />
 
       {form.sections.map((section, index) => (
-        <fieldset key={section.id} className="rounded-md border border-line p-4">
+        <fieldset key={section.id} className="rounded-panel border border-line p-4">
           <legend className="px-1 text-sm font-medium text-ink-muted">
             {section.title === '' ? 'Untitled section' : section.title}
             <span className="ms-2 text-xs font-normal text-ink-faint">{section.disposition}</span>
@@ -371,7 +371,7 @@ function Editor(props: { initial: LibraryObject; unsaved?: boolean }): JSX.Eleme
             };
 
             return (
-              <fieldset key={sample.id} className="rounded-md border border-line p-4">
+              <fieldset key={sample.id} className="rounded-panel border border-line p-4">
                 <legend className="px-1 text-sm font-medium text-ink-muted">
                   {sample.title === '' ? 'Untitled sample' : sample.title}
                   {sample.enabled ? null : (

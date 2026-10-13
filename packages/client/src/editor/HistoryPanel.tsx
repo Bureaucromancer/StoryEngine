@@ -108,7 +108,10 @@ export function HistoryPanel(props: HistoryPanelProps): JSX.Element {
   }
 
   return (
-    <section aria-label="Version history" className="rounded-md border border-line bg-surface p-4">
+    <section
+      aria-label="Version history"
+      className="rounded-panel border border-line bg-surface p-4"
+    >
       <h2 ref={heading} tabIndex={-1} className="mb-3 text-section text-ink">
         History
       </h2>
@@ -141,7 +144,7 @@ export function HistoryPanel(props: HistoryPanelProps): JSX.Element {
                   }}
                 >
                   <input
-                    className="w-full rounded-md border border-line-strong px-2 py-1 text-sm"
+                    className="w-full rounded-control border border-line-strong px-2 py-1 text-sm"
                     value={renaming.reason}
                     onChange={(event) => {
                       setRenaming({ id: version.id, reason: event.target.value });

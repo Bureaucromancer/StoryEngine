@@ -73,7 +73,7 @@ export function SourceBadge(props: { source: 'user' | 'system' }): JSX.Element {
  */
 export function ShadowedBadge(): JSX.Element {
   return (
-    <span className="rounded-md bg-danger-muted px-2 py-0.5 text-xs font-medium text-danger-ink">
+    <span className="rounded-control bg-danger-muted px-2 py-0.5 text-xs font-medium text-danger-ink">
       Shadowed
     </span>
   );

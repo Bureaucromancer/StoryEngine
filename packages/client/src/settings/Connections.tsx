@@ -206,7 +206,7 @@ export function ConnectionsPanel({
           {rows.map((row) => (
             <li
               key={`${row.id}-${String(row.shadowed)}`}
-              className="rounded-md border border-line p-4"
+              className="rounded-panel border border-line p-4"
             >
               <div className="flex items-baseline justify-between gap-4">
                 <div>
@@ -534,7 +534,7 @@ function ConnectionForm({
 
   return (
     <form
-      className="flex max-w-md flex-col gap-4 rounded-md border border-line p-4"
+      className="flex max-w-md flex-col gap-4 rounded-panel border border-line p-4"
       aria-labelledby="connection-form"
       onSubmit={(event) => {
         event.preventDefault();
@@ -995,10 +995,10 @@ function TestAnswer({
         <img
           src={`data:${result.mime};base64,${result.base64}`}
           alt={pictureAlt(result.modelId)}
-          className="max-h-96 max-w-full self-start rounded-md border border-line"
+          className="max-h-96 max-w-full self-start rounded-media border border-line"
         />
       ) : result.text.trim().length === 0 ? null : (
-        <p className="whitespace-pre-wrap rounded-md border border-line p-3 text-sm text-ink">
+        <p className="whitespace-pre-wrap rounded-panel border border-line p-3 text-sm text-ink">
           {result.text}
         </p>
       )}

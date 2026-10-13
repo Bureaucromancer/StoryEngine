@@ -390,7 +390,7 @@ export function TokenField(props: TokenFieldProps): JSX.Element {
           <ul
             id={listboxId}
             role="listbox"
-            className="absolute inset-x-0 z-10 mt-1 max-h-60 overflow-y-auto rounded-panel border border-line-strong bg-surface py-1 shadow-lg"
+            className="absolute inset-x-0 z-10 mt-1 max-h-60 overflow-y-auto rounded-panel border border-line-strong bg-surface py-1 shadow-overlay"
           >
             {options.map((option, index) => (
               <li

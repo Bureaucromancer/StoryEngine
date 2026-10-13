@@ -82,12 +82,12 @@ export function selectionHref(path: string, key: string, values: readonly string
   return `${path}?${new URLSearchParams({ [key]: values.join(',') }).toString()}`;
 }
 
-const CHIP_ACTIVE = 'rounded-md bg-accent px-3 py-1 text-sm font-medium text-on-accent';
+const CHIP_ACTIVE = 'rounded-control bg-accent px-3 py-1 text-sm font-medium text-on-accent';
 const CHIP_IDLE =
-  'rounded-md border border-line-strong bg-surface px-3 py-1 text-sm text-ink-muted hover:bg-surface-muted';
-const TOGGLE_ON = 'rounded-md border border-accent px-3 py-1 text-sm text-ink';
+  'rounded-control border border-line-strong bg-surface px-3 py-1 text-sm text-ink-muted hover:bg-surface-muted';
+const TOGGLE_ON = 'rounded-control border border-accent px-3 py-1 text-sm text-ink';
 const TOGGLE_OFF =
-  'rounded-md border border-dashed border-line-strong px-3 py-1 text-sm text-ink-subtle hover:bg-surface-muted';
+  'rounded-control border border-dashed border-line-strong px-3 py-1 text-sm text-ink-subtle hover:bg-surface-muted';
 
 export function SelectorBar<T extends string>(props: {
   /** The landmark's name — *Filter by kind*, *Filter by mode*. */

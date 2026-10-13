@@ -176,7 +176,7 @@ export function ComposerPictures(props: {
               <img
                 src={picture.preview}
                 alt={numbered('picture-named', index + 1)}
-                className="aspect-square w-full rounded-control border border-line object-cover"
+                className="aspect-square w-full rounded-media border border-line object-cover"
               />
               <Field
                 label={
@@ -278,7 +278,7 @@ function MovePicture(props: { sessionId: string; picture: TurnAttachment }): JSX
       // Never empty: an empty alt marks an image decorative, and a move that
       // was only a picture would then be announced as nothing.
       alt={props.picture.caption ?? WORDS['undescribed'] ?? ''}
-      className="aspect-square w-full rounded-control border border-line object-cover"
+      className="aspect-square w-full rounded-media border border-line object-cover"
       onError={() => {
         setBroken(true);
       }}

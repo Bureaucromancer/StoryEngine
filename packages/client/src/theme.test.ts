@@ -26,6 +26,33 @@ import { describe, expect, it } from 'vitest';
 const CSS = readFileSync(fileURLToPath(new URL('./index.css', import.meta.url)), 'utf8');
 const SHELL = readFileSync(fileURLToPath(new URL('./Shell.tsx', import.meta.url)), 'utf8');
 
+/**
+ * The stylesheet with every comment blanked out, character for character, so
+ * an offset into it is an offset into the file.
+ *
+ * ***Every lookup below reads this rather than the file*** (2026-10-13,
+ * P12A.0). They used to find a block by the first occurrence of its opening,
+ * and the first `@theme` in `index.css` is in its header comment — *"Plain
+ * `@theme`, never `@theme inline`"* — so the light palette was read from
+ * whatever followed that comment's next `{`. It was the right block only
+ * because no brace happened to sit between the two, and the next header
+ * sentence to quote one would have read the wrong block without failing. A
+ * declaration quoted in a comment was read as a token for the same reason.
+ */
+const CODE = CSS.replace(/\/\*[\s\S]*?\*\//g, (comment) => comment.replace(/[^\n]/g, ' '));
+
+/**
+ * Where the one block that `opening` opens starts — and a loud failure, not a
+ * wrong block, when the stylesheet has none of them or more than one.
+ */
+function only(opening: string): number {
+  const at = CODE.indexOf(opening);
+  if (at === -1 || CODE.includes(opening, at + 1)) {
+    throw new Error(`index.css should open exactly one ${opening.trim()} block`);
+  }
+  return at;
+}
+
 /** The declarations inside one brace-balanced block, as name → value. */
 function tokensIn(source: string): Map<string, string> {
   const found = new Map<string, string>();
@@ -37,21 +64,26 @@ function tokensIn(source: string): Map<string, string> {
 
 /** From `start` to the brace that closes the block it opens. */
 function blockAt(start: number): string {
-  const open = CSS.indexOf('{', start);
+  const open = CODE.indexOf('{', start);
   let depth = 0;
-  for (let i = open; i < CSS.length; i += 1) {
-    if (CSS[i] === '{') depth += 1;
-    if (CSS[i] === '}') {
+  for (let i = open; i < CODE.length; i += 1) {
+    if (CODE[i] === '{') depth += 1;
+    if (CODE[i] === '}') {
       depth -= 1;
-      if (depth === 0) return CSS.slice(open + 1, i);
+      if (depth === 0) return CODE.slice(open + 1, i);
     }
   }
   throw new Error('unbalanced braces in index.css');
 }
 
-const light = tokensIn(blockAt(CSS.indexOf('@theme')));
-const darkByAttribute = tokensIn(blockAt(CSS.indexOf(":root[data-theme='dark']")));
-const darkByPreference = tokensIn(blockAt(CSS.indexOf('@media (prefers-color-scheme: dark)')));
+const THEME = '@theme {';
+const DARK_BY_ATTRIBUTE = ":root[data-theme='dark'] {";
+const DARK_BY_PREFERENCE = '@media (prefers-color-scheme: dark) {';
+const LESS_MOTION = '@media (prefers-reduced-motion: reduce) {';
+
+const light = tokensIn(blockAt(only(THEME)));
+const darkByAttribute = tokensIn(blockAt(only(DARK_BY_ATTRIBUTE)));
+const darkByPreference = tokensIn(blockAt(only(DARK_BY_PREFERENCE)));
 
 const colours = (tokens: Map<string, string>) =>
   new Map([...tokens].filter(([name]) => name.startsWith('--color-')));
@@ -75,21 +107,123 @@ describe('the theme', () => {
   });
 
   it('keeps the two copies of the dark theme identical', () => {
-    expect(Object.fromEntries(colours(darkByPreference))).toEqual(
-      Object.fromEntries(colours(darkByAttribute)),
-    );
+    // Every declaration, not only the colours (2026-10-13, P12A.0). The blocks
+    // hold nothing else, and the test below keeps it so — but a step that
+    // crept into one copy would be this file's defect wearing another prefix.
+    expect(Object.fromEntries(darkByPreference)).toEqual(Object.fromEntries(darkByAttribute));
   });
 
   it('declares a colour-scheme for each theme', () => {
     // Without it the browser renders the caret, scrollbars and native select
     // popups for the wrong theme — form chrome CSS does not reach, and the
     // reason an input can look right and still be unusable.
-    expect(CSS).toMatch(/:root\s*\{[^}]*color-scheme:\s*light/);
+    expect(CODE).toMatch(/:root\s*\{[^}]*color-scheme:\s*light/);
     expect(darkByAttribute.size + darkByPreference.size).toBeGreaterThan(0);
-    expect(blockAt(CSS.indexOf(":root[data-theme='dark']"))).toMatch(/color-scheme:\s*dark/);
-    expect(blockAt(CSS.indexOf('@media (prefers-color-scheme: dark)'))).toMatch(
-      /color-scheme:\s*dark/,
+    expect(blockAt(only(DARK_BY_ATTRIBUTE))).toMatch(/color-scheme:\s*dark/);
+    expect(blockAt(only(DARK_BY_PREFERENCE))).toMatch(/color-scheme:\s*dark/);
+  });
+});
+
+/**
+ * ***The steps that are not colours*** (2026-10-13) — [P12A.0].
+ *
+ * The colour rules above were the whole of this file because colour was the
+ * whole of what `index.css` could say. It names elevation and motion now, and
+ * radii that differ, and each of them has a way to be wrong that no colour
+ * had: Tailwind writes a shadow's geometry into the utility, so a dark copy of
+ * one reaches nothing; it reads durations from a namespace nobody would guess,
+ * so a token in the obvious one compiles to no class at all; and a motion
+ * token the reduced-motion block does not zero is a motion for someone who
+ * asked for none. None of those shows on the machine of whoever wrote it.
+ */
+describe('the steps that are not colours', () => {
+  const declared = (prefix: string): string[] =>
+    [...light.keys()].filter((name) => name.startsWith(prefix));
+
+  it('declares each step once in @theme', () => {
+    // The maps above keep the last of two declarations and say nothing, so a
+    // step pasted twice with two values is read as whichever came second.
+    const names = [...blockAt(only(THEME)).matchAll(/(--[a-z0-9-]+)\s*:/g)].map(
+      (match) => match[1],
     );
+    expect(names.filter((name, index) => names.indexOf(name) !== index)).toEqual([]);
+  });
+
+  it('states a step that is not a colour in @theme alone', () => {
+    // The dark theme redefines colours and nothing else, and nothing else in
+    // the file redefines a step — but for the reduced-motion block, whose
+    // whole job is to zero the motion ones, and which the last test here
+    // holds to exactly that.
+    const elsewhere = CODE.replace(blockAt(only(THEME)), '').replace(
+      blockAt(only(LESS_MOTION)),
+      '',
+    );
+    const steps = [...light.keys()].filter((name) => !name.startsWith('--color-'));
+    expect(steps.filter((name) => new RegExp(`${name}\\s*:`).test(elsewhere))).toEqual([]);
+    expect(
+      [...darkByAttribute.keys(), ...darkByPreference.keys()].filter(
+        (name) => !name.startsWith('--color-'),
+      ),
+    ).toEqual([]);
+  });
+
+  it('gives a control, a panel and a picture three different radii', () => {
+    // They were one radius under two names, which is the state this guards
+    // against drifting back to: a token that equals its neighbour is a name
+    // with nothing behind it.
+    const radii = ['--radius-control', '--radius-panel', '--radius-media'].map((name) =>
+      light.get(name),
+    );
+    expect(radii.every((value) => value !== undefined)).toBe(true);
+    expect(new Set(radii).size).toBe(3);
+  });
+
+  it('colours every shadow through the one token a theme can reach', () => {
+    // A literal colour in a shadow step is a shadow the dark theme cannot
+    // touch, because the geometry — colour included — is written into the
+    // utility rather than read from this variable.
+    const shadows = declared('--shadow-');
+    expect(shadows.length).toBeGreaterThanOrEqual(2);
+    for (const name of shadows) {
+      const layers = (light.get(name) ?? '').split(',');
+      for (const layer of layers) {
+        expect(layer, `${name} has a layer with no shadow colour`).toMatch(
+          /var\(--color-shadow\)\s*$/,
+        );
+        expect(
+          layer.replace('var(--color-shadow)', ''),
+          `${name} has a colour of its own`,
+        ).not.toMatch(/#|rgb|hsl|lab|lch|color|var\(/);
+      }
+    }
+  });
+
+  it('names motion in the namespaces Tailwind reads', () => {
+    // `duration-*` resolves `--transition-duration-*` and `delay-*`
+    // `--transition-delay-*`; a token spelled in the obvious namespace
+    // compiles to nothing, and the class that names it to no class.
+    expect(declared('--duration-')).toEqual([]);
+    expect(declared('--delay-')).toEqual([]);
+    expect(declared('--easing-')).toEqual([]);
+    expect(declared('--transition-duration-').length).toBeGreaterThan(0);
+    expect(declared('--ease-').length).toBeGreaterThan(0);
+  });
+
+  it('stills every motion for someone who has asked for less of it', () => {
+    // Exactly the motion tokens @theme declares, so a new one without its
+    // line here fails rather than ships — and Tailwind's default duration,
+    // which a bare `transition-*` spends and `reveal` is. A duration or a
+    // delay goes to zero; an animation goes to `none`, because an infinite
+    // one runs for ever at any duration.
+    const block = blockAt(only(LESS_MOTION));
+    expect(block).toMatch(/^\s*:root\s*\{/);
+    const expected = Object.fromEntries([
+      ...declared('--transition-duration-').map((name) => [name, '0s']),
+      ...declared('--transition-delay-').map((name) => [name, '0s']),
+      ...declared('--animate-').map((name) => [name, 'none']),
+      ['--default-transition-duration', '0s'],
+    ]);
+    expect(Object.fromEntries(tokensIn(block))).toEqual(expected);
   });
 });
 
@@ -116,7 +250,7 @@ describe('the theme', () => {
  * call site as position always is here.
  */
 describe('printing', () => {
-  const print = blockAt(CSS.indexOf('@media print'));
+  const print = blockAt(only('@media print {'));
 
   it('releases the scrollport, so more than the first page is printed', () => {
     const main = print.slice(print.indexOf('main'));
@@ -180,6 +314,219 @@ describe('controls that hide until you look at them', () => {
       .filter((path) => !path.endsWith(join('ui', 'classes.ts')))
       .filter((path) => /(?:^|\s|`)opacity-0(?:\s|`|")/.test(readFileSync(path, 'utf8')))
       .map((path) => path.slice(ROOT.length));
+    expect(offenders).toEqual([]);
+  });
+});
+
+/**
+ * ***Radius, elevation and motion are spent by name*** (2026-10-13) — [P12A.0].
+ *
+ * The palette rule's other half. ESLint refuses a palette scale because a
+ * colour that is not a token stays light when the app goes dark; a radius,
+ * a shadow or a motion that is not a token fails the same way one step
+ * removed. **Tailwind's medium radius**, written raw twenty-one times, was
+ * the shape of a control and of a panel at once — right only while the two
+ * were one value, and matching neither the moment they differ. **Its large
+ * shadow** carries Tailwind's own colour, which no theme reaches. And **a
+ * duration written as a number** is written into the utility as that number,
+ * so the reduced-motion block in `index.css` cannot zero it: a motion for
+ * someone who asked for none.
+ *
+ * *The class names are spelled out nowhere in this comment, on purpose*:
+ * Tailwind reads candidates out of every source file in the client, this one
+ * and its comments included, and a comment naming a class keeps that utility
+ * in the built stylesheet after the last element using it has gone.
+ *
+ * So a radius class names a radius token, or is a circle — `rounded-full` is
+ * a shape, not a size — or `none`; a shadow class names an elevation, or
+ * `none`; and **motion is written only in `ui/classes.ts`**, as a recipe,
+ * where each `duration-*`, `ease-*`, `delay-*` and `animate-*` must name a
+ * token `@theme` declares. `transition-*` names which properties move, not
+ * how, and spends the default duration the reduced-motion block zeroes, so a
+ * recipe may say it — and only a recipe, so that each motion is one decision
+ * with one name, as [10 §1.3] asks.
+ *
+ * A source scan rather than an ESLint rule because this is where the
+ * stylesheet's own rules are already read, and the allowed names come from
+ * the stylesheet: a token added to `@theme` is spendable the moment it exists.
+ * **It reads string literals only** — quoted strings whole, and a template
+ * literal's text between its holes — after comments are stripped, because
+ * half a dozen comments in the client say *transition*. The bare words `rounded`,
+ * `shadow` and `transition` are classes only beside other classes, so they
+ * count only in a literal that reads as a class list: no capital letter, and
+ * a token with a hyphen or a variant's colon in it.
+ */
+describe('radius, elevation and motion are spent by name', () => {
+  const ROOT = fileURLToPath(new URL('.', import.meta.url));
+  const RECIPES = join('ui', 'classes.ts');
+
+  function sources(dir: string): string[] {
+    return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+      const path = join(dir, entry.name);
+      if (entry.isDirectory()) return sources(path);
+      if (!/\.tsx?$/.test(entry.name) || /\.test\.tsx?$/.test(entry.name)) return [];
+      return [path];
+    });
+  }
+
+  const strip = (text: string): string =>
+    text.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/^[ \t]*\/\/.*$/gm, ' ');
+
+  /**
+   * Every string literal's text. A template literal's `${…}` holes are read
+   * as code, so the `'a'` inside one is a literal of its own and the
+   * template's text is what is left around it — which is how `${reveal} flex`
+   * is read as ` flex`. A quoted string stops at a line's end, so the
+   * apostrophe in a line of JSX prose cannot swallow the file after it.
+   */
+  function literals(source: string): string[] {
+    const found: string[] = [];
+    let at = 0;
+    const code = (inHole: boolean): void => {
+      let depth = 0;
+      while (at < source.length) {
+        const char = source[at];
+        if (char === "'" || char === '"') {
+          quoted(char);
+          continue;
+        }
+        if (char === '`') {
+          template();
+          continue;
+        }
+        if (char === '{') depth += 1;
+        if (char === '}') {
+          if (inHole && depth === 0) {
+            at += 1;
+            return;
+          }
+          depth -= 1;
+        }
+        at += 1;
+      }
+    };
+    const quoted = (quote: string): void => {
+      let text = '';
+      at += 1;
+      while (at < source.length && source[at] !== quote && source[at] !== '\n') {
+        if (source[at] === '\\') at += 1;
+        text += source[at] ?? '';
+        at += 1;
+      }
+      at += 1;
+      found.push(text);
+    };
+    const template = (): void => {
+      let text = '';
+      at += 1;
+      while (at < source.length && source[at] !== '`') {
+        if (source[at] === '$' && source[at + 1] === '{') {
+          at += 2;
+          text += ' ';
+          code(true);
+          continue;
+        }
+        if (source[at] === '\\') at += 1;
+        text += source[at] ?? '';
+        at += 1;
+      }
+      at += 1;
+      found.push(text);
+    };
+    code(false);
+    return found;
+  }
+
+  /** The utility a class names, without its variants, its `!` or its sign. */
+  function utilityOf(token: string): string {
+    let depth = 0;
+    let start = 0;
+    for (let i = 0; i < token.length; i += 1) {
+      const char = token[i];
+      if (char === '[' || char === '(') depth += 1;
+      else if (char === ']' || char === ')') depth -= 1;
+      else if (char === ':' && depth === 0) start = i + 1;
+    }
+    return token.slice(start).replace(/^!|!$/g, '').replace(/^-/, '');
+  }
+
+  /** What `--<namespace>-<name>` tokens in @theme let a class say. */
+  const names = (namespace: string): Set<string> =>
+    new Set(
+      [...light.keys()]
+        .filter((name) => name.startsWith(`--${namespace}-`))
+        .map((name) => name.slice(namespace.length + 3)),
+    );
+  const RADII = new Set([...names('radius'), 'full', 'none']);
+  const SHADOWS = new Set([...names('shadow'), 'none']);
+  const MOTION: Record<string, Set<string>> = {
+    duration: names('transition-duration'),
+    delay: names('transition-delay'),
+    ease: names('ease'),
+    animate: names('animate'),
+  };
+
+  /** Why a class may not be written where it is, or `null` when it may. */
+  function refusal(utility: string, inRecipes: boolean): string | null {
+    const radius = /^rounded(?:-(?:s|e|t|r|b|l|ss|se|es|ee|tl|tr|br|bl|x|y))?(?:-(.+))?$/.exec(
+      utility,
+    );
+    if (radius !== null) {
+      return RADII.has(radius[1] ?? '') ? null : 'a radius by size, not by what it rounds';
+    }
+    const shadow = /^(inset-|drop-|text-)?shadow(?:-(.+))?$/.exec(utility);
+    if (shadow !== null) {
+      return shadow[1] === undefined && SHADOWS.has(shadow[2] ?? '')
+        ? null
+        : 'a shadow that is not an elevation';
+    }
+    const motion = /^(?:transition(?:-.+)?|(duration|delay|ease|animate)-(.+))$/.exec(utility);
+    if (motion !== null) {
+      if (!inRecipes) return 'motion outside the recipes in ui/classes.ts';
+      const [, kind, name] = motion;
+      if (kind === undefined || name === undefined) return null;
+      return MOTION[kind]?.has(name) === true ? null : 'a motion that names no token';
+    }
+    return null;
+  }
+
+  /** A literal that reads as a class list rather than as a sentence. */
+  const classList = (text: string): boolean =>
+    !/[A-Z]/.test(text) && text.split(/\s+/).some((token) => /^[!-]?[a-z[@][^\s]*[-:]/.test(token));
+
+  const scanned = sources(ROOT).flatMap((path) => {
+    const inRecipes = path.endsWith(RECIPES);
+    return literals(strip(readFileSync(path, 'utf8'))).flatMap((text) => {
+      const listed = classList(text);
+      return text
+        .split(/\s+/)
+        .filter((token) => token !== '')
+        .map((token) => ({ path: path.slice(ROOT.length), token, utility: utilityOf(token) }))
+        .filter(({ utility }) => listed || utility.includes('-'))
+        .map((found) => ({ ...found, why: refusal(found.utility, inRecipes) }));
+    });
+  });
+
+  it('reads the class lists it is meant to', () => {
+    // Calibrated, so a reader that stopped finding strings cannot pass: the
+    // client spends `rounded-control` some seventy times, its three overlays
+    // spend `shadow-overlay`, its nine pictures `rounded-media`, and `reveal`
+    // is the one `transition-*`. `field-sizing-content` is written only after
+    // a `${control}` hole, in the composer and the chat's edit box, so it is
+    // the proof that a template literal's text is read at all.
+    const count = (utility: string): number =>
+      scanned.filter((found) => found.utility === utility).length;
+    expect(count('rounded-control')).toBeGreaterThanOrEqual(50);
+    expect(count('shadow-overlay')).toBeGreaterThanOrEqual(3);
+    expect(count('rounded-media')).toBeGreaterThanOrEqual(9);
+    expect(count('transition-opacity')).toBeGreaterThanOrEqual(1);
+    expect(count('field-sizing-content')).toBeGreaterThanOrEqual(2);
+  });
+
+  it('refuses a radius, a shadow or a motion that is not spent by name', () => {
+    const offenders = scanned
+      .filter((found) => found.why !== null)
+      .map(({ path, token, why }) => `${path}: ${token} — ${why ?? ''}`);
     expect(offenders).toEqual([]);
   });
 });
@@ -282,7 +629,7 @@ describe('the appearance layer is spelled once', () => {
  */
 describe('the two faces', () => {
   const ROOT = fileURLToPath(new URL('.', import.meta.url));
-  const theme = blockAt(CSS.indexOf('@theme'));
+  const theme = blockAt(only(THEME));
 
   function sources(dir: string): string[] {
     return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
@@ -307,11 +654,11 @@ describe('the two faces', () => {
     // No webfont: a downloaded face is a request on every cold load and a flash
     // of the fallback while it arrives, for a server meant to need nothing
     // from outside the house.
-    expect(CSS).not.toMatch(/@font-face/);
+    expect(CODE).not.toMatch(/@font-face/);
   });
 
   it('sets the interface in the interface face', () => {
-    expect(blockAt(CSS.indexOf('\nbody {'))).toMatch(/font-family:\s*var\(--font-ui\)/);
+    expect(blockAt(only('\nbody {'))).toMatch(/font-family:\s*var\(--font-ui\)/);
   });
 
   it('never sets the story step without the story face', () => {

@@ -57,7 +57,7 @@ export function RenditionView(props: RenditionProps): JSX.Element {
          * rather than what came back.
          */
         alt=""
-        className="my-3 max-w-full rounded-control"
+        className="my-3 max-w-full rounded-media"
       />
     );
   }

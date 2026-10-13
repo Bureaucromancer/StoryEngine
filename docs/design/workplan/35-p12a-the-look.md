@@ -643,6 +643,165 @@ palette, applied to the thing that did not exist when it was written.
 identical and the new steps single-sourced; `contrast.test.ts` gains any inked
 pair. **No surface changes in this stage**, which is what makes it reviewable.
 
+***Built 2026-10-13***, under §0.4's decisions for this stage. `index.css`'s
+`@theme` names **three radii that differ** — `--radius-control` at Tailwind's
+`md` (0.375rem, where it was), `--radius-panel` at `lg` (0.5rem) and
+`--radius-media` at `sm` (0.25rem): three consecutive steps of one scale, the
+panel rounder because it holds controls and a corner reads as concentric only
+round a tighter one, the picture tighter because a picture's corners are content
+and rounding trims what somebody made. **An elevation pair**, `--shadow-raised`
+(the geometry of Tailwind's `sm` shadow) and `--shadow-overlay` (its `lg`, which
+the three overlays drew), every layer coloured by `--color-shadow` — black at
+10% in light, Tailwind's own shadow colour, so the overlays draw the same pixels
+there, and 50% in both dark blocks. **A motion set**: `--transition-duration-respond`
+(150ms, the default `reveal` spends) and `--transition-duration-arrive` (300ms),
+`--ease-arrive` (Tailwind's `ease-out`) and `--ease-swap` (its `ease-in-out`,
+the default curve). **The backdrop's scrim**, `--color-veil`, each theme's canvas
+step at 82%. After the dark theme, **one** `@media (prefers-reduced-motion: reduce)`
+block zeroes both durations and `--default-transition-duration`. The 21 raw
+`rounded-md`s moved onto the token their element is — twelve panels (the history
+section, the actor editor's two kinds of fieldset, the two kinds of revision
+row, an account's card and the new-account form, a connection's card and the
+connection form, a connection test's text answer, the first-run question's box
+and form), six controls (the revision-rename input, four selector chips, the
+*Shadowed* badge), three pictures (the actor's portrait, its placeholder, a
+connection test's picture) — and the six pictures already on another token moved to
+`rounded-media`: a rendition, two in *Pictures*, the media strip's, the mode
+region's image and the reading view's illustration. The three `shadow-lg`
+overlays spend `shadow-overlay`. 10 §1.2 has a dated note.
+
+**What the stage text said and what turned out different:**
+
+- *"No surface changes in this stage"* — taken as §0.4 decided: the visible
+  change is the token values, every panel 2px rounder at the corner and every
+  picture 2px tighter, made in `index.css` and nowhere else; the class moves
+  change nothing on their own but where an element changed token. The light
+  overlays are pixel-identical; the dark ones are heavier, which is the point
+  of a shadow colour a theme can reach. *Not looked at in a browser* — none is
+  installed where this was built — so the dark shadow's 50% is an argument
+  (the canvas is near black and the shadow has little left to darken) waiting
+  for a person's eye.
+- *"A scrim token for §1.2"* — named **`veil`**, because `--color-overlay` is
+  the modal's scrim and its own comment calls it that. Its floor was re-derived
+  rather than taken from the audit: bisection over the palette read from
+  Tailwind's `theme.css`, the ink composited in gamma-encoded sRGB over the worst
+  pixel each theme has — black under light's dark ink, white under dark's light
+  ink. `ink-subtle` needs **0.7993** in light and **0.8033** in dark (the audit's
+  0.800 and 0.804, to its 0.001 step), `ink-muted` 0.6846 and 0.6556, `ink`
+  0.5115 and 0.5614; `ink-faint` needs 0.9945 in light, so it can never sit on
+  the veil. **82%** in both themes leaves `ink-subtle` at 4.745 and 4.786 over
+  its worst pixel.
+- *Found by building it, and not in any plan*: the veil was first written
+  `color-mix(in oklab, var(--color-canvas) 82%, transparent)`, so that it could
+  not drift from the canvas. The build writes a plain fallback beside every
+  `color-mix()` for browsers without it, resolving any token inside against
+  `@theme` — and so emitted `#f8fafcd1`, the **light** canvas, as the fallback
+  in both dark blocks: the stranding `--color-overlay`'s note warns of, by
+  another route. Each block now names its canvas's ramp step (dark's fallback is
+  `#020618d1`), and `contrast.test.ts` holds the veil to its theme's canvas step,
+  which is what the token name was for.
+- *"`theme.test.ts` gains the assertions that keep the pair of dark blocks
+  identical and the new steps single-sourced"* — and more, because each new
+  kind of step has its own way to be wrong. The dark-identity test compares
+  every declaration, not only colours; a new describe, *the steps that are not
+  colours*, holds `@theme` to one declaration per step, refuses a non-colour
+  step anywhere but `@theme` (the dark blocks hold colours only), holds the
+  three radii to three values, refuses a shadow step with a colour of its own,
+  refuses a duration or easing token outside Tailwind's real namespaces
+  (`--transition-duration-*`, not `--duration-*`, which compiles to nothing), and
+  holds the reduced-motion block to **exactly** the motion tokens `@theme`
+  declares — durations and delays at `0s`, an `--animate-*` at `none`, and
+  `--default-transition-duration` — so P12A.6's first token cannot arrive
+  without its line. **The block lookups were fragile, and are not now**: they
+  found a block by the first occurrence of its opening, and the first `@theme`
+  is in the header comment. They read a comment-blanked copy, and a block that
+  opens twice or not at all is an error rather than a wrong block. With a brace
+  quoted in that header comment, the test as it stood at `95c057b4` read an empty
+  block — its two light-palette tests passed reading nothing, and only the faces
+  test failed — where the new one reads the right block and passes.
+- *§0.4's source scan*, beside the `opacity-0` one: a radius class must name a
+  radius token or be `rounded-full` or `rounded-none`; a shadow class must name
+  an elevation or be `shadow-none` (`inset-`, `drop-` and `text-shadow` refused);
+  and a motion class — `transition*`, `duration-*`, `ease-*`, `delay-*`,
+  `animate-*` — may be written only in `ui/classes.ts`, where every one but
+  `transition*` must name a token `@theme` declares, because a number is
+  written into the utility and the reduced-motion block cannot reach it. Arbitrary
+  values are refused with the rest. It reads **string literals only**, through a
+  small lexer, so a template literal's text between its `${…}` holes is read —
+  the face test's regex reads neither — and the bare words `rounded`, `shadow`
+  and `transition` count only in a literal that reads as a class list. It is
+  calibrated on what it must see, `field-sizing-content` among it, which is
+  written only after a `${control}` hole.
+- *"`contrast.test.ts` gains any inked pair"* — it could not read the veil at
+  all: its parser took only `var(--color-<step>)`, so a `color-mix()` token was
+  invisible rather than a failure, which is why the overlay was never read. It
+  reads a step at an opacity now, **and fails on any third spelling** — the count
+  of colours read must equal the count declared, block by block. `ink`,
+  `ink-muted` and `ink-subtle` are measured over the veil composited over black
+  and over white in all three theme blocks, with the ink held outside the span
+  of colours the veil can make, which is what makes two pixels a proof for every
+  picture.
+- *Comments that name a class keep it in the build.* Tailwind reads candidates
+  out of every source file in the client, comments included (not `index.css`,
+  which was checked: a class named in its comments is not emitted). The scan's
+  first docstring named four raw classes, and the build carried `.bg-slate-800`
+  and `.duration-300` and kept `.rounded-md` and `.shadow-lg` alive; reworded,
+  the stylesheet **drops** `.rounded-md` and `.shadow-lg` — the build's own
+  evidence that nothing spends them.
+- *Left as written*: nine bordered `p-3` boxes spend `rounded-control` — in
+  `EntryTravel`, `PresetEditorPage`, `LorebookEditorPage`, `SchemaFields`,
+  `HookFields`, `RenditionList`, `NotificationBell`, `SessionPanel` and
+  `RememberThis`. Each sits inside a panel, which the tighter radius suits;
+  whether each is a panel is a sweep's question, and only the raw classes were
+  this stage's.
+
+**The emitted CSS**, from `packages/client/dist/assets/index-*.css`. What the
+client spends:
+`--radius-control:var(--radius-md);--radius-panel:var(--radius-lg);--radius-media:var(--radius-sm)`,
+`.rounded-media{border-radius:var(--radius-media)}`,
+`.shadow-overlay{--tw-shadow:0 10px 15px -3px var(--tw-shadow-color,var(--color-shadow)), 0 4px 6px -4px var(--tw-shadow-color,var(--color-shadow));…}`,
+`.transition-opacity{…;transition-duration:var(--tw-duration,var(--default-transition-duration))}`
+and
+`@media (prefers-reduced-motion:reduce){:root{--transition-duration-respond:0s;--transition-duration-arrive:0s;--default-transition-duration:0s}}`.
+**The motion tokens are spent by nothing yet, and Tailwind leaves an unspent
+token out of `:root`**, so a build with a probe file spending them — deleted, and
+the client rebuilt without it — is what shows the classes keep the indirection:
+`.duration-respond{--tw-duration:var(--transition-duration-respond);transition-duration:var(--transition-duration-respond)}`,
+`.ease-arrive{--tw-ease:var(--ease-arrive);transition-timing-function:var(--ease-arrive)}`,
+and `.shadow-raised` with `var(--tw-shadow-color,var(--color-shadow))` in each
+layer. So the plain `duration-<name>` form reaches the reduced-motion block, and
+the arbitrary `duration-(--…)` form was not needed.
+
+**Tests, each checked against a mutation and restored.** In `theme.test.ts`: a
+radius declared in one dark block fails *states a step … in `@theme` alone* and
+the dark-identity test; a duration missing from the reduced-motion block, the
+default duration missing, a stranger in it, a duration at `0.01ms`, and a new
+`--animate-*` token without a line each fail *stills every motion*; a
+`--duration-quick` token fails the namespace test; the panel radius set back to
+`md` fails the three-radii test; an `rgb()` layer in the overlay fails the shadow
+test; a radius declared twice fails *declares each step once*; a second
+reduced-motion block, and a step redeclared in a stray `:root`, fail the
+single-source test. The scan fails with `rounded-md` back in a selector chip, a
+`shadow-lg` back on the assist popover, a `rounded-lg` inside a template
+literal, a bare `rounded` in a class list, a `transition-colors duration-arrive`
+outside the recipes, a recipe given `duration-300`, `ease-out` or
+`motion-safe:animate-pulse`, a `hover:shadow-md!`, and a `rounded-[3px]`; its
+calibration fails with the lexer made blind to template text; a recipe spending
+`duration-respond ease-swap motion-reduce:transition-none` passes, as it must.
+In `contrast.test.ts`: the light veil at 79% and the dark at 80% fail the
+picture test (the second also the dark blocks' agreement); a veil of `slate-100`
+fails *thins the canvas*; the first spelling, `var(--color-canvas)`, fails
+*reads every colour* among others; a veil at 10% fails the picture test; and the
+span assertion forced true fails with its own message — no token in the palette
+sits where it alone would fail, which needs an ink near luminance 0.18 under a
+nearly clear veil, so it was checked by forcing it. The touched components'
+tests and their neighbours — twenty-two files — pass unchanged.
+
+**Entry after: 310.33 kB** of a 315 ceiling (310.30 before; the class strings
+are a few bytes longer), **CSS 7.98** (7.81 before: the two colours' fallbacks
+in both dark blocks, the reduced-motion block and the new radii) — gzip level 9
+over the files `index.html` pulls, the budget test's method.
+
 ### P12A.1 — The story face, and the two surfaces that wear it
 
 ~~Apply `--font-story` where `text-story` already is — the play transcript and the

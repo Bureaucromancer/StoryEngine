@@ -7,10 +7,14 @@
  * Tailwind-utility half that Stylelint cannot see.
  *
  * It is also the palette. Every colour, radius and type step the app uses is
- * named here once; `packages/client/src/ui/` spends those names and never
+ * named here once — and, since P12A.0 (2026-10-13), every elevation and every
+ * motion; `packages/client/src/ui/` spends those names and never
  * reaches for a Tailwind scale directly. After the appearance layer landed that
  * became a build error rather than a convention, so this file is the only place
- * in the client where `slate-800` may be written at all.
+ * in the client where `slate-800` may be written at all. The radii, the
+ * shadows and the motion classes are held to the same rule by a source scan
+ * in `theme.test.ts` rather than by ESLint, since that is where the rest of
+ * this file's rules are checked.
  *
  * Two rules for editing it.
  *
@@ -41,6 +45,51 @@
      opacity modifier bakes its sRGB fallback at build time, which would strand
      the fallback on the light value once a second theme exists. */
   --color-overlay: color-mix(in oklab, var(--color-slate-900) 45%, transparent);
+
+  /* The ground the prose stands on when a picture is behind it
+     (2026-10-13, [P12A](../../../docs/design/workplan/35-p12a-the-look.md)
+     P12A.0, for P12A.2's backdrop): the canvas itself, thinned just far
+     enough to let the picture through.
+     [10 §2.3](../../../docs/design/10-ui-surfaces.md) says *the prose wins,
+     always*, and this is the number that makes that a property of the token
+     rather than of whichever picture is staged.
+
+     **82%, from a floor worked out rather than chosen.** A picture can put
+     any pixel under the prose, so the floor is computed against the worst
+     one: black under the light theme's dark ink, white under the dark
+     theme's light ink. The quietest ink a turn is set in is `ink-subtle` —
+     the player's own line — and it clears 4.5 to 1 over a black pixel from
+     79.9% in light and over a white one from 80.3% in dark; `ink` and
+     `ink-muted` need far less. One value for both themes, two points over
+     the higher floor so that the browser rounding a composite to eight bits
+     cannot put a line on the wrong side of it. `contrast.test.ts` composites
+     this token over both pixels in every theme and holds `ink`, `ink-muted`
+     and `ink-subtle` to 4.5. **`ink-faint` cannot be set on it**: in light it
+     needs 99.5%, which is no longer a veil.
+
+     **The canvas's colour**, because what the prose sits on with no picture
+     behind it is the canvas, and the veil has to be the same colour or the
+     column changes tint when a backdrop arrives — **but named by its ramp
+     step rather than as `var(--color-canvas)`**, which was the first
+     spelling and was wrong in a way only the build shows. For a browser
+     without `color-mix()` the build writes a plain fallback beside every
+     mix, resolving whatever token is inside it against `@theme`; a mix of
+     `canvas` therefore baked the *light* canvas into both dark blocks'
+     fallback, the precise stranding the overlay's note above warns of. A
+     step gives each block its own fallback, and `contrast.test.ts` holds the
+     veil to the step its theme's canvas names, which is the guarantee the
+     token name was for.
+
+     **Named for its role, not `scrim`.** The overlay above is the modal's
+     scrim, and two tokens called by one word would leave the next reader to
+     choose between them by comment. */
+  --color-veil: color-mix(in oklab, var(--color-slate-50) 82%, transparent);
+
+  /* The colour of every shadow, and the only part of one a theme can reach —
+     the elevation steps below say why. Tailwind's own `#0000001a`, spelled as
+     a mix of black so it aliases rather than re-types: the three overlays
+     that drew `shadow-lg` draw the same pixels in light as they did. */
+  --color-shadow: color-mix(in oklab, var(--color-black) 10%, transparent);
 
   /* Ink, four steps because the app already used four. The faintest is the one
      to re-measure first whenever the palette moves: it sits closest to the
@@ -136,10 +185,89 @@
   --color-tag-stone-surface: var(--color-stone-100);
   --color-tag-stone-ink: var(--color-stone-900);
 
-  /* One radius, named twice, so a control and a panel can diverge later without
-     every call site being revisited to work out which was meant. */
+  /* ~~One radius, named twice, so a control and a panel can diverge later without
+     every call site being revisited to work out which was meant.~~
+
+     ***Three radii, and they differ*** (2026-10-13, P12A.0). The sentence
+     above was the promise, and this is the later it was keeping: one radius
+     under two names is one radius, and a control nested in a panel drew the
+     same curve at two sizes, so the outer corner read as the pinched one.
+     Three consecutive steps of Tailwind's own scale, 2px apart, so they read
+     as one family — aliased rather than re-typed, for the reason the colours
+     are. The change is visible on every panel at once and made here and
+     nowhere else, which is what P12A §0.4 took *no surface changes* to allow.
+
+     **`control` stays where it was**, 0.375rem: the step every field, button,
+     chip and badge has always drawn, so nothing spelled `rounded-control`
+     moves.
+     **`panel` is one step rounder**, 0.5rem, because a panel holds controls,
+     and a corner reads as concentric with the one inside it only when the
+     inner one is the tighter. **`media` is one step tighter**, 0.25rem,
+     because a picture is the one element whose corners are content: rounding
+     a control or a panel trims background, and rounding a picture trims what
+     somebody made or chose. The smallest step that still sits with the other
+     two keeps its corner from reading as a hole cut in a soft page.
+
+     `rounded-full` is not a fourth radius: a circle is a shape — a face, a
+     meter's track — and is drawn the same whatever these say. theme.test.ts
+     refuses any radius class but these three, a circle and `rounded-none`,
+     `rounded-md` included. */
   --radius-control: var(--radius-md);
-  --radius-panel: var(--radius-md);
+  --radius-panel: var(--radius-lg);
+  --radius-media: var(--radius-sm);
+
+  /* Two elevations, by what is lifted rather than by how far (2026-10-13,
+     P12A.0). `raised` is a resting lift — something that sits on the page
+     and can be picked out of it — at `shadow-sm`'s geometry; `overlay` is
+     something floating over the page that will go away again — a popover, a
+     suggestion list, a toast — at `shadow-lg`'s, which is what those three
+     drew before the token existed.
+
+     **The colour is a token because it is the only part a theme can reach.**
+     Tailwind writes a shadow's geometry into the utility itself —
+     `.shadow-overlay` carries the offsets and the blur, not a reference to
+     this variable — so a dark block that redefined these two would change
+     nothing on screen. What does survive into the browser is a `var()`
+     inside the value, so each layer's colour is `--color-shadow`, and that
+     is what the dark theme redefines. theme.test.ts refuses a shadow step
+     with a colour of its own, and a shadow class that is not one of these. */
+  --shadow-raised: 0 1px 3px 0 var(--color-shadow), 0 1px 2px -1px var(--color-shadow);
+  --shadow-overlay: 0 10px 15px -3px var(--color-shadow), 0 4px 6px -4px var(--color-shadow);
+
+  /* Motion: two durations and two easings, each named for what it does
+     rather than for how long it takes (2026-10-13, P12A.0) — so a recipe
+     reads `duration-arrive ease-arrive` and says what is happening, and a
+     re-timing is one edit here rather than a search for `300`. Nothing
+     spends them yet: P12A.6 builds the motions, and each one is a recipe in
+     `ui/classes.ts`, which is the only file theme.test.ts lets write a
+     motion class at all.
+
+     `respond` answers something the person just did — a row of controls
+     coming up under the pointer, a press acknowledged. 150ms is Tailwind's
+     default and what `reveal` spends today, so moving `reveal` onto this
+     name changes nothing; it is fast enough to read as the control's answer
+     rather than as a wait. `arrive` is something new coming into view that
+     the person did not just cause — a finished turn, a panel opening, the
+     backdrop changing. 300ms is long enough to be seen arriving and short
+     enough that nobody waits through it, which 10 §2.3 forbids for the
+     backdrop and is right for the rest.
+
+     `ease-arrive` decelerates: it starts at once and comes to rest, which
+     is what makes an arrival land rather than stop. `ease-swap` hands one
+     state to another in place — a crossfade, a reveal — where neither end
+     is an arrival; it is Tailwind's default curve, the one `reveal` uses
+     today. Both alias Tailwind's own curves.
+
+     **The namespace is Tailwind's, and it is not the obvious one.** A
+     `duration-*` class reads `--transition-duration-*`; a token spelled with
+     a bare `duration` prefix compiles to nothing, and the class that names
+     it is then silently no class at all. theme.test.ts refuses that
+     spelling. Every duration here is zeroed for someone who has asked for
+     less motion — the block after the dark theme. */
+  --transition-duration-respond: 150ms;
+  --transition-duration-arrive: 300ms;
+  --ease-arrive: var(--ease-out);
+  --ease-swap: var(--ease-in-out);
 
   /* Only the steps this app invented. `text-sm` and `text-xs` stay Tailwind's,
      because a token that aliases a scale one-to-one is a rename, not a step. */
@@ -282,6 +410,8 @@ summary > :is(h1, h2, h3, h4, h5, h6) {
     --color-surface-sunken: var(--color-slate-950);
     --color-surface-muted: var(--color-slate-800);
     --color-overlay: color-mix(in oklab, var(--color-black) 65%, transparent);
+    --color-veil: color-mix(in oklab, var(--color-slate-950) 82%, transparent);
+    --color-shadow: color-mix(in oklab, var(--color-black) 50%, transparent);
     --color-ink: var(--color-slate-50);
     --color-ink-muted: var(--color-slate-300);
     --color-ink-subtle: var(--color-slate-400);
@@ -354,6 +484,17 @@ summary > :is(h1, h2, h3, h4, h5, h6) {
      contrast to work with, so 45% would leave the modal barely separated. */
   --color-overlay: color-mix(in oklab, var(--color-black) 65%, transparent);
 
+  /* The veil as in light: the same 82%, of this theme's canvas step, worked
+     against a white pixel rather than a black one (2026-10-13). */
+  --color-veil: color-mix(in oklab, var(--color-slate-950) 82%, transparent);
+
+  /* Five times the light shadow, for the overlay's reason: the canvas is
+     already most of the way to black, so a shadow over it has little left to
+     darken and must be dense to read at all — and where it can be seen, over
+     a raised surface, a tenth of black is no shadow. The surface step does
+     the rest of the work elevation does in this theme (2026-10-13). */
+  --color-shadow: color-mix(in oklab, var(--color-black) 50%, transparent);
+
   /* Symmetric with the light ramp: four steps ending at the same `slate-500`,
      which sits near 4.6 to 1 against both `white` and `slate-900`. It is the
      one value that does not move, and therefore the first to re-measure. */
@@ -417,6 +558,47 @@ summary > :is(h1, h2, h3, h4, h5, h6) {
   --color-tag-fuchsia-ink: var(--color-fuchsia-100);
   --color-tag-stone-surface: var(--color-stone-900);
   --color-tag-stone-ink: var(--color-stone-100);
+}
+
+/**
+ * ***Motion, for someone who has asked for less of it*** — P12A.0, 2026-10-13.
+ *
+ * **Here, once, in the same change as the first duration token**, because
+ * that is the only place it cannot be forgotten: a motion a later stage
+ * writes spends a token, every token is zeroed below, and so the motion is
+ * honoured before anybody has thought to honour it. The palette's argument
+ * ([polish §6](../../../docs/design/workplan/06-polish.md)), made for the
+ * subsystem that did not exist when it was written. `theme.test.ts` holds
+ * this block to exactly the motion tokens `@theme` declares, so a new one
+ * without its line here fails rather than ships.
+ *
+ * **`--default-transition-duration` too**, which is Tailwind's rather than
+ * ours: it is what a bare `transition-*` class spends when no `duration-*`
+ * sits beside it, and `reveal` — the one motion in the client before this —
+ * is exactly that. Without its line here the first motion the client ever
+ * had would be the one this block missed.
+ *
+ * **Zero, not a hair above it.** A common recipe uses `0.01ms` so that
+ * `transitionend` still fires; nothing in this client listens for one, and a
+ * motion that needed the event to finish its own work would be one that
+ * breaks for these readers in a way no test sees. So a later stage that
+ * wants an end must not wait on the event — and the easings need no line,
+ * since a transition of no length has no curve.
+ *
+ * **Durations, not animations.** An infinite keyframe animation runs for
+ * ever at any duration, and Tailwind writes an `--animate-*` token's timing
+ * into the shorthand rather than referring to a duration — so when P12A.6
+ * adds one, its line here is `none`, and the test already asks for that.
+ *
+ * Unlayered, like the dark theme, so it outranks Tailwind's own `:root`
+ * whatever the selectors weigh.
+ */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --transition-duration-respond: 0s;
+    --transition-duration-arrive: 0s;
+    --default-transition-duration: 0s;
+  }
 }
 
 /**

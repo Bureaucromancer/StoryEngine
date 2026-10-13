@@ -100,7 +100,7 @@ function AccountRow({ row, onRemove }: { row: AdminAccount; onRemove: () => void
   }
 
   return (
-    <li className="rounded-md border border-line p-4">
+    <li className="rounded-panel border border-line p-4">
       <div className="flex items-baseline justify-between gap-4">
         <div>
           <p className="font-medium">{row.displayName}</p>
@@ -407,7 +407,7 @@ function NewAccount(): JSX.Element {
 
   return (
     <form
-      className="flex max-w-md flex-col gap-3 rounded-md border border-line p-4"
+      className="flex max-w-md flex-col gap-3 rounded-panel border border-line p-4"
       aria-labelledby="new-account"
       onSubmit={(event) => {
         event.preventDefault();

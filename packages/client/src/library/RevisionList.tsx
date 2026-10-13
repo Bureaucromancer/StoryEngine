@@ -56,7 +56,7 @@ export function RevisionList({
 }): JSX.Element {
   return (
     <ol className="flex flex-col gap-2">
-      <li className="rounded-md border border-line-strong bg-surface-sunken p-2 text-sm">
+      <li className="rounded-panel border border-line-strong bg-surface-sunken p-2 text-sm">
         <span className="font-medium">Current</span>
         <span className="ms-2 text-ink-subtle">The object as it is now.</span>
       </li>
@@ -66,7 +66,7 @@ export function RevisionList({
         </li>
       ) : null}
       {versions.map((version) => (
-        <li key={version.id} className="rounded-md border border-line p-2 text-sm">
+        <li key={version.id} className="rounded-panel border border-line p-2 text-sm">
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-medium">{`Revision ${String(version.revision)}`}</span>
             <SourceBadge kind={version.source.kind} />

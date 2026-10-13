@@ -130,7 +130,7 @@ function FirstRunDefaults({
 
   if (connection.models.length === 0) {
     return (
-      <div className="flex max-w-md flex-col gap-3 rounded-md border border-line p-4">
+      <div className="flex max-w-md flex-col gap-3 rounded-panel border border-line p-4">
         <p className="text-sm text-ink-muted">
           This connection lists no models yet, so there is nothing to use it for. Add at least one
           model name and nothing else has to change.
@@ -146,7 +146,7 @@ function FirstRunDefaults({
 
   return (
     <form
-      className="flex max-w-md flex-col gap-4 rounded-md border border-line p-4"
+      className="flex max-w-md flex-col gap-4 rounded-panel border border-line p-4"
       aria-labelledby="first-run"
       onSubmit={(event) => {
         event.preventDefault();

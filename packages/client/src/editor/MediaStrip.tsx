@@ -311,7 +311,7 @@ export function MediaStrip(props: {
               <img
                 src={`/api/library/${props.kind}/${props.objectId}/media/${one.id}`}
                 alt={one.label ?? ''}
-                className="aspect-square w-full rounded-control border border-line object-cover"
+                className="aspect-square w-full rounded-media border border-line object-cover"
               />
               <Field
                 label={WORDS['label'] ?? 'Label'}

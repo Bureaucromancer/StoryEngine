@@ -123,7 +123,7 @@ export function FieldAssist(props: {
         {open ? WORDS.close : WORDS.open}
       </Button>
       {open ? (
-        <div className="absolute end-0 z-10 mt-8 w-72 rounded-panel border border-line bg-surface p-3 shadow-lg">
+        <div className="absolute end-0 z-10 mt-8 w-72 rounded-panel border border-line bg-surface p-3 shadow-overlay">
           <div className="flex flex-col gap-2">
             <label className="text-sm text-ink-muted" htmlFor={`${props.subject.path}-guidance`}>
               {WORDS.guidance}

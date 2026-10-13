@@ -211,11 +211,7 @@ function widgetFor(
         // `alt` from the widget's own label, which is authored content
         // travelling with the mode. An empty alt would make a sprite invisible
         // to a reader who is not looking at it, and a filename would be worse.
-        <img
-          src={surface.image.url}
-          alt={surface.image.alt}
-          className="max-w-full rounded-control"
-        />
+        <img src={surface.image.url} alt={surface.image.alt} className="max-w-full rounded-media" />
       );
 
     case 'toggle':
