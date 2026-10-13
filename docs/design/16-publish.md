@@ -36,7 +36,7 @@ does not have — or ignored one it does — would be wrong on day one:
 | **Download** | [10 §5.0a](10-ui-surfaces.md), `GET /library/:kind/:id/download` | One object as stored — an actor as its card, everything else as its JSON. No closure, no conversion |
 | **Export as…** | [10 §5.0a](10-ui-surfaces.md), `EXPORT_FORMATS` | Writers into other applications' formats, each saying what it lost. One object |
 | **Export this package** | [P11.10](workplan/28-p11-implementation.md), `GET /library/packages/:id/export`, `packaging/export.ts` | A Package's declared contents resolved **one level** and written as `storyengine.package-export/1` — a manifest beside the objects, `.sepack.json`, no pixels — with a count of what no longer resolves. **No walk, no review, and no reader**: the guide says plainly that a `.sepack.json` cannot be imported |
-| **Session export** | [P11.10](workplan/28-p11-implementation.md), `storyengine.session-export/1` | One session, whole — every turn, its renditions' records, not their pixels — and **Load a session** reads it back on another install |
+| **Session export** | [P11.10](workplan/28-p11-implementation.md), `storyengine.session-export/1` | One session, whole — every turn, its renditions' records, not their pixels — and **Load a session** reads it back on another install. *(2026-10-13, the owner's decision: each record's binding travels as the model alone, without its connection id — [22 §7](22-internal-contracts.md))* |
 
 So most of the *specification* existed and most of the *flow* did not. What this
 note adds is the part that was never anybody's: the flow over every kind, the
@@ -203,9 +203,17 @@ itself says these and a walker is where they would be lost:
   today says it in a count under the link.
 
 **`requires` is derived where it can be.** A Setup names a concrete mode, so
-`requires.modes` is populated from it rather than typed by hand; extension and
-capability requirements come from what the collected objects actually reference.
-An author can add to the list and should rarely need to.
+`requires.modes` is populated from it rather than typed by hand; ~~extension and
+capability requirements come from what the collected objects actually reference~~.
+An author can add to the list and should rarely need to. *(2026-10-13: **only
+modes are derived**, and the build never derived more — `derivedRequires` in
+`packaging/confirm.ts` answers none for the other two, because no portable field
+names an extension or a capability, and so nothing a collected object references
+can be one. The struck clause described a derivation that does not exist. An
+extension or a capability is in a file only when the World's author wrote it into
+`requires`, and no editor offers that field. What a capability string means — a
+model role, checked against the account's — is [04 §9](04-schemas.md)'s, dated
+the same day.)*
 
 ## 5. The review, which is the surface
 
@@ -312,7 +320,12 @@ P16.3's plan, the owner answered the question the decision left: **a session's
 pictures travel too** — its renditions' pixels and its attachments, beside its
 session export, which stays the JSON P11.10 writes. A stored zip has no base64 to
 refuse, and the session reader already lands pixels and attachments it is
-handed; a picture missing on disk is named, never fatal.)*
+handed; a picture missing on disk is named, never fatal.)* *(2026-10-13: still
+the same JSON, from the same writer, and since the owner's decision of that
+date it carries each rendition's binding as `{ modelId }` — the model kept, the
+connection id left at home — in the plain export and the World file alike. The
+World file's reader drops the id from a file written before that. The schema id
+is unchanged; [22 §7](22-internal-contracts.md) says why.)*
 
 ***As built, 2026-10-10 ([P16.3c](workplan/34-p16-world.md) writes it,
 [P16.3e](workplan/34-p16-world.md) reads it).*** The file is
@@ -348,6 +361,16 @@ import review beside the frozen `.sepack.json`. What the reader decides:
   pictures or requirements, and reading it must not erase them.
 - The manifest's notes are taken only in the writer's own vocabulary, so a file
   cannot put words of its own into the import review.
+- ***What the file asks for is said*** *(2026-10-13, the owner's answer to
+  "Build the promise, or narrow the notes": build it — [04 §9](04-schemas.md)
+  has the vocabulary).* Each unmet requirement in the manifest's `requires` is
+  one warning on the import — a mode absent or older, a capability whose model
+  role does not resolve for the importing account or that names no role, every
+  extension, since this build loads none — and one more counts the malformed
+  entries dropped. Each id is said once. A World says them on its row; **a file
+  with no World says them on the manifest's**, where before it said nothing. The
+  look before commit answers each capability *met*, *not met* or *cannot be
+  checked*.
 - ***Sessions*** ([P16.3f](workplan/34-p16-world.md)). A session lands as a session
   of the importer's own, its turns keeping their ids unless another account on the
   install holds them — then they are re-keyed, deterministically per account, and

@@ -9,13 +9,16 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import {
   outputFromMessages,
+  RENDITION_SCHEMA,
   SESSION_EXPORT_SCHEMA,
   uuidv7,
   type OutputMessage,
+  type Rendition,
   type Turn,
 } from '@storyengine/shared';
 
 import { openIndex } from '../index-db/open.js';
+import { readRenditions, renditionIdFor, writeRendition } from '../renditions/store.js';
 import { writeJsonAtomic } from '../storage/atomic.js';
 import { Layout } from '../storage/layout.js';
 import { exportSession } from './export.js';
@@ -226,6 +229,100 @@ describe('a session, exported whole', () => {
       dispatch: 'per-actor',
       speakers: made.speakers,
       ...settings,
+    });
+  });
+});
+
+/** A connection id nothing else in a session could spell by accident. */
+const CONNECTION = 'connection-on-neds-install';
+
+/** A ready picture of a turn, bound as `binding` says — the record the illustrate step leaves. */
+function picture(
+  sessionId: string,
+  turnId: string,
+  ordinal: number,
+  binding: Rendition['provenance']['binding'],
+): Rendition {
+  const id = renditionIdFor(turnId, ordinal);
+  return {
+    schema: RENDITION_SCHEMA,
+    id,
+    sessionId,
+    turnId,
+    createdAt: '2026-10-13T09:00:00.000Z',
+    kind: 'image',
+    purpose: 'illustration',
+    scope: null,
+    state: 'ready',
+    prompt: {
+      fragments: [{ id: 'moment', text: 'a lantern', rank: 100, required: true }],
+      separator: ', ',
+      budget: { maxChars: null, usefulChars: null },
+      text: 'a lantern',
+      kept: ['moment'],
+      dropped: [],
+      overCap: false,
+    },
+    asset: { path: `${id}.png`, mime: 'image/png', bytes: 11, digest: 'sha256:aa' },
+    provenance: {
+      at: '2026-10-13T09:00:02.000Z',
+      binding,
+      answeredAs: null,
+      seed: 7,
+      seedSent: false,
+      workflow: {},
+    },
+    error: null,
+    digest: `d-${id}`,
+    ordering: 0,
+  };
+}
+
+/**
+ * ***A picture's record leaves with the model it was asked of and without the
+ * connection's id*** — the owner's decision of 2026-10-13, and the writer is
+ * where it is kept (`travellingRendition`), so the route, the World file, the
+ * review's measure and the ledger's digest all carry the same thing.
+ *
+ * Three halves, each its own way to get it wrong: the key **absent** rather
+ * than `undefined` or `''` (`toHaveProperty` fails on a key set to
+ * `undefined`, and `toEqual` alone would not); a `null` binding left `null`,
+ * which is *not recorded* and is not the same as a binding that travelled; and
+ * **the record on this install untouched** — the sender's picture keeps its
+ * id, read back through the store as everything here reads it. The strip put
+ * in the store's reader instead of the export passes the first two halves and
+ * fails this one, and so would a migration that rewrote the files.
+ */
+describe('a picture, exported', () => {
+  it('keeps the model and drops the connection id, leaves a null binding null, and leaves the record on disk as it was', async () => {
+    const session = await createSession(sessions, 'ned', { name: 'Rain City' });
+    const said = uuidv7();
+    await appendTurnOnly(sessions, 'ned', session.id, turn({ id: said, parentTurnId: null }));
+    const bound = picture(session.id, said, 0, { connectionId: CONNECTION, modelId: 'sdxl' });
+    const unbound = picture(session.id, said, 1, null);
+    await writeRendition(sessions.layout, 'ned', session.id, bound);
+    await writeRendition(sessions.layout, 'ned', session.id, unbound);
+
+    const exported = await exportSession({ sessions, build: null }, 'ned', session.id);
+
+    const [first, second] = exported?.renditions ?? [];
+    expect(first?.id).toBe(bound.id);
+    expect(first?.provenance.binding).toEqual({ modelId: 'sdxl' });
+    expect(first?.provenance.binding).not.toHaveProperty('connectionId');
+    expect(JSON.stringify(exported)).not.toContain(CONNECTION);
+    // Everything else about the record travels as it is, the digest included.
+    const { provenance: sentProvenance, ...sentRest } = first!;
+    const { provenance: heldProvenance, ...heldRest } = bound;
+    expect(sentRest).toEqual(heldRest);
+    expect({ ...sentProvenance, binding: null }).toEqual({ ...heldProvenance, binding: null });
+
+    expect(second?.id).toBe(unbound.id);
+    expect(second?.provenance).toHaveProperty('binding', null);
+
+    const onDisk = await readRenditions(sessions.layout, 'ned', session.id);
+    expect(onDisk.get(bound.id)?.provenance.binding).toEqual({
+      connectionId: CONNECTION,
+      modelId: 'sdxl',
     });
   });
 });

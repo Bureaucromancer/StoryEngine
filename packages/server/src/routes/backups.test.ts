@@ -846,7 +846,8 @@ describe('importing one brings sessions back once', () => {
    */
   it('brings a session’s pictures back, pixels and all', async () => {
     const { RENDITION_SCHEMA } = await import('@storyengine/shared');
-    const { sessionAssetsRoot, writeRendition } = await import('../renditions/store.js');
+    const { readRenditions, sessionAssetsRoot, writeRendition } =
+      await import('../renditions/store.js');
     const { sessionId, turnId } = await aSession();
     const layout = server.services.sessions.layout;
     const pixels = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 1, 2, 3]);
@@ -900,6 +901,27 @@ describe('importing one brings sessions back once', () => {
 
     expect(await importIt(id)).toEqual({ imported: 1, skipped: 0 });
     const [landed] = await sessionIds();
+
+    /**
+     * ***The connection id comes back too*** — the half of the owner's
+     * decision of 2026-10-13 that is a decision not to act
+     * ([22 §7](../../../../docs/design/22-internal-contracts.md), under
+     * `RenditionProvenance`). A backup is the account's own data and its merge
+     * keeps ids verbatim, as it keeps the session's `roles` and the calls'
+     * `resolved.connectionId`. *Kept, not vouched for*: `c-1` names no
+     * connection on this account, and this merge took none
+     * (`options.connections` is off by default), which is the case whose
+     * strip is not decided — so what is pinned is that the id is left, not
+     * that it resolves. *Here and not only in `sessions/import.test.ts`*
+     * because this path builds its own envelope from the archive's raw record
+     * JSON (`backup/import.ts`), one import away from `travellingRendition`,
+     * and the plain import's test never reaches it.
+     */
+    const held = await readRenditions(layout, 'ned', String(landed));
+    expect(held.get(`${turnId}.0`)?.provenance.binding).toEqual({
+      connectionId: 'c-1',
+      modelId: 'sdxl',
+    });
 
     const picture = await server.request({
       method: 'GET',

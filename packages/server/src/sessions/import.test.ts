@@ -18,6 +18,7 @@ import {
 
 import { rebuild } from '../index-db/rebuild.js';
 import { sessionByOrigin, sessionSnapshot } from '../index-db/sessions.js';
+import { readRenditions } from '../renditions/store.js';
 import { writeJsonAtomic } from '../storage/atomic.js';
 import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
 import { importSession, landNewTurns, type ImportContext } from './import.js';
@@ -357,6 +358,50 @@ describe('an imported session is a session here', () => {
     expect(records[0]?.prompt.text).toBe('a lantern');
     // Marked foreign once, as its turn is.
     expect(records[0]?.foreign).toEqual({ source: sessionId, id: `${turnId}.0` });
+  });
+
+  /**
+   * ***A connection id that came in the file stays*** — the half of the
+   * owner's decision of 2026-10-13 that is a decision not to act. The writer
+   * drops the id from every rendition it sends (`sessions/export.ts`), and the
+   * World file's reader drops it again for its own files; this reader does
+   * not, for two reasons. **A backup's merge reads through it** — the backup
+   * import hands its raw records to `importSession` — and a backup is the
+   * account's own data, merged verbatim: its sessions keep `roles`,
+   * `stepRoles` and their calls' `resolved.connectionId`, and a rendition's id
+   * is kept the same way. That id names a connection only when the merge lands
+   * on the account that still holds it or takes a full archive's connections
+   * with it (`options.connections`, off by default; a redacted archive has
+   * none); on a default merge of somebody else's archive it names nothing, as
+   * before, and whether that merge should strip it is not decided — so it is
+   * left, and `routes/backups.test.ts` pins that the merge keeps it. **And a
+   * plain export already in somebody's hands** — alphas 5 and 6 wrote the
+   * id — lands as it arrived, which is what the decision says of those files.
+   * The record is injected as an older writer wrote it, past this build's
+   * writer, and read back from the store.
+   */
+  it('keeps the connection id a record arrived with', async () => {
+    const { sessionId, turnId } = await aSessionSaying('The cathedral was three streets east.');
+    const document = await exported(server, sessionId);
+    document['renditions'] = [aRendition({ id: `${turnId}.0`, sessionId, turnId })];
+
+    const there = await anotherInstall();
+    const imported = await there.request({
+      method: 'POST',
+      url: '/api/sessions/import',
+      payload: document,
+    });
+    expect(imported.status).toBe(201);
+
+    const held = await readRenditions(
+      there.services.sessions.layout,
+      'ned',
+      imported.body.sessionId as string,
+    );
+    expect(held.get(`${turnId}.0`)?.provenance.binding).toEqual({
+      connectionId: 'c-1',
+      modelId: 'sdxl',
+    });
   });
 });
 

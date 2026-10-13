@@ -3,9 +3,12 @@
 
 import { Link, useNavigate } from '@tanstack/react-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import type { JSX } from 'react';
+import { useState, type JSX } from 'react';
+
+import type { UnmetRequirement } from '@storyengine/shared';
 
 import { createSession } from '../api.js';
+import { StartAnyway, unmetOf } from '../play/StartAnyway.js';
 import { Alert } from '../ui/Alert.js';
 import { Button } from '../ui/Button.js';
 import { link } from '../ui/classes.js';
@@ -29,6 +32,13 @@ import { link } from '../ui/classes.js';
  * *Used in two places for one reason*: a Setup's library page, and the end of
  * *make a setup from here*, where the next thing somebody does with a point
  * they just saved is start from it.
+ *
+ * ***And a Setup for a mode this install lacks is asked about, not refused***
+ * (2026-10-13, the owner's *build the promise*): the route answers
+ * `unmet-requirements`, and the dialog says what it would start without —
+ * **Start anyway** sends the same request with `degraded: true`, **Cancel**
+ * sends nothing (`StartAnyway.tsx`). Until then this showed the server's
+ * *No such mode.* raw, and there was nothing to do about it.
  */
 export function StartSession(props: {
   setupId: string;
@@ -37,11 +47,16 @@ export function StartSession(props: {
 }): JSX.Element {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const [unmet, setUnmet] = useState<UnmetRequirement[] | null>(null);
   const start = useMutation({
-    mutationFn: () => createSession({ setup: props.setupId }),
+    mutationFn: (degraded: boolean) =>
+      createSession({ setup: props.setupId, ...(degraded ? { degraded: true } : {}) }),
     onSuccess: async (created) => {
       void queryClient.invalidateQueries({ queryKey: ['sessions'] });
       await navigate({ to: '/play/$sessionId', params: { sessionId: created.session.id } });
+    },
+    onError: (error) => {
+      setUnmet(unmetOf(error));
     },
   });
 
@@ -52,17 +67,31 @@ export function StartSession(props: {
         variant="primary"
         disabled={start.isPending}
         onClick={() => {
-          start.mutate();
+          start.mutate(false);
         }}
         {...(props.className === undefined ? {} : { className: props.className })}
       >
         {props.label ?? 'Start a session'}
       </Button>
-      {start.isError ? (
+      {start.isError && unmetOf(start.error) === null ? (
         <Alert tone="error" role="alert">
           {start.error.message}
         </Alert>
       ) : null}
+      {unmet === null ? null : (
+        <StartAnyway
+          unmet={unmet}
+          busy={start.isPending}
+          onStart={() => {
+            setUnmet(null);
+            start.mutate(true);
+          }}
+          onCancel={() => {
+            setUnmet(null);
+            start.reset();
+          }}
+        />
+      )}
     </>
   );
 }
@@ -105,16 +134,25 @@ export function StartSession(props: {
  * `contents` gained a member, so its own page, its row on the shelf, and the
  * *In these worlds* line of the session it made are all reading a World that
  * changed.
+ *
+ * ***A World that wants what this install lacks is asked about*** (2026-10-13)
+ * — its authored `requires`, or its Setup's mode — exactly as `StartSession`
+ * asks, through the same dialog.
  */
 export function StartInWorld(props: { worldId: string }): JSX.Element {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const [unmet, setUnmet] = useState<UnmetRequirement[] | null>(null);
   const start = useMutation({
-    mutationFn: () => createSession({ world: props.worldId }),
+    mutationFn: (degraded: boolean) =>
+      createSession({ world: props.worldId, ...(degraded ? { degraded: true } : {}) }),
     onSuccess: async (created) => {
       void queryClient.invalidateQueries({ queryKey: ['sessions'] });
       void queryClient.invalidateQueries({ queryKey: ['library'] });
       await navigate({ to: '/play/$sessionId', params: { sessionId: created.session.id } });
+    },
+    onError: (error) => {
+      setUnmet(unmetOf(error));
     },
   });
 
@@ -125,7 +163,7 @@ export function StartInWorld(props: { worldId: string }): JSX.Element {
         variant="primary"
         disabled={start.isPending}
         onClick={() => {
-          start.mutate();
+          start.mutate(false);
         }}
       >
         Start a session in this world
@@ -133,11 +171,25 @@ export function StartInWorld(props: { worldId: string }): JSX.Element {
       <Link to="/play" search={{ world: props.worldId }} className={link.inline}>
         Choose first…
       </Link>
-      {start.isError ? (
+      {start.isError && unmetOf(start.error) === null ? (
         <Alert tone="error" role="alert">
           {start.error.message}
         </Alert>
       ) : null}
+      {unmet === null ? null : (
+        <StartAnyway
+          unmet={unmet}
+          busy={start.isPending}
+          onStart={() => {
+            setUnmet(null);
+            start.mutate(true);
+          }}
+          onCancel={() => {
+            setUnmet(null);
+            start.reset();
+          }}
+        />
+      )}
     </>
   );
 }

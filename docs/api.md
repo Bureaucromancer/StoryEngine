@@ -1927,7 +1927,7 @@ render a wizard for a mode nobody chose.
 
 ### `POST /api/sessions` · `GET /api/sessions?archived=true`
 
-`{ name?, mode?, modeConfig?, preset?, cast?, treatment?, lore?, setup?, world?, opening?, openings?, hooks? }`
+`{ name?, mode?, modeConfig?, preset?, cast?, treatment?, lore?, setup?, world?, opening?, openings?, hooks?, degraded? }`
 → `201 { session, activeJob? }`, and a list. **`archived` is the string `"true"`,
 not a boolean** — see the note under the turn routes.
 
@@ -2144,7 +2144,58 @@ runner falls back for a session *already* playing a mode this build does not
 know — somebody else's story, which should still open
 ([00 §3.3](design/00-stance.md)) — but naming a mode that does not exist when
 creating one is a caller error, and silently substituting would produce a
-session that is not the one that was asked for.
+session that is not the one that was asked for. *(2026-10-13: **a `mode` the
+caller names**, which is what this paragraph is about, and it stands —
+`422 unknown-mode`, `degraded` or not. A mode that arrives **in a Setup** —
+named, or a World's only one — is not the caller's choice but the Setup's,
+often from somebody else's file, and is a requirement unmet like any other:
+the next paragraphs.)*
+
+**`422 unmet-requirements` — what the World or the Setup asks for that this
+install lacks** (2026-10-13, the owner's answer to *"Build the promise, or
+narrow the notes"*: build [04 §9](design/04-schemas.md)'s promise). Before
+anything is created, the route checks the World's **authored** `requires` —
+when starting in one — and, whenever the mode comes from a Setup rather than
+from `mode`, that the Setup's mode is installed. Anything unmet is refused,
+with `unmet` beside `error` and `message`, one item per requirement and each
+id once:
+
+- `{ kind: "mode", id, minVersion?, installed, substituted? }` — a mode this
+  install lacks (`installed: null`) or holds older than an author asked
+  (`installed` its version). `minVersion` is present only where an author wrote
+  one: a Setup names its mode by id alone, and the versions a World file's
+  manifest derives are not kept when it lands, so only a World's own `requires`
+  can ask for *at least 2*. `substituted: true` marks the Setup's own mode —
+  the one the session would play — when it is absent, listed first: started
+  anyway, the default mode plays in its place.
+- `{ kind: "capability", id, checkable }` — **a capability is a model role**
+  (the lead's decision, 04 §9): `checkable: true` is a role (`prose`, `image`,
+  …) that does not resolve for this account, as `GET /me/roles` resolves it;
+  `checkable: false` is a string that names no role, which nothing here can
+  check.
+- `{ kind: "extension", id, minVersion }` — every one: this build loads no
+  extensions, so none is here.
+
+**`degraded: true` starts it anyway**, the restore's confirm-and-retry shape
+(`acceptRedacted`, below — whose refusal is a `409`; this route's refusals are
+all `422`, and a client reads the class): the same request, sent again with the
+flag, starts, each requirement degraded —
+
+| Unmet | Started |
+|---|---|
+| the Setup's mode is not installed | in the default mode (`defaultModeId`), the Setup's mode answers dropped — they answer a wizard that is not here — and the preset as it always falls back |
+| a mode older than asked | on the installed version, the only one there is |
+| a model role that does not resolve | as it is: what needs the role goes without at play — an unbound `image` already leaves pictures out of every turn |
+| a capability no role names | as it is |
+| an extension | without it |
+
+— and **the session records what it started without**: `startedWithout: { at,
+unmet }`, written once at creation, in the shape the refusal sent. `GET` below
+presents it, a session export carries it and an import keeps it; *make a setup
+from here* does not copy it, and names the mode the session actually plays.
+`degraded` with nothing unmet starts as without it, and records nothing. The
+session's copy of its Setup (`session.setup`) still names the mode the Setup
+wanted.
 
 ### `PUT /api/sessions/:sessionId/cast`
 
@@ -2565,7 +2616,10 @@ with one. It leaves out the hook pool, carries the Setup as `{ id, name }`, and
 carries each goal without its `detail`. Every reply used to send `session.json`
 whole, so the pool's unfired premises, the Setup copy's goals and hooks, and
 the detail this page says *does not travel* all travelled beside the panels that
-redact them. The export route is the file on purpose.
+redact them. The export route is the file on purpose. *`startedWithout`
+(2026-10-13) is sent as it is — what a session started past
+`unmet-requirements` did without (`POST /api/sessions`); the session's page
+says it in one line.*
 
 `hooks` is the hook panel's surface ([10 §10.1]): `{ pacing, rows }`, where
 `pacing` is [04 §6.1b]'s three rungs already resolved — the session's own value,
@@ -4658,6 +4712,7 @@ proof obligation arriving for free.
 | 428 | `hash-required` | A write with no content hash |
 | 404 | `no-such-parent` | A turn submission named a `parentTurnId` that is not a turn of this session. The request is well formed and names something that is not there, which is why it is a 404 rather than a 422 |
 | 422 | `unknown-input-kind` | A turn submission whose `input.kind` is not one this session's mode declares ([06 §1], [P7.9]). Carries `accepted`, the mode's list. **A refusal rather than a coercion to `do`**, because the kinds change what the prompt says — narrating a `think` as a `do` would put the player's private thought in the scene, which is the one failure the kind exists to prevent |
+| 422 | `unmet-requirements` | Starting a session (`POST /api/sessions`) whose World or Setup asks for what this install lacks — a mode, a model role, an extension ([04 §9](design/04-schemas.md), 2026-10-13). Carries `unmet`, one item per requirement. **A confirmation rather than a wall**: the same request with `degraded: true` starts it without them, and the session records what it lacked |
 | 404 | `no-session` / `no-such-hook` / `no-such-object` | Promoting a pooled hook out of a session ([03 §4.1]): the session is gone, this pool has no hook with that id, or the library object being promoted to has been deleted. **Three answers rather than one**, because they send a person to three different places and the union of them helps nobody |
 | 409 | `already-there` | The promotion target already carries a hook with this id. **Never a second copy and never a fresh id** — [15 §5](design/15-world.md) makes the id the only thing that links two firings of one hook across sessions, so re-minting it is the move that cannot be undone |
 | 404 | `no-such-channel` | A channel write to a key this session's mode does not enable ([06 §4.1], [P7.9]). The registry is process-wide and a session is not: a channel owned by a *mode* belongs to a session playing it, and one owned by a *package* — cast, hooks, goals, lore, suggestions — is available everywhere. *Package* here is a first-party engine namespace (`storyengine.cast` and its siblings), never the library kind, which ~~becomes~~ is a World since [P16.0](design/workplan/34-p16-world.md) ([06 §4.1] separates the two, 2026-10-04). **A 404 rather than a 422**, because *that exists but not for you* would leak which modes the build ships from a session route |

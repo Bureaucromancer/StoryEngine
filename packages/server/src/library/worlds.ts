@@ -14,6 +14,7 @@ import {
 
 import type { IndexedObject } from '../index-db/query.js';
 import { LibraryError, type LibraryContext, list, read, update } from '../library.js';
+import { wellFormedRequires } from '../requires.js';
 
 /**
  * ***Membership, written in one place*** —
@@ -217,6 +218,18 @@ export async function addMembers(
  * `membersOfSchema`) — so a hand-edited World naming one treatment twice was a
  * World with one treatment to the form and none to this function. A count that
  * decides *the only one* has to be a count of members, not of lines.
+ *
+ * ***And what it asks of the install*** (2026-10-13, the owner's answer to
+ * *"Build the promise, or narrow the notes"*: build it). `requires` is the
+ * World's **authored** list — modes with the version its author wrote,
+ * extensions, capabilities — kept to its shape (`wellFormedRequires`), for
+ * `POST /api/sessions` to check before it starts anything: a session started
+ * in a World that wants what this install lacks is refused with the list, or
+ * started without it when the caller says so. *Authored only*: the versions a
+ * World file's manifest derives are not kept when it lands
+ * (`import/world/landing.ts` writes the World as its author wrote it, so
+ * importing your own file back is `unchanged`), so a mode's version is
+ * checked only where an author wrote one.
  */
 export interface WorldContribution {
   world: { id: string; name: string };
@@ -225,6 +238,7 @@ export interface WorldContribution {
   treatment: string | null;
   setups: string[];
   setup: string | null;
+  requires: World['requires'];
 }
 
 export function worldContribution(
@@ -249,6 +263,7 @@ export function worldContribution(
     treatment: treatments.length === 1 ? (treatments[0] ?? null) : null,
     setups,
     setup: setups.length === 1 ? (setups[0] ?? null) : null,
+    requires: wellFormedRequires(world.requires).requires,
   };
 }
 

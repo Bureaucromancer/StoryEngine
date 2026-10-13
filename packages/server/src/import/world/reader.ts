@@ -5,6 +5,7 @@ import {
   type ImportItemReport,
   type ImportNote,
   isKnownSchema,
+  type ModelRole,
   type PortableObjectEnvelope,
   readWorldFileManifest,
   validate,
@@ -19,6 +20,7 @@ import {
 
 import { contentHashOf } from '../../index-db/ingest.js';
 import type { LibraryContext } from '../../library.js';
+import { unmetRequirements, wellFormedRequires } from '../../requires.js';
 import type { SessionContext } from '../../sessions/store.js';
 import type { TagStore } from '../../tags/store.js';
 import type { ConflictPolicy } from '../identity.js';
@@ -26,6 +28,7 @@ import type { FileSource, SourceItem, SourceReader, SourceSurvey } from '../sour
 import { type LibraryFolderItem, libraryFolderItems } from '../storyengine/library-items.js';
 import {
   isWorldSchema,
+  requiresNotes,
   type WorldLanding,
   type WorldLandingEntry,
   type WorldMember,
@@ -96,6 +99,18 @@ import type { WorldSessionEntry } from './session.js';
  *    published; then what the file holds that nothing reads, named; then the
  *    one note for tags dropped; then the sessions; then **the World, last**.
  *
+ * ***What the file asks of this install is said from the manifest***
+ * (2026-10-13, the owner's answer to *"Build the promise, or narrow the
+ * notes"*: build it). Decided here, before the first write, for every unmet
+ * requirement — a mode absent or older, a capability whose role does not
+ * resolve for this account or that names no role this build can check, every
+ * extension (none is loaded in this build), and how many malformed entries
+ * were dropped — and said **on the World's row when a World lands, and on
+ * the manifest's own row when none does**: a file of one object, or a
+ * selection sent as a snapshot, carries the modes its Setups and sessions
+ * play in its manifest too, and until this said nothing about them, since the
+ * warning was the World row's (`world === null` returned before it).
+ *
  * ***Re-reads are counted*** (the fact check of 2026-10-10): the zip reader's
  * byte budget is cumulative, and this reads each object file once (its hash
  * taken as it is parsed), each picture and history payload twice (verified
@@ -147,14 +162,34 @@ export interface WorldReaderContext {
    * does. The sessions themselves are the Writer's to land.
    */
   sessions?: SessionContext | null;
+  /**
+   * ***Which model roles resolve for the importing account*** — what the
+   * file's `requires.capabilities` is checked against (2026-10-13; the
+   * vocabulary is the roles, `requires.ts` says why). **A function, asked
+   * once and only when the file names a capability**, so an import of a file
+   * that asks for none reads no connection or binding file. Absent or null —
+   * a caller with no account to ask, which no route is — every capability is
+   * said as one this import could not check, never passed.
+   */
+  roles?: (() => Promise<ReadonlySet<ModelRole>>) | null;
 }
+
+/**
+ * ***A manifest as this build reads one*** — the file's, with `requires` kept
+ * to its shape, each id once (`wellFormedRequires`), and **how many entries
+ * that kept out**, which the import says (`import.world.requiresDropped`)
+ * where it once said nothing. Not a field of the format: the count is the
+ * reading's, and the preview, which shows the requirements and not the
+ * count, takes the manifest without it.
+ */
+export type ReadManifest = WorldFileManifest & { requiresDropped: number };
 
 export class WorldFileReader implements SourceReader {
   readonly kind = 'storyengine-world' as const;
   readonly #files: FileSource;
   readonly #context: WorldReaderContext;
   /** The survey's reading, so the items do not spend the read budget on it twice. */
-  #manifest: WorldFileManifest | null = null;
+  #manifest: ReadManifest | null = null;
 
   constructor(files: FileSource, context: WorldReaderContext) {
     this.#files = files;
@@ -169,8 +204,18 @@ export class WorldFileReader implements SourceReader {
   }
 
   /** The manifest, if the file is one this build reads as a whole — see the module comment, step 1. */
-  async #surveyed(): Promise<WorldFileManifest | null> {
+  async #surveyed(): Promise<ReadManifest | null> {
     return surveyManifest(this.#files);
+  }
+
+  /**
+   * The roles that resolve for the importing account — asked only when the
+   * file names a capability, and `null` when there is nobody to ask (see
+   * `WorldReaderContext.roles`).
+   */
+  async #roles(manifest: WorldFileManifest): Promise<ReadonlySet<ModelRole> | null> {
+    if (manifest.requires.capabilities.length === 0) return null;
+    return (await this.#context.roles?.()) ?? null;
   }
 
   async *items(): AsyncIterable<SourceItem> {
@@ -304,6 +349,19 @@ export class WorldFileReader implements SourceReader {
     if (world !== null) world.object.members = membersOf(world.object.body, manifest, refusedFiles);
 
     const omitted = wellFormedNotes(manifest.omitted, legacy);
+    /**
+     * ***What the file asks of this install that it does not have*** — said
+     * from the manifest, decided before the first write (the module comment).
+     * The roles are asked here, once, and only of a file naming a capability.
+     */
+    const asks = requiresNotes(
+      unmetRequirements(manifest.requires, await this.#roles(manifest)),
+      manifest.requiresDropped,
+    );
+    // Whether the World's row will be yielded at the end — the same three
+    // tests the yield below makes — so the notes above are said on exactly one
+    // row: the World's when it lands, the manifest's when it does not.
+    const worldLands = world !== null && plan.byFileId.has(world.object.id) && bodies.has(world);
     const dropped = { tags: new Set<string>(), objects: 0 };
     const worldTags = world === null ? [] : (bodies.get(world)?.droppedTags ?? []);
     if (worldTags.length > 0) {
@@ -348,20 +406,25 @@ export class WorldFileReader implements SourceReader {
     }
 
     // One note for the file, not one per object — see `asLanded`.
+    const manifestNotes: ImportNote[] = [];
     if (dropped.tags.size > 0) {
+      manifestNotes.push({
+        key: 'import.world.tagsDropped',
+        params: { count: dropped.tags.size, objects: dropped.objects },
+        level: 'info',
+      });
+    }
+    /**
+     * ***And what the file asks for, when no World will say it*** (2026-10-13)
+     * — a file of one object or a selection's snapshot, whose manifest carries
+     * the modes its Setups and sessions play, or a file whose World was
+     * refused. Before, these said nothing: the warning was the World row's.
+     */
+    if (!worldLands) manifestNotes.push(...asks);
+    if (manifestNotes.length > 0) {
       yield {
         outcome: 'observed',
-        report: {
-          source: WORLD_FILE_MANIFEST,
-          disposition: 'skipped',
-          notes: [
-            {
-              key: 'import.world.tagsDropped',
-              params: { count: dropped.tags.size, objects: dropped.objects },
-              level: 'info',
-            },
-          ],
-        },
+        report: { source: WORLD_FILE_MANIFEST, disposition: 'skipped', notes: manifestNotes },
       };
     }
 
@@ -398,7 +461,7 @@ export class WorldFileReader implements SourceReader {
       body,
       arrival,
       entries: entriesOf(world.object.members ?? [], plan),
-      requires: manifest.requires,
+      unmet: asks,
       dangling: danglingHere(this.#context, manifest),
       omitted: [
         ...notes,
@@ -616,7 +679,7 @@ interface Landable {
  * same manifest the commit will read, so a file the commit would refuse as
  * `unknown-format` is never previewed as a World.
  */
-export async function surveyManifest(files: FileSource): Promise<WorldFileManifest | null> {
+export async function surveyManifest(files: FileSource): Promise<ReadManifest | null> {
   if ((files.duplicateNames?.() ?? []).length > 0) return null;
   return manifestFromBytes(await files.read(WORLD_FILE_MANIFEST));
 }
@@ -625,11 +688,12 @@ export async function surveyManifest(files: FileSource): Promise<WorldFileManife
  * The manifest in these bytes, or null when there is none this build reads:
  * absent, past its ceiling, not JSON, or `readWorldFileManifest`'s refusal —
  * the wrong schema, a later version, a field a reader acts on missing — or a
- * manifest listing one file or one id twice; with `requires` kept to its shape.
- * *The bytes alone* — what the head of a file holds ([P16.3f]: the preview
+ * manifest listing one file or one id twice; with `requires` kept to its shape,
+ * and — since 2026-10-13 — a count of the entries that kept out, for the import
+ * to say. *The bytes alone* — what the head of a file holds ([P16.3f]: the preview
  * reads this off `firstLocalEntry`'s slice, with no archive around it).
  */
-export function manifestFromBytes(bytes: Uint8Array | null): WorldFileManifest | null {
+export function manifestFromBytes(bytes: Uint8Array | null): ReadManifest | null {
   if (bytes === null || bytes.byteLength > WORLD_FILE_MANIFEST_MAX_BYTES) return null;
   let parsed: unknown;
   try {
@@ -642,7 +706,8 @@ export function manifestFromBytes(bytes: Uint8Array | null): WorldFileManifest |
   const rows = [...manifest.objects, ...(manifest.world === null ? [] : [manifest.world])];
   if (new Set(rows.map((row) => row.file)).size !== rows.length) return null;
   if (new Set(rows.map((row) => row.id)).size !== rows.length) return null;
-  return { ...manifest, requires: wellFormedRequires(manifest.requires) };
+  const { requires, dropped } = wellFormedRequires(manifest.requires);
+  return { ...manifest, requires, requiresDropped: dropped };
 }
 
 /**
@@ -803,28 +868,6 @@ const LEGACY_NOTES: ReadonlySet<string> = new Set([
  * landing as itself — onto one here, the one here keeps what it has.
  */
 const LANDS_NEW_ONLY: ReadonlySet<string> = new Set(['import.world.noPortrait']);
-
-/**
- * ***`requires`, kept to its shape*** — what the World's row reads last,
- * after every object is written, so a `null` in its `modes` (which the
- * manifest reader checks only as an array) threw there: a 500 and a
- * half-import (the P16.3e review). Each list kept to what it is a list of.
- */
-function wellFormedRequires(requires: World['requires']): World['requires'] {
-  const versioned = (list: unknown[]) =>
-    list.flatMap((one) => {
-      if (typeof one !== 'object' || one === null || Array.isArray(one)) return [];
-      const { id, minVersion } = one as Record<string, unknown>;
-      return typeof id === 'string' && typeof minVersion === 'string' ? [{ id, minVersion }] : [];
-    });
-  return {
-    modes: versioned(requires.modes),
-    extensions: versioned(requires.extensions),
-    capabilities: (requires.capabilities as unknown[]).filter(
-      (one): one is string => typeof one === 'string',
-    ),
-  };
-}
 
 /** The digests a history index names, read as `storage/history.ts` reads them. */
 function indexedDigests(bytes: Uint8Array): string[] {

@@ -35,7 +35,16 @@
  * ***The event happened on 2026-09-17, at [P11.10](../../../docs/design/workplan/28-p11-implementation.md),
  * and the migration did not.*** `session-export.ts` carries a session's
  * renditions, so this record is published and **a change to it is now a
- * compatibility event**. Neither record graduated to `schema/`, for the reason
+ * compatibility event**. *(2026-10-13: and the first change after the event
+ * was a removal, decided by the owner — a travelling record's
+ * `provenance.binding` loses its `connectionId` and keeps its `modelId`. It is
+ * recorded under the freeze's own rule, [P11.10]'s *a promise not to
+ * tighten*: no reader, this build's or alpha 5's or 6's, reads the id from a
+ * record, so taking it out tightens nothing, and neither
+ * `storyengine.session-export/1` nor this record's `storyengine.rendition/1`
+ * moves — a bumped id is what would break the older readers, which
+ * exact-match both. See {@link RenditionProvenance.binding}.)* Neither record
+ * graduated to `schema/`, for the reason
  * `turn.ts` sets out: a registry entry would validate a foreign record against
  * *our* shape, and the format's whole obligation is to tolerate shapes we did
  * not write. *The prediction held in every part except which direction the
@@ -238,7 +247,11 @@ export interface AssembledPrompt {
  * projected onto it by `recipeOfRendition` (`media-recipe.ts`),
  * `binding.connectionId` dropped and a seed written only when `seedSent` is
  * `true`. This type stays internal because of the binding, not because of the
- * seed.
+ * seed. *(2026-10-13, the owner's decision: and since then a record that
+ * travels whole — in a session export or a World file's sessions — drops
+ * `binding.connectionId` too, and keeps the model. The type is still internal:
+ * the record on this install's disk keeps the id, and the format's obligation
+ * to tolerate records it did not write is still why nothing validates it.)*
  *
  * ***`workflow` holds scalars only, and the restriction is the recipe's.*** These
  * values are re-sent verbatim on re-creation and hashed into the digest, and a
@@ -259,8 +272,44 @@ export interface RenditionProvenance {
    * **The connection's id and never the connection**, which is
    * `ModelCall.resolved`'s argument verbatim: a `Connection` holds `apiKey` and
    * `baseUrl`, and this record is a file on somebody's disk.
+   *
+   * ***And not even the id, once the record has travelled*** — the owner's
+   * decision of 2026-10-13, which is why `connectionId` is optional. A session
+   * export and a World file's carried sessions write this binding as
+   * `{ modelId }` (`sessions/export.ts`), and the World file's reader takes the
+   * id out again for a file an older writer or a hand made
+   * (`import/world/session.ts`). **The model is kept because it is the
+   * picture's history**: the workbench shows it as *Asked*, a retry sends it
+   * again, and `recipeOfRendition` falls back to it when nothing else
+   * answered — so
+   * `binding: null` instead would have cost the name on nearly every record,
+   * since `answeredAs` is null whenever the endpoint answered as asked. **The
+   * id goes because on anybody else's install it names nothing**, and nothing
+   * on either side reads it from a record: a retry resolves the connection the
+   * account has now (`renditions/worker.ts`), and the reuse digest is computed
+   * from the live binding, never from this one.
+   *
+   * ***Absent, and absence means something*** — `seedSent`'s precedent on
+   * the same record. A record this build makes on this install always has the
+   * id; one without it **travelled** here (or was written by hand), which an
+   * `undefined` could not say in JSON and a `''` would say falsely, as a value
+   * claiming to name a connection. *Only the key goes, never `binding`*: `null`
+   * is *not recorded*, and a record with no `binding` at all would be a third
+   * state this type does not have — the workbench's *Asked* row tests for
+   * `null`, reads anything else as an object, and throws on `undefined`.
+   *
+   * *What stays as it was*: the record on the sender's disk, which keeps its
+   * id; a plain session export already in the wild (alphas 5 and 6 wrote the
+   * id), which a plain import lands as it arrived; and a backup, the account's
+   * own data, whose merge keeps ids verbatim as it keeps `roles` and the
+   * calls' `resolved.connectionId`. The id names a connection there only when
+   * that connection is already held or taken from a full archive
+   * (`options.connections`, off by default; a redacted archive has none) —
+   * otherwise it names nothing, as before, and whether such a merge should
+   * strip it is not decided. And {@link Rendition.digest} still folds the
+   * sender's id in — see there.
    */
-  binding: { connectionId: string; modelId: string } | null;
+  binding: { connectionId?: string; modelId: string } | null;
   /** What the endpoint said answered, when it is not what was asked for. */
   answeredAs: string | null;
   /**
@@ -413,6 +462,19 @@ export interface Rendition {
    * compute, it is what the exit gate's recipe-survives-eviction property
    * compares, and a field that exists for one purpose is a field somebody has to
    * remember is absent for the other.
+   *
+   * ***A record that travelled keeps the digest it was made with***
+   * (2026-10-13, the owner's decision on the binding's id). Its
+   * `provenance.binding` arrives without `connectionId`, and this hash still
+   * folds the sender's id in: it is one-way, so it gives nothing of the id
+   * back, and it is not recomputed or re-keyed on the way out. What that
+   * means on the recipient is what it meant before the id was dropped — a
+   * landed backdrop is reused only by a binding with that same connection id,
+   * model and fragments, which in practice is never — so the clause above
+   * (*including the resolved binding*) is still true of how the hash was
+   * made, and can no longer be checked against the record's own fields.
+   * Nothing checks it: the hash is only ever compared, never re-derived from a
+   * record (`renditions/digest.ts` takes the live binding).
    */
   digest: string;
   /**

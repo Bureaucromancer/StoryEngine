@@ -19,6 +19,7 @@ import {
   type Actor,
   type EmbeddedMedia,
   type Lorebook,
+  type ModelRole,
   type Ref,
   type Treatment,
   isKnownSchema,
@@ -299,6 +300,20 @@ export interface SweepRequest {
    */
   notCarried?: ReadonlySet<string>;
   uploadLimitMb?: number;
+  /**
+   * ***Which model roles resolve for the account importing*** — 2026-10-13,
+   * the owner's answer to *"Build the promise, or narrow the notes"*.
+   *
+   * **Only one source reads it**: a World file, whose `requires.capabilities`
+   * is checked against the roles (`requires.ts`: the vocabulary is the model
+   * roles, the lead's decision), each unmet one said on the import. **A
+   * function, asked only when a file names a capability**, so the other
+   * sources — and every World file that asks for none — read no connection or
+   * binding file for it. The routes pass `rolesThatResolve` for the account;
+   * absent, every capability a file asks for is said as one this import could
+   * not check, which is the honest answer of a caller that cannot say.
+   */
+  roles?: () => Promise<ReadonlySet<ModelRole>>;
 }
 
 export type SweepOutcome =
@@ -537,6 +552,7 @@ function readerFor(kind: string, request: SweepRequest): SourceReader | null {
       policy: request.onConflict ?? 'replace',
       tags: request.tags,
       sessions: request.sessions ?? null,
+      roles: request.roles ?? null,
     });
   }
   // A whole Aventuras install — [P13.2]. Given the library's own layout,

@@ -12,18 +12,10 @@ import { refuseShortPassword } from '../auth/password-policy.js';
 import { deleteAvatar, writeAvatar } from '../auth/avatars.js';
 import { PrefsError } from '../auth/prefs.js';
 import { readOnePart } from './import.js';
-import {
-  pickBindings,
-  readSystemBindings,
-  userBindingsState,
-  writeBindings,
-} from '../providers/bindings.js';
-import {
-  presentConnection,
-  presentUsableConnections,
-  resolveConnections,
-} from '../providers/connections.js';
-import { presentRoleRow, roleTable } from '../providers/roles.js';
+import { accountRoleTable } from '../providers/account-roles.js';
+import { pickBindings, userBindingsState, writeBindings } from '../providers/bindings.js';
+import { presentConnection, presentUsableConnections } from '../providers/connections.js';
+import { presentRoleRow } from '../providers/roles.js';
 import { ASSIST_ROLES, readTaskRoles, writeTaskRoles } from '../providers/task-roles.js';
 import { ingestFile } from '../index-db/ingest.js';
 import { findById } from '../index-db/query.js';
@@ -493,22 +485,20 @@ export function registerMeRoutes(app: FastifyInstance, services: AppServices): v
     const account = await requireAccount(request, reply);
     if (!account) return;
 
-    const { usable, disabled, shadowing } = await resolveConnections(
-      services.layout,
-      account.handle,
-      account.capabilities,
-    );
-    const state = await userBindingsState(services.layout, account.handle);
-    const rows = roleTable({
-      bindings: state.bindings,
-      defaults: await readSystemBindings(services.layout),
-      usable,
-    });
+    // Through `accountRoleTable` since 2026-10-13, the one assembly a World's
+    // `requires.capabilities` is checked against too, so this pane and the
+    // start dialog cannot disagree about whether a role resolves.
+    const {
+      rows,
+      connections: { usable, disabled, shadowing },
+      bindings,
+      contentHash,
+    } = await accountRoleTable(services.layout, account.handle, account.capabilities);
 
     return reply.send({
       roles: rows.map(presentRoleRow),
-      bindings: state.bindings,
-      contentHash: state.contentHash,
+      bindings,
+      contentHash,
       // `presentConnection`, so this carries a label, a provider and the model
       // list a binding picks from — and no `apiKey` and no `baseUrl`, which is
       // the rule that lets this route live outside the admin prefix at all.

@@ -2,7 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { createHash } from 'node:crypto';
-import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 import { crc32, deflateRawSync } from 'node:zlib';
@@ -37,6 +37,7 @@ import {
 } from '../sessions/store.js';
 import { makePng } from '../storage/card/test-png.js';
 import { readZipDirectory, readZipEntry } from '../storage/zip.js';
+import { Layout } from '../storage/layout.js';
 import { writeStoredZip } from '../storage/zip-writer.js';
 import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
 
@@ -904,5 +905,83 @@ describe('a World’s session, against what is already on the install', () => {
     expect((await readSession(server.services.sessions, 'amy', landed!.id))?.archivedAt).toBe(
       undefined,
     );
+  });
+});
+
+// ── What the file asks of this install ──────────────────────────────────────
+
+/**
+ * ***`prose` bound for everybody on the install*** — a system connection and
+ * the install's binding to it, so a role resolves for Amy, who may not use
+ * personal connections, the way an administrator's setup makes it resolve.
+ */
+async function bindProseForEveryone(): Promise<void> {
+  const layout = new Layout(server.dataDir);
+  await mkdir(layout.systemConnectionsRoot, { recursive: true });
+  const id = '0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a12';
+  await writeFile(
+    join(layout.systemConnectionsRoot, 'house.json'),
+    JSON.stringify({
+      id,
+      label: 'The house model',
+      provider: 'openai-compatible',
+      models: ['house-hi'],
+      capabilities: { maxContextTokens: 32_000 },
+    }),
+  );
+  await writeFile(
+    layout.systemBindingsFile,
+    JSON.stringify({ prose: { connectionId: id, modelId: 'house-hi' } }),
+  );
+}
+
+/**
+ * ***Through the doors a person uses*** — 2026-10-13, the owner's answer to
+ * *"Build the promise, or narrow the notes"*. The look before commit answers
+ * each capability against **the account's own roles**, read by the route —
+ * met, not met, or not checkable — and the commit says the unmet ones as
+ * `requiresCapability`, not `requiresCapabilityUnknown`, which is what tells
+ * that the route handed the sweep the roles rather than nothing. Extensions
+ * are listed, and said as not available, since this build loads none.
+ */
+describe('what a World file asks for, looked at and brought in', () => {
+  it('answers each capability against the account’s roles, before and after commit', async () => {
+    await bindProseForEveryone();
+    const ned = await author();
+    const file = await rewritten(await rainCity(ned), {
+      [WORLD_FILE_MANIFEST]: editJson((manifest) => {
+        manifest.requires.capabilities = ['prose', 'image', 'audio'];
+        manifest.requires.extensions = [{ id: 'dice', minVersion: '0.1.0' }];
+      }),
+    });
+    await signInAs('amy');
+
+    const looked = worldOf(await preview('rain-city.seworld', headOf(file)));
+    expect(looked.requires.capabilities).toEqual([
+      { id: 'prose', here: true },
+      { id: 'image', here: false },
+      { id: 'audio', here: null },
+    ]);
+    expect(looked.requires.extensions).toEqual([{ id: 'dice', minVersion: '0.1.0' }]);
+
+    const landed = (await send('/api/import/file', 'rain-city.seworld', file)) as {
+      report: { items: { notes: { key: string; params: Record<string, unknown> }[] }[] };
+    };
+    const said = landed.report.items
+      .flatMap((row) => row.notes)
+      .filter((note) => note.key.startsWith('import.world.requires'));
+    expect(said).toEqual([
+      { key: 'import.world.requiresCapability', params: { capability: 'image' }, level: 'warn' },
+      {
+        key: 'import.world.requiresCapabilityUnknown',
+        params: { capability: 'audio' },
+        level: 'warn',
+      },
+      {
+        key: 'import.world.requiresExtension',
+        params: { extension: 'dice', minVersion: '0.1.0' },
+        level: 'warn',
+      },
+    ]);
   });
 });

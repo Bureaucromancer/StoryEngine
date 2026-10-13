@@ -52,6 +52,7 @@ import { ContextMeter } from './ContextMeter.js';
 import { remedySentence } from '../failures.js';
 import { GuidanceBox } from './GuidanceBox.js';
 import { ChannelHealth } from './ChannelHealth.js';
+import { StartedWithout } from './StartedWithout.js';
 import { ChannelHud } from './ChannelHud.js';
 import { CastPanel } from './CastPanel.js';
 import {
@@ -1103,6 +1104,13 @@ export function PlayPage({
           nothing wrong, and it must not be somewhere a person has to open a
           disclosure to find. */}
       <ChannelHealth sessionId={sessionId} />
+
+      {/* ***What it was started without*** (2026-10-13) — a session started
+          with *Start anyway* says what its World or Setup asked for that this
+          install lacked. Beside the health banner, in its register, for its
+          reason: a fact about the whole session, persistent, and nothing when
+          there is nothing to say — which is every other session. */}
+      <StartedWithout sessionId={sessionId} />
 
       {/* **What the session's channels say, declared by whoever owns them** —
           [10 §8], [P7.1]. Above the transcript because it is state rather than

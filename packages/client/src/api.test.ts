@@ -298,6 +298,39 @@ describe('the 412 parse', () => {
     expect((plain as ApiError).remedy).toBeUndefined();
   });
 
+  /**
+   * ***What a start lacks*** (2026-10-13): `unmet-requirements` carries the
+   * list the start dialog words, lifted here for `issues`' reason. An item
+   * that is not a record naming a kind and an id is left out — it could only
+   * render as nothing — and one of a kind this build does not know is kept, so
+   * a newer server's requirement is still shown.
+   */
+  it('carries `unmet`, each a record with a kind and an id', async () => {
+    answer(
+      422,
+      JSON.stringify({
+        error: 'unmet-requirements',
+        message: 'no',
+        unmet: [
+          { kind: 'capability', id: 'image', checkable: true },
+          { kind: 'telepathy', id: 'mind' },
+          null,
+          'image',
+          { kind: 'mode' },
+        ],
+      }),
+    );
+    const refused = await api.readObject('actors', 'a1').catch((error: unknown) => error);
+    expect((refused as ApiError).unmet).toEqual([
+      { kind: 'capability', id: 'image', checkable: true },
+      { kind: 'telepathy', id: 'mind' },
+    ]);
+
+    answer(422, JSON.stringify({ error: 'unknown-mode', message: 'no' }));
+    const plain = await api.readObject('actors', 'a1').catch((error: unknown) => error);
+    expect((plain as ApiError).unmet).toBeUndefined();
+  });
+
   it('survives a body that is not JSON at all', async () => {
     answer(412, 'a proxy wrote this');
 

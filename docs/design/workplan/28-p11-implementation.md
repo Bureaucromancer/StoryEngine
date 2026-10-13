@@ -2864,6 +2864,24 @@ enforce exactly what the format exists not to enforce. *The freeze is a promise
 not to tighten, which a schema cannot express and a test can.* Both docstrings
 now carry the correction rather than the prediction.
 
+*(2026-10-13: **the first removal from a frozen record, recorded under this
+rule.** By the owner's decision of that date — drop the connection id on
+travelling renditions; keep the model name itself — a rendition's
+`provenance.binding` is written as `{ modelId }` in a session export and in a
+World file's sessions, the `connectionId` key absent
+([22 §7](../22-internal-contracts.md), under `RenditionProvenance`). Read against
+the promise, it is not a tightening: nothing reads the id from a record — not
+this build, and not alpha 5 or 6, whose readers check a provenance's `seed` and
+`workflow` and show `binding.modelId` — so a file without it is one every reader
+already takes. **Neither id moves**: `storyengine.session-export/1` and
+`storyengine.rendition/1` are exact-matched on read, so a bump would be the
+change that broke the older readers, not this. The additions after the freeze
+— `Rendition.foreign`, `provenance.seedSent` — were optional fields an older
+reader ignores; this is an optional field an older reader never looked at.
+Files written before it keep the id, and a plain import lands them as they
+arrived. The turn record's own `request.calls[].resolved.connectionId` is
+untouched, and whether it should follow is not decided.)*
+
 ***The obligation's first clause is the one a serialiser violates without
 deciding to***, and it is where the round-trip test starts: every read surface in
 this build calls `walkPath(head)`, so reaching for the obvious function produces

@@ -902,9 +902,14 @@ fixed.
   reads the World first, and its sole Setup becomes the Setup the session starts
   from before anything reads one — opening, mode and its answers, persona,
   party, preset, hooks, goals — held to every check a named Setup is
-  (`unknown-mode`, `setup-invalid`, `too-many-actors`, `conflicting-openings`,
-  `unknown-preset`). The World's books join the Setup's and its treatment is
-  used only if the Setup names none, as before. `setup: null` says *no Setup*
+  (~~`unknown-mode`~~ *(2026-10-13: a Setup's mode this install lacks, named or
+  a World's sole one, is now `422 unmet-requirements` and starts with
+  `degraded: true` in the default mode. That is the owner's "build the
+  promise", recorded under the open disagreements below. Only a `mode` the
+  caller names outright is still `unknown-mode`)*, `setup-invalid`,
+  `too-many-actors`, `conflicting-openings`, `unknown-preset`). The World's
+  books join the Setup's and its treatment is used only if the Setup names
+  none, as before. `setup: null` says *no Setup*
   beside a World, which is how a person choosing **None** is honoured. An
   `opening` sent with a World alone takes its Setup's opening.
 - **Two or more Setups choose none**, as two treatments do; **a sole Setup no
@@ -989,12 +994,16 @@ load-bearing claims against the code, which found most of them true, two
   sibling sessions, unticked ones included, and are stripped from every session
   that travels; the leak test checks an unticked session's **id** as well as its
   name (P16.3c). A turn's recorded calls name the connection that answered —
-  an id, never the connection — and stay; its recorded prompt may quote memory
-  drawn from another session, and the review says so rather than scrubbing what
-  the session sent (P16.3g). *(2026-10-11, the final audit: what it **sent** —
-  the record also kept the words of every block the budget dropped, which the
-  session never sent, and they travelled; such a block now travels as its row
-  with no text.)*
+  an id, never the connection — and stay *(2026-10-13: a rendition's record
+  named one too, `provenance.binding.connectionId`, and by the owner's decision
+  of that date it no longer travels — the binding goes as `{ modelId }`, and the
+  reader drops the id from a file written before. The calls' id is not that
+  decision's, and still travels; whether it should is not decided)*; its
+  recorded prompt may quote memory drawn from another session, and the review
+  says so rather than scrubbing what the session sent (P16.3g). *(2026-10-11,
+  the final audit: what it **sent** — the record also kept the words of every
+  block the budget dropped, which the session never sent, and they travelled;
+  such a block now travels as its row with no text.)*
 - *Gaps*: the World landing refuses a nested World envelope itself, since only
   `addMembers` did (P16.3e) — *and `addMembers` only under the new schema id,
   until the final audit*; tag ids name the sender's tag registry and are
@@ -1431,6 +1440,26 @@ card re-spliced to drop a removed picture is not one. The entry is unchanged at
   on the same page, the diff says so and compares again on *Look again*, rather
   than describing the file two back.
 
+*(2026-10-13, the owner's decision to drop the connection id from travelling
+renditions and keep the model — [22 §7](../22-internal-contracts.md), under
+`RenditionProvenance`: **the first re-publish after it reads a carried session
+with pictures as changed, once.** A session's digest hashes its export as it
+travels, every rendition record in it, and each record's binding is now
+`{ modelId }`; so a session holding a picture whose binding is not `null` —
+every picture an image model was asked for, where an Aventuras import's is
+`null` — hashes otherwise than the ledger's line for it, though nothing was
+played or drawn since. A picture that failed for want of a binding still
+carries the one it was asked with, and is changed too. With no turns added it is
+listed as *changed*, not played on, and the publish that follows writes the new
+digest, which every later one compares against. **No migration**: a ledger line
+holds only the hash, which cannot be re-keyed without the bytes it was taken
+over, and only dev installs that published on `p16` or `main` since 2026-10-11
+hold such a line — this phase is in no release. The precedent is this phase's
+own: `withoutUnsentText` (`6dfb9f0`) changed the travelling bytes the same way
+on 2026-10-11, two hours after the digest arrived, and wrote no ledger handling
+either. Sessions with no pictures are untouched, and so is the plain session
+export, whose bytes no ledger records.)*
+
 ### P16.3 — what it closes
 
 **All three end clauses are tests on `p16`, and the stage is built**:
@@ -1488,7 +1517,8 @@ italics. Each item says whose it is.
 
 - **Two disagreements between the notes and the build, open for the owner.**
   *(The first answered 2026-10-12 — below, under P16.2's records — and built; the
-  `requires` one stays open.)* ~~*Starting in a World never reads a Setup member*:~~
+  `requires` one stays open.)* *(2026-10-13: **both answered and built** — the
+  `requires` one below.)* ~~*Starting in a World never reads a Setup member*:~~
   [04 §9](../04-schemas.md) and [03 §7.2](../03-data-model.md) say a World
   starts through its Setup — "the whole mechanism" — and P16.2 built a second
   start ([15 §5.3](../15-world.md)) that reads its lorebook and treatment members
@@ -1500,7 +1530,29 @@ italics. Each item says whose it is.
   extensions and capabilities without checking them, drops a malformed entry
   without a word, and offers no degraded start. **Build the promise, or narrow
   the notes to what was built?** Both are recorded where the notes state them,
-  dated, and neither text is struck.
+  dated, and neither text is struck. ***Answered by the owner, 2026-10-13: build
+  the promise — and built the same day.*** Three decisions under it are the
+  lead's, recorded in [04 §9](../04-schemas.md) and open to the owner's reversal:
+  **a capability is a model role**, checked against what resolves for the
+  account, and any other string is named as one that cannot be checked; **an
+  extension is unmet by construction**, since this build loads none; and the
+  degraded start's semantics — a missing mode in the default one, the Setup's
+  answers to it dropped; an older mode on the installed version; an unbound role
+  going without; extensions left out. The import now warns for every unmet
+  requirement, once per id, for a file with no World too, and counts what it
+  dropped; `POST /api/sessions` refuses `unmet-requirements` with the list and
+  starts with `degraded: true`, recording `startedWithout`; every start door asks
+  in a dialog; the session's page says what it started without. A `mode` the
+  caller names outright is still `unknown-mode`. *Left as it is* (the review,
+  2026-10-13): a file with no World says what it asks for on the manifest's
+  row, which the report counts as **skipped** and lists under *Deliberately not
+  taken* — the row an unread file and dropped tags already use — so a Setup
+  published alone counts one *Skipped* beside its *Imported*; the sentences say
+  *this file* rather than *this world*, which is true of both rows. A row of
+  the file's own is not built. 04 §9's struck *with the warning* is restored
+  by a dated note; [16 §4](../16-publish.md)'s claim that
+  extension and capability requirements are derived is struck, dated — only
+  modes are, and always were.
 - **One code comment, for the next code change.** The docstrings in
   `packages/shared/src/schema/world.ts` still say a reader carries an unknown
   kind through untouched and that the import review shows one as "kept, not
@@ -1545,11 +1597,24 @@ italics. Each item says whose it is.
     a World unless *Just make the file* is chosen. **Publishing again** opens on
     what changed since the last file. **Importing a World file** — and a
     `.sepack.json` from alpha 5 or 6 — through the ordinary import, as a World
-    naming its members that landed.
+    naming its members that landed. **What a world needs, said, and started
+    anyway** *(2026-10-13)*: importing a world file says each thing it needs that
+    this install lacks — a mode, a model for a job, an extension — before and
+    after, and starting a session from a world or a setup that needs one asks
+    first, listing each with what starting without it means; **Start anyway**
+    starts it, and the session says above its story what it started without.
   - ***Changed.*** *Export this package* is gone, replaced by *Publish this
-    world…*: the file it wrote is still read. **A plot hook's *Involves* and
+    world…*: the file it wrote is still read. **A setup whose mode this install
+    lacks is no longer refused with *No such mode*** *(2026-10-13)*: starting it
+    asks, and starts it anyway in the default mode on a word. Choosing a mode
+    that does not exist is still refused. **A plot hook's *Involves* and
     *Blocked by* take only what they offer**: a typed name that matches nothing is
     no longer saved as a reference to nobody, which retired the hook quietly.
+    *(Added 2026-10-13, with the owner's decision on the connection id:)* **A
+    session export no longer names the connection each picture was made
+    through** — it keeps the model's name — and neither does a published
+    World's session. A session exported by alpha 5 or 6 still loads, as it
+    was.
   - ***Known.*** **Alphas 5 and 6 cannot read a World file as a World** — given
     one, they bring in its objects alone — and **refuse, whole, a lorebook
     scoped to a World**. Alpha 5's Known line — *World will rename them and go

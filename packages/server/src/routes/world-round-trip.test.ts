@@ -2,7 +2,8 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { createHash } from 'node:crypto';
-import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -45,6 +46,7 @@ import { makePng } from '../storage/card/test-png.js';
 import { writeJsonAtomic } from '../storage/atomic.js';
 import { Layout } from '../storage/layout.js';
 import { readZipDirectory, readZipEntry } from '../storage/zip.js';
+import { writeStoredZip } from '../storage/zip-writer.js';
 import { eventually, makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
 
 /**
@@ -1213,5 +1215,91 @@ describe('a session Amy already has, published again', () => {
     // Ned's Vera nowhere in what Amy holds — not even inside a string.
     const everything = [session, ...turns.values()].flatMap(stringsOutsideForeign);
     expect(everything.filter((one) => one.includes(ned.vera.id))).toEqual([]);
+  });
+});
+
+// ── A file from before the writer dropped the connection id ─────────────────
+
+/**
+ * ***The file as a writer before 2026-10-13 wrote it*** — every rendition's
+ * binding whole, Ned's connection id in it — re-zipped by the writer's own zip
+ * code from the members the publish wrote, so that one key is the only
+ * difference. It counts what it put back, so a file with no picture to edit
+ * fails here rather than passing the test below for want of anything to strip.
+ */
+async function asAnOlderWriterWroteIt(file: Uint8Array, sessionId: string): Promise<Uint8Array> {
+  const directory = readZipDirectory(file);
+  if (!directory.ok) throw new Error(directory.refusal);
+  const exportName = `sessions/${sessionId}/session-export.json`;
+  let putBack = 0;
+  const members = directory.entries.map((entry) => {
+    const bytes = readZipEntry(file, entry)!;
+    if (entry.name !== exportName) return { name: entry.name, bytes };
+    const document = JSON.parse(new TextDecoder().decode(bytes)) as {
+      renditions: { provenance: { binding: Record<string, unknown> | null } }[];
+    };
+    for (const rendition of document.renditions) {
+      const { binding } = rendition.provenance;
+      if (binding === null) continue;
+      expect(binding).not.toHaveProperty('connectionId');
+      rendition.provenance.binding = { connectionId: CONNECTION, ...binding };
+      putBack += 1;
+    }
+    return { name: entry.name, bytes: new TextEncoder().encode(JSON.stringify(document)) };
+  });
+  expect(putBack).toBeGreaterThan(0);
+  const scratch = await mkdtemp(join(tmpdir(), 'se-older-world-file-'));
+  try {
+    const to = join(scratch, 'rain-city.seworld');
+    await writeStoredZip(to, members, { mtime: new Date() });
+    return new Uint8Array(await readFile(to));
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+}
+
+describe('a World file an older writer made', () => {
+  /**
+   * ***A picture's record lands without the connection id the file still
+   * carries*** — the owner's decision of 2026-10-13, at the reader. Every
+   * World file written before that date carries each rendition's binding
+   * whole, and anybody can make one by hand, so the reader takes the id out
+   * whatever the file says (`import/world/session.ts`, `withoutBindings`), as
+   * it takes out `roles`. The model stays: it is what the workbench shows as
+   * *Asked* and what a retry sends.
+   *
+   * **Both roads in are asked** — the first landing, through `importSession`,
+   * and the same session played on and sent again, through `landNewTurns` —
+   * because the strip sits before the fork between them, and one moved into a
+   * branch would leave the other carrying the id.
+   */
+  it('lands each picture’s record with its model and without the sender’s connection id', async () => {
+    const ned = await nedPlays();
+    const first = await asAnOlderWriterWroteIt(
+      await publish(ned.world.id, ned.sessionId),
+      ned.sessionId,
+    );
+    await signInAs('amy');
+    await importFile(first);
+    const [landed] = await amysSessions();
+    const layout = server.services.layout;
+    const arrived = (await readRenditions(layout, 'amy', landed!.id)).get(ned.renditionId);
+    expect(arrived?.provenance.binding).toEqual({ modelId: 'fake-vision' });
+    expect(arrived?.provenance.binding).not.toHaveProperty('connectionId');
+
+    // Ned illustrates the second turn and sends the session again, the same way.
+    await signInAs('ned');
+    const second = ned.turnIds.find((id) => id !== ned.pictured && id !== ned.turnIds.at(-1))!;
+    const added = await illustrate('ned', ned.sessionId, second, 0);
+    const again = await asAnOlderWriterWroteIt(
+      await publish(ned.world.id, ned.sessionId),
+      ned.sessionId,
+    );
+    await signInAs('amy');
+    await importFile(again);
+    const grown = await readRenditions(layout, 'amy', landed!.id);
+    expect(grown.get(added)?.provenance.binding).toEqual({ modelId: 'fake-vision' });
+    expect(grown.get(added)?.provenance.binding).not.toHaveProperty('connectionId');
+    expect(JSON.stringify([...grown.values()])).not.toContain(CONNECTION);
   });
 });

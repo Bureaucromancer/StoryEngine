@@ -7,6 +7,7 @@ import {
   isKnownSchema,
   type LeftBehind,
   LIBRARY_DIRECTORIES,
+  type ModelRole,
   type PortableSchemaId,
   SESSION_SCHEMA,
   WORLD_SCHEMA,
@@ -16,8 +17,8 @@ import {
 import { findById, findPriorImport } from '../../index-db/query.js';
 import { sessionByOrigin, sessionHolding, sessionOwner } from '../../index-db/sessions.js';
 import { LibraryError, read, resolveRef, type LibraryContext } from '../../library.js';
+import { capabilityHere, modeIsHere } from '../../requires.js';
 import { scopeOf, type SessionContext } from '../../sessions/store.js';
-import { modeIsHere } from './landing.js';
 import { arrivalKey } from './plan.js';
 import { wellFormedNotes } from './reader.js';
 import { worldSessionOrigin } from './session.js';
@@ -64,6 +65,13 @@ export interface WorldPreviewContext {
   /** Null when the caller has none — every session then previews as new. */
   sessions: SessionContext | null;
   handle: string;
+  /**
+   * ***The roles that resolve for this account*** (2026-10-13) — what each of
+   * the file's capabilities is answered against, as the commit answers it
+   * (`requires.ts`). Absent or null, every capability previews as one that
+   * cannot be checked: never as met.
+   */
+  roles?: ReadonlySet<ModelRole> | null;
 }
 
 /** The preview of a World's file, from its manifest — see the module comment. */
@@ -111,6 +119,15 @@ export function previewWorld(
       ...entry,
       resolvesHere: resolvesHere(context, entry, sessionIds),
     })),
+    /**
+     * ***Each requirement answered, as the commit will answer it*** —
+     * 2026-10-13, the owner's *build the promise*. The manifest's lists are
+     * the reader's (`manifestFromBytes`), so each id is here once. A mode is
+     * here or not; a capability met, not met, or not checkable (`null`); an
+     * extension listed as it is, because none is available in this build —
+     * the sentence beside it says so, rather than a `here` that could only
+     * ever be `false`.
+     */
     requires: {
       modes: manifest.requires.modes.map((mode) => ({
         id: mode.id,
@@ -121,7 +138,10 @@ export function previewWorld(
         id: one.id,
         minVersion: one.minVersion,
       })),
-      capabilities: [...manifest.requires.capabilities],
+      capabilities: manifest.requires.capabilities.map((id) => ({
+        id,
+        here: capabilityHere(id, context.roles ?? null),
+      })),
     },
     history: manifest.history,
     omitted: wellFormedNotes(manifest.omitted, legacy),
@@ -143,11 +163,15 @@ export function previewWorld(
  * counts it before the first write and hands it to the World's row.
  */
 export function danglingHere(
-  context: Omit<WorldPreviewContext, 'sessions'> & { sessions?: SessionContext | null },
+  context: Pick<WorldPreviewContext, 'library' | 'handle'> & { sessions?: SessionContext | null },
   manifest: WorldFileManifest,
 ): number {
   const sessionIds = new Set(manifest.sessions.map((session) => session.id));
-  const full: WorldPreviewContext = { ...context, sessions: context.sessions ?? null };
+  const full: WorldPreviewContext = {
+    library: context.library,
+    handle: context.handle,
+    sessions: context.sessions ?? null,
+  };
   return (manifest.leftBehind as unknown[])
     .filter(isLeftBehind)
     .filter((entry) => !resolvesHere(full, entry, sessionIds)).length;
