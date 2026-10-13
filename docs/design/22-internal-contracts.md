@@ -1295,6 +1295,26 @@ repair**: it is portable, reachable from five emitted schemas through
 actor card — production settings crossing into shareable content, which is the
 line [00 §3.2](00-stance.md) draws.
 
+*Corrected 2026-10-12, [26 B20](26-open-questions.md).* The type stays internal
+and the repair stands; the last clause does not. **A seed is provenance, not a
+production setting**, and a picture kept as library media carries its seed,
+model and prompt in a portable recipe of its own — never in
+`GeneratedFieldProvenance`, whose `seed` still means the prompt. ~~What never
+leaves the install is~~ *What a recipe never carries is* `binding.connectionId`,
+which names a connection on it; and `seedSent` travels only as its consequence — a
+seed that was never sent is projected as `null`, because the picture was not made
+with it. *Built 2026-10-13*: the projection is `recipeOfRendition` in
+`shared/src/media-recipe.ts`, and it offers a seed only when `seedSent` is `true` —
+absent is a record from before the adapter sent seeds at all.
+*(2026-10-13, at the merge into `main`: "never leaves the install" was wider than
+anything decided, and the code says otherwise in two places that predate it. A
+session export (P11.10, [P11](workplan/28-p11-implementation.md)) and a World file's
+carried sessions ([P16](workplan/34-p16-world.md)) carry `Rendition` records
+whole, the binding's id included — `packaging/world-file.ts` on the reasoning
+that *an id is not a connection — no URL, no key*, which is this type's own *the
+id, never the connection* below. What [26 B20](26-open-questions.md) decided is
+narrower and holds: no recipe, and so no library object, carries it.)*
+
 ```ts
 interface RenditionProvenance {
   at: string | null                                            // null while pending

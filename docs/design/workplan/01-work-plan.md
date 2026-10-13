@@ -182,6 +182,17 @@ landed: **it still passes, and the exception is now used, exactly as named.**
 The lorebook artefact differs from its pinned form inside `LoreScope` only, by
 the `world` arm and the open arm that is how the arm lands; the test admits
 those two shapes and nothing else beside the arms `/1` shipped with.)*
+*(2026-10-13: **it fired once since, and not at World.**
+[26 B20](../26-open-questions.md)'s `MediaRecipe` — an optional `recipe` on
+`EmbeddedMedia`, the owner's decision of 2026-10-12, built on a branch beside P16
+and merged after it — is additive and lands in every kind that carries media, so
+the actor, treatment and setup artefacts and the lorebook's outside `LoreScope`
+all differ from their `ad47e39` pins by it. The test admits it as a **second
+named exception** rather than being re-pinned: the digests stay `ad47e39`'s, and
+each artefact is compared with that one property taken back out of every
+`EmbeddedMedia`, so a recipe anywhere else, or any other change, still fails —
+both checked by mutation. 7 of 7 at the merge. What the check says about World is
+unchanged: World touched no other portable schema.)*
 
 > **Write at 2.0 may change internal-tier shapes and may not break portable
 > ones.**
@@ -207,6 +218,15 @@ wrong — and the first of them is not recoverable, because guessing afterwards
 which image was the canonical likeness is not a migration. **This is the
 strictest check in the series and the first one to run**, which is the change
 the re-ordering makes to this section.
+
+*(2026-10-12: one of the four was specified wrong, and it was not the
+unrecoverable one. Per-media generation provenance named
+`GeneratedFieldProvenance`, whose `seed` is a prompt, and the only reading of
+[00 §3.2](../00-stance.md) on record — [P9.0](26-p9-implementation.md)'s — said
+a card may not carry a sampling seed at all. Found two releases before this
+check runs, and answered inside the 1.0 series as a portable recipe
+([26 B20](../26-open-questions.md)), an additive field — so at 3.0 the check
+still reads **no change**.)*
 
 > **The authoring tier at 6.0 must add only optional fields and new variants.
 > No portable schema may bump.**
@@ -583,8 +603,13 @@ probably the most useful single list in the document.
 - **Structured `VisualDescriptors`** alongside prose appearance.
 - **Per-media generation provenance including the seed** — a reference image
   whose seed was not recorded cannot be regenerated
-  ([18 §5](../18-character-studio.md)).
-- **Crop as a stored normalised rectangle**, never a destructive edit.
+  ([18 §5](../18-character-studio.md)). *As a portable recipe of its own,
+  never `GeneratedFieldProvenance`, whose `seed` is the prompt
+  ([26 B20](../26-open-questions.md), 2026-10-12) — `EmbeddedMedia.recipe`,
+  built 2026-10-13.*
+- **Crop as a stored normalised rectangle**, never a destructive edit. *The
+  lorebook entry strip broke this from P11 to 2026-10-12, redrawing the picture
+  and keeping only the square ([10 §11.2b](../10-ui-surfaces.md)).*
 
 ### The turn record
 

@@ -19,6 +19,7 @@ import {
 
 import { api, ApiError, type Account, type AssistFieldResult, type LibraryObject } from '../api.js';
 import { newHook } from './hook-form.js';
+import { squareOf } from './MediaStrip.js';
 
 /**
  * **Exit-gate step 5** —
@@ -2089,7 +2090,41 @@ describe('image slots on a book and its entries', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
+
+  /**
+   * jsdom has no `createImageBitmap`, so the strip measures nothing unless a
+   * test says what the picture is — and every test that does not, uploads a
+   * picture with no crop, which is the strip's failure path working. The stub
+   * is handed back so a test can ask what it was called with.
+   *
+   * Sizes are given out one per *picture*, not one per call: a picture
+   * measured twice is the same size both times, as a real decoder would say.
+   * Handing out one per call meant a second look at the same file — the old
+   * redraw's, say — found the queue empty and fell back, which hid it.
+   */
+  function picturesMeasuring(...sizes: { width: number; height: number }[]) {
+    const queue = [...sizes];
+    const known = new WeakMap<Blob, { width: number; height: number }>();
+    const measure = vi.fn((source: Blob) => {
+      const size = known.get(source) ?? queue.shift();
+      if (size === undefined) return Promise.reject(new Error('no size given'));
+      known.set(source, size);
+      return Promise.resolve({ ...size, close: () => undefined });
+    });
+    vi.stubGlobal('createImageBitmap', measure);
+    return measure;
+  }
+
+  function entryStrip(): HTMLElement {
+    // The entry's own strip is the one below the entry heading, not the
+    // gallery above — §11.2b's *inline with the entry*.
+    const strip = screen.getByRole('heading', { name: 'Harbour', level: 3 }).parentElement
+      ?.parentElement;
+    if (strip === undefined || strip === null) throw new Error('no entry section');
+    return strip;
+  }
 
   it('adds a picture to the book and makes it the cover, through the ordinary save', async () => {
     uploads();
@@ -2180,6 +2215,191 @@ describe('image slots on a book and its entries', () => {
     // book either way, and which array the row lands in is the whole difference.
     expect(saved.media).toEqual([]);
     expect(saved.entries.find((one) => one.id === HARBOUR)?.media).toHaveLength(1);
+  });
+
+  /**
+   * ***[10 §11.3]: "cropping never costs you the original"*** — and §11.2b's
+   * entry strip broke it until 2026-10-12, by redrawing the picture through a
+   * canvas and uploading only the square. The redraw also dropped every chunk
+   * the file carried, a recipe its maker wrote into it included
+   * ([26 B20](../../../../docs/design/26-open-questions.md)), and only when the
+   * picture was not already square.
+   *
+   * So the claim is two halves and both are asserted: **the file sent is the
+   * file picked** — the same object, so no redraw can have happened in between
+   * — and **the square is on the row**, where a later crop control can move it
+   * and an export carries it.
+   *
+   * *(2026-10-13, at the merge into `main`: the first half guarded nothing as
+   * written.* jsdom has no canvas — `getContext` answers `null` — and the old
+   * redraw handed back the file it was given when it could not draw, so with
+   * the redraw restored the identity below still held. **A canvas that draws is
+   * stubbed in**, and a redraw would now send `redrawn` rather than `picked`;
+   * checked by putting the old helper back. And the square is the upright
+   * picture's, so the measurement is asked to read the file's orientation.)*
+   */
+  it('sends an entry picture as it was picked, and keeps its square as a crop', async () => {
+    const { sent } = uploads();
+    const measure = picturesMeasuring({ width: 400, height: 200 });
+    const redrawn = new Blob(['redrawn'], { type: 'image/png' });
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+      drawImage: vi.fn(),
+    } as never);
+    vi.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation((done) => {
+      done(redrawn);
+    });
+    const client = renderApp();
+    await openEditor(HARBOUR);
+
+    const picked = new File(['fake'], 'quay.png', { type: 'image/png' });
+    await act(async () => {
+      fireEvent.change(pickerIn(entryStrip()), { target: { files: [picked] } });
+      await Promise.resolve();
+    });
+    await screen.findByRole('button', { name: 'Remove picture 1' });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByText('Saved.');
+    await settled(client);
+
+    expect(sent).toEqual([picked]);
+    expect(sent[0]).toBe(picked);
+    expect(measure).toHaveBeenCalledWith(
+      picked,
+      expect.objectContaining({ imageOrientation: 'from-image' }),
+    );
+    const row = server.stored().entries.find((one) => one.id === HARBOUR)?.media[0];
+    expect(row?.crop).toEqual({ x: 0.25, y: 0, width: 0.5, height: 1 });
+  });
+
+  /**
+   * The book's gallery is uncropped (§11.2b: *"a map is not square"*), so a
+   * wide map's row says nothing about a square — and a crop is a measurement of
+   * one picture, so replacing it with another takes the old rectangle away
+   * rather than framing the new picture by the old one's shape.
+   */
+  it('writes no crop on the book, and drops the old crop when an entry picture is replaced', async () => {
+    const { sent } = uploads();
+    picturesMeasuring({ width: 400, height: 200 }, { width: 300, height: 300 });
+    const client = renderApp();
+    await openEditor(HARBOUR);
+
+    const gallery = screen.getByRole('heading', { name: 'Pictures' }).parentElement;
+    if (gallery === null) throw new Error('no gallery section');
+    await act(async () => {
+      fireEvent.change(pickerIn(gallery), {
+        target: { files: [new File(['map'], 'map.png', { type: 'image/png' })] },
+      });
+      await Promise.resolve();
+    });
+    await within(gallery).findByRole('button', { name: 'Remove picture 1' });
+
+    const strip = entryStrip();
+    await act(async () => {
+      fireEvent.change(pickerIn(strip), {
+        target: { files: [new File(['wide'], 'wide.png', { type: 'image/png' })] },
+      });
+      await Promise.resolve();
+    });
+    await userEvent.click(await within(strip).findByRole('button', { name: 'Replace picture 1' }));
+    await act(async () => {
+      fireEvent.change(pickerIn(strip), {
+        target: { files: [new File(['square'], 'square.png', { type: 'image/png' })] },
+      });
+      await Promise.resolve();
+    });
+    await waitFor(() => {
+      expect(sent).toHaveLength(3);
+    });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByText('Saved.');
+    await settled(client);
+
+    const saved = server.stored();
+    expect(saved.media).toHaveLength(1);
+    expect(saved.media[0]).not.toHaveProperty('crop');
+    const entryMedia = saved.entries.find((one) => one.id === HARBOUR)?.media ?? [];
+    // One row, replaced in place: the third upload's bytes, and no rectangle.
+    expect(entryMedia).toHaveLength(1);
+    expect(entryMedia[0]?.ref).toBe('assets/3.png');
+    expect(entryMedia[0]).not.toHaveProperty('crop');
+  });
+
+  /**
+   * ***A recipe describes its bytes*** ([26 B20](../../../../docs/design/26-open-questions.md)).
+   * Replace swaps the bytes and keeps the slot, so a recipe left on the row
+   * would claim the new picture can be re-created from the old one's seed and
+   * prompt — false in the one field that exists to be trusted. *The superseded
+   * `generated` slot goes with it* (2026-10-13: the row carried none until then,
+   * so nothing here would have noticed it staying).
+   */
+  it('drops the recipe of a picture it replaces', async () => {
+    const book = makeBook();
+    const at = book.entries.findIndex((one) => one.id === HARBOUR);
+    book.entries[at] = {
+      ...book.entries[at]!,
+      media: [
+        {
+          id: 'made-elsewhere',
+          role: 'reference',
+          tags: [],
+          ref: 'assets/made.png',
+          digest: 'sha256:made',
+          bytes: 4,
+          mime: 'image/png',
+          recipe: {
+            at: '2026-10-13T09:00:04.000Z',
+            generator: 'ComfyUI',
+            model: 'sdxl-base-1.0',
+            seed: '42',
+            prompt: 'a quay at dawn',
+            workflow: {},
+          },
+          generated: {
+            original: '',
+            at: '2026-10-13T09:00:04.000Z',
+            model: 'sdxl-base-1.0',
+            seed: 'a quay at dawn',
+            unreviewed: true,
+          },
+        },
+      ],
+    };
+    server.handEdit(book);
+    uploads();
+    const client = renderApp();
+    await openEditor(HARBOUR);
+
+    const strip = entryStrip();
+    await userEvent.click(await within(strip).findByRole('button', { name: 'Replace picture 1' }));
+    await act(async () => {
+      fireEvent.change(pickerIn(strip), {
+        target: { files: [new File(['mine'], 'mine.png', { type: 'image/png' })] },
+      });
+      await Promise.resolve();
+    });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByText('Saved.');
+    await settled(client);
+
+    const row = server.stored().entries.find((one) => one.id === HARBOUR)?.media[0];
+    // The slot is the author's and stays; the bytes and their history are new.
+    expect(row?.id).toBe('made-elsewhere');
+    expect(row?.role).toBe('reference');
+    expect(row?.ref).toBe('assets/1.png');
+    expect(row).not.toHaveProperty('recipe');
+    expect(row).not.toHaveProperty('generated');
+  });
+
+  it('measures the centred square of a tall picture, and nothing of a square one', () => {
+    expect(squareOf(200, 400)).toEqual({ x: 0, y: 0.25, width: 1, height: 0.5 });
+    expect(squareOf(300, 300)).toBeNull();
+    // A picture that measured as nothing is a picture with no crop, never a
+    // rectangle of NaNs written into somebody's file.
+    expect(squareOf(0, 300)).toBeNull();
+    expect(squareOf(Number.NaN, 300)).toBeNull();
   });
 
   it('offers role as a pick-list and tags as free text', async () => {

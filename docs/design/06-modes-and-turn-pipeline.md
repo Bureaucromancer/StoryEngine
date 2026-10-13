@@ -1674,7 +1674,9 @@ sketch.
   rendition that cannot be reproduced. It also has no field for workflow
   parameters, which §10.7 says are never discarded. *Widening it was the worse
   repair*: it is portable, so a sampling seed added to it would travel inside
-  every exported actor card.
+  every exported actor card. *(2026-10-12: that a seed travels was never the
+  harm — [26 B20](26-open-questions.md) decides a kept picture's recipe is
+  portable, as a type of its own; what must not travel is the binding.)*
 - ~~`asset: AssetRef | null`~~ → **`RenditionAsset | null`**. `MediaRole` has
   eight members and none of them is `illustration`, so a picture of a moment
   filed under one carries a role that is a duplicate of `purpose` or a lie;

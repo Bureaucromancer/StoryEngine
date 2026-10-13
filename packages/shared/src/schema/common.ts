@@ -382,6 +382,113 @@ export const MediaRole = Type.Union(
 );
 export type MediaRole = Static<typeof MediaRole>;
 
+/**
+ * ***A sampling seed, spelled as digits*** — [26 B20](../../../../docs/design/26-open-questions.md).
+ *
+ * **A string, because a number cannot hold one.** This build draws seeds below
+ * 2³¹, but other tools' run to 2⁶⁴ − 1 — ComfyUI's sampler takes any unsigned
+ * 64-bit value — and a JSON number past 2⁵³ is rounded by every JavaScript
+ * reader without a word. A recipe whose seed was rounded re-creates a different
+ * picture while saying it re-creates this one, which is the
+ * *approximately re-creatable* [06 §10.7] refuses to call a recipe.
+ *
+ * ***Canonical digits, and that is a second guard rather than a nicety.*** No
+ * sign — a negative seed is a tool's way of saying *draw one*, which is not a
+ * seed — and no leading zero, so one seed has one spelling and two recipes that
+ * agree compare equal. And a pattern a prompt cannot satisfy is what makes this
+ * unmistakable for `GeneratedFieldProvenance.seed`, which is a string too and
+ * holds the prompt: the two are one word apart, and the validator now tells
+ * them apart rather than a reviewer's memory. Twenty digits is the 64-bit
+ * range's width.
+ */
+const RecipeSeed = Type.String({
+  pattern: '^(0|[1-9][0-9]{0,19})$',
+  description:
+    'A sampling seed as canonical decimal digits: no sign, no leading zero. A ' +
+    'string because seeds run to 2^64 - 1, past what a JSON number holds exactly.',
+});
+
+/**
+ * ***What made a picture, and enough to make it again*** —
+ * [26 B20](../../../../docs/design/26-open-questions.md),
+ * [18 §5](../../../../docs/design/18-character-studio.md)'s third obligation on
+ * 1.0, built 2026-10-13.
+ *
+ * **Portable, and that was the decision.** [00 §3.2] keeps *settings* out of
+ * shareable content — connections, keys, endpoint URLs, bindings — because an
+ * import must not be able to repoint a provider or spend against an endpoint.
+ * Everything here is a *record* instead: it says what happened and acts on
+ * nothing, so it travels with the picture it describes. The invariants test's
+ * denylist walks it like every other portable property, and nothing in it is
+ * named like a connection, because nothing in it is one.
+ *
+ * ***Not `GeneratedFieldProvenance`, and not a widening of it.*** That type is
+ * the text-field record — revert and disclose ([10 §11.2]) — and its `seed` is
+ * the prompt an assist ran from. Its `original` is also meaningless for a
+ * picture: the value to revert to is the bytes, which the row's `digest`
+ * already names. So `EmbeddedMedia.generated` stays where it was, superseded and
+ * written by nothing, and the recipe is a field of its own.
+ *
+ * ***Every field required, and `null` is how a writer says it does not
+ * know*** — [04 §2]'s *null and absent are distinguished deliberately*, applied
+ * to a record a stranger's tool may write: a recipe with `seed: null` is one
+ * whose maker said it had no seed to give, and an older reader meeting a recipe
+ * at all keeps it whole under the same section's round-trip rule. Only `workflow` cannot be null, because an
+ * empty map already says *nothing else was asked for*.
+ *
+ * A rendition kept as library media gets one through `recipeOfRendition`
+ * (`media-recipe.ts`), which is the one place the line between the internal
+ * record and this one is code rather than prose.
+ */
+export const MediaRecipe = Type.Object(
+  {
+    /** When the pixels were made. Null when the maker did not say. */
+    at: Type.Union([Timestamp, Type.Null()]),
+    /**
+     * What ran it — `"StoryEngine"`, or another tool by whatever name it gives
+     * itself. Free text, because a recipe is only as reusable as knowing what
+     * to hand it to, and a closed list of tools would be out of date before it
+     * shipped.
+     */
+    generator: Type.Union([Type.String(), Type.Null()]),
+    /**
+     * The model **as the endpoint answered**, which is not always what was
+     * asked for. A name, never a binding: what an importer does with it is
+     * resolve it locally, as it does a `ModelHint`.
+     */
+    model: Type.Union([Type.String(), Type.Null()]),
+    /**
+     * The sampling seed — §10.7's *load-bearing field*. Null when the maker
+     * cannot vouch for one, which includes a seed that was drawn and never
+     * sent: the picture was not made from it.
+     */
+    seed: Type.Union([RecipeSeed, Type.Null()]),
+    /** The prompt **as sent** — after capping, not the fragments before it. */
+    prompt: Type.Union([Type.String(), Type.Null()]),
+    /**
+     * Everything else the endpoint was asked for. **Scalars only**, under
+     * `RenditionProvenance.workflow`'s rule: these values are compared and
+     * re-sent verbatim, and a nested object needs its key order canonicalised
+     * before either is byte-stable. A tool wanting structure flattens it where
+     * somebody can see the flattening — and spells a large integer as a
+     * string, for {@link RecipeSeed}'s reason.
+     */
+    workflow: Type.Record(
+      Type.String(),
+      Type.Union([Type.String(), Type.Number(), Type.Boolean()]),
+    ),
+  },
+  {
+    title: 'MediaRecipe',
+    description:
+      'What made a picture: when, by what tool and model, from which seed and ' +
+      'prompt, and with what parameters. A record of what happened, never a ' +
+      'setting — no connection, endpoint or key, which stay on the install ' +
+      'that made the call.',
+  },
+);
+export type MediaRecipe = Static<typeof MediaRecipe>;
+
 export const EmbeddedMedia = Type.Object(
   {
     id: Id,
@@ -421,7 +528,20 @@ export const EmbeddedMedia = Type.Object(
     width: Type.Optional(Type.Integer({ minimum: 0 })),
     height: Type.Optional(Type.Integer({ minimum: 0 })),
     crop: Type.Optional(SourceRect),
+    /**
+     * ***Superseded by {@link MediaRecipe}, and kept because §2 makes removal a
+     * version.*** [04 §2]: *"removals, renames and semantic changes do"* bump —
+     * five published schemas, for a field nothing has ever written. So it
+     * stays, read and preserved like any other field a file may carry, and no
+     * writer in this build sets it. A picture's provenance is `recipe`.
+     */
     generated: Type.Optional(GeneratedFieldProvenance),
+    /**
+     * What made this picture — [26 B20](../../../../docs/design/26-open-questions.md).
+     * Absent on a picture nobody generated, or whose maker kept no record;
+     * **optional, so it is an addition and not a version** ([04 §2]).
+     */
+    recipe: Type.Optional(MediaRecipe),
   },
   {
     title: 'EmbeddedMedia',

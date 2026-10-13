@@ -1154,12 +1154,24 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
    * travels in the ordinary save, hash-checked like every other field, and
    * `library/assets.ts` explains what that costs and how it is paid back.
    *
-   * ***Cropping happens in the browser, and the cropped bytes are what arrives
+   * ~~***Cropping happens in the browser, and the cropped bytes are what arrives
    * here.*** A crop is a rectangle over pixels somebody is looking at; doing it
    * on the server would mean shipping an image library to re-derive a decision
    * the client had already made exactly, and then keeping an uncropped original
    * nothing asks for. The canvas the browser already has is the better tool,
-   * and what reaches disk is what the person chose.
+   * and what reaches disk is what the person chose.~~
+   *
+   * ***Corrected 2026-10-12: a crop is a rectangle on the row, and the bytes
+   * that arrive are the ones the person picked.*** Half of the struck paragraph
+   * stands — this route decodes nothing and ships no image library, and the
+   * browser is still where a crop is chosen. The other half was wrong: an
+   * uncropped original is exactly what [10 §11.3] asks for (*"cropping never
+   * costs you the original"*), and the canvas redraw that replaced it dropped
+   * every chunk the picture carried, including a recipe its maker had written
+   * into it ([26 B20](../../../../docs/design/26-open-questions.md)). So the
+   * strip measures, uploads the file as picked, and writes the rectangle as
+   * `EmbeddedMedia.crop`; what reaches disk is what the person *picked*, and
+   * what they chose is on the row.
    */
   app.post(
     '/library/:kind/:id/assets',

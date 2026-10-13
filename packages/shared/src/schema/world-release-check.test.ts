@@ -42,6 +42,22 @@ import { describe, expect, it } from 'vitest';
  * [work plan §0.2] keeps the check's answer and re-pinning here in the same
  * commit, never by re-pinning alone. After P16 closes, the pin's job is done and
  * it can be retired the same way: deliberately, with a line saying so.
+ *
+ * ***It fired once, 2026-10-13, and not at World*** — at
+ * [26 B20](../../../../docs/design/26-open-questions.md)'s `MediaRecipe`, an
+ * optional `recipe` on `EmbeddedMedia` that the owner decided on 2026-10-12 and a
+ * branch built beside P16, merging after it. Additive under
+ * [04 §2](../../../../docs/design/04-schemas.md), and emitted into every kind that
+ * carries media — four of the five this check reads, the lorebook twice. **It is
+ * admitted as a second exception named here, not re-pinned**: the digests below
+ * stay the ones taken at `ad47e39`, and each artefact is compared with exactly
+ * that one property taken back out of every `EmbeddedMedia` that has it — see
+ * `withoutRecipe`. So the check still says what it said about P16 (World touched
+ * nothing else), and says one more thing precisely: B20 added a recipe to a
+ * picture and nothing beside it. A recipe anywhere but on `EmbeddedMedia`, or any
+ * other change to these five, still fails. Recorded where the rule above says, in
+ * the same commit: [work plan §0.2](../../../../docs/design/workplan/01-work-plan.md)
+ * and [P16 §3.3](../../../../docs/design/workplan/34-p16-world.md).
  */
 
 const SCHEMA_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'schemas');
@@ -52,6 +68,31 @@ function artefact(file: string): Record<string, unknown> {
 
 function digest(value: unknown): string {
   return createHash('sha256').update(JSON.stringify(value)).digest('hex');
+}
+
+/**
+ * The artefact with B20's addition taken back out, and only that: a `recipe`
+ * property titled `MediaRecipe`, removed from a node titled `EmbeddedMedia`. Both
+ * titles are the emitted ones (`schema/common.ts`), so the match is on what the
+ * artefact says it is rather than on where in the tree it happens to sit — the
+ * lorebook carries `EmbeddedMedia` twice, the book's own pictures and an entry's.
+ * Key order is kept, so with nothing else changed the result re-serialises to the
+ * bytes the `ad47e39` digest was taken over.
+ */
+function withoutRecipe(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(withoutRecipe);
+  if (value === null || typeof value !== 'object') return value;
+  const node = value as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+  for (const [key, child] of Object.entries(node)) out[key] = withoutRecipe(child);
+  const properties = out['properties'] as Record<string, unknown> | undefined;
+  const recipe = properties?.['recipe'] as { title?: unknown } | undefined;
+  if (node['title'] === 'EmbeddedMedia' && properties && recipe?.title === 'MediaRecipe') {
+    const rest = { ...properties };
+    delete rest['recipe'];
+    out['properties'] = rest;
+  }
+  return out;
 }
 
 /** The four artefacts World may not touch at all, as they stood at `ad47e39`. */
@@ -84,12 +125,15 @@ const SCOPE_ARMS_BEFORE = [
 ];
 
 describe('World changes no other portable schema (P16 §1.6, work plan §0.2)', () => {
-  it.each(Object.entries(PINNED))('leaves %s exactly as it was', (file, pinned) => {
-    expect(digest(artefact(file))).toBe(pinned);
+  it.each(Object.entries(PINNED))('leaves %s as it was, but for B20’s recipe', (file, pinned) => {
+    expect(digest(withoutRecipe(artefact(file)))).toBe(pinned);
   });
 
-  it('leaves the lorebook as it was outside LoreScope', () => {
-    const lorebook = artefact('storyengine.lorebook.1.json');
+  it('leaves the lorebook as it was outside LoreScope, but for B20’s recipe', () => {
+    const lorebook = withoutRecipe(artefact('storyengine.lorebook.1.json')) as Record<
+      string,
+      unknown
+    >;
     const rest = { ...(lorebook['properties'] as Record<string, unknown>) };
     delete rest['scope'];
     expect(digest({ ...lorebook, properties: rest })).toBe(LOREBOOK_OUTSIDE_SCOPE);
