@@ -89,6 +89,21 @@ export interface SessionExport {
    * the bytes nor a way to fetch them shows the record and says the picture is
    * missing, which is exactly what this build already does for a rendition
    * whose asset failed.
+   *
+   * ***Whole, but for one key*** (2026-10-13, the owner's decision): each
+   * record's `provenance.binding` is written as `{ modelId }`, the model it
+   * was asked of kept and the connection's id left at home, where it is the
+   * only install it names (`RenditionProvenance.binding`). *Not a new
+   * version*: the schema id stays `storyengine.session-export/1`, and the
+   * record's stays `storyengine.rendition/1`, because nothing reads the id —
+   * alpha 5's and 6's readers check the seed and the workflow, show
+   * `binding.modelId`, and accept a binding without it today — and both ids
+   * are exact-matched, so bumping either would make an older reader refuse a
+   * file it can read, or drop every picture in it. A removal no reader
+   * depends on does not tighten anything, which is the only thing
+   * [P11.10](../../../docs/design/workplan/28-p11-implementation.md)'s freeze
+   * forbids. *A file written before this* — alphas 5 and 6 shipped the export
+   * — still has the id in it, and a plain import lands it as it arrived.
    */
   renditions: Rendition[];
 }

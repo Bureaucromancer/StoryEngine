@@ -4,6 +4,7 @@
 import type { ImportNote } from '@storyengine/shared';
 import { megabytes } from '../format.js';
 import { labels } from '../i18n/catalogue.js';
+import { roleLabel } from '../settings/roleWords.js';
 
 /**
  * **The review vocabulary: one sentence per note class the converters emit.**
@@ -186,8 +187,37 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
   // another library's registry lands with them as plain names (P16.3e review).
   'import.world.tagsDropped':
     '{count} tags on {objects} objects belong to the library that wrote this file; they came in as plain names.',
+  /**
+   * ~~'This world asks for…'~~ — 2026-10-13: said on the manifest's row too,
+   * of a file with no World (a Setup published alone, a selection's snapshot,
+   * a file whose World was refused), so it names the file and not a world.
+   * *This file* is true of every row these notes are read from — the World's
+   * and the manifest's alike — and *this world* was true of one of them, and
+   * read, on the other, as a world that is not there. The four sentences of
+   * what a file asks for below say it the same way, as `requiresDropped`
+   * already did; the keys and their params are unchanged.
+   */
   'import.world.requiresMode':
-    'This world asks for the {mode} mode, at version {minVersion} or later, which this install does not have. It came in anyway; what needs that mode may not play.',
+    'This file asks for the {mode} mode, at version {minVersion} or later, which this install does not have. It came in anyway; what needs that mode may not play.',
+  /**
+   * ***Every other kind of requirement, and what was dropped*** — 2026-10-13,
+   * the owner's answer to *"Build the promise, or narrow the notes"*: build
+   * it. Each is a warning and never a block, so each says it came in anyway
+   * and what that costs. *The capability is a model role* (the lead's
+   * decision, 04 §9): `{capability}` is said as the role's own words, the ones
+   * Settings uses for it (`roleLabel`, in `fill` below), and a string that is
+   * no role is said as itself — which is why the second sentence exists.
+   * *Extensions are never here*: this build loads none, and the sentence says
+   * that rather than that one was looked for.
+   */
+  'import.world.requiresCapability':
+    'This file needs a model for “{capability}”, and none is set for you here. It came in anyway; what needs it goes without until one is chosen in Settings, under Which models your stories use.',
+  'import.world.requiresCapabilityUnknown':
+    'This file asks for “{capability}”, which this build cannot check for. It came in anyway; what needs it may not work.',
+  'import.world.requiresExtension':
+    'This file asks for the {extension} extension, version {minVersion} or later. This build loads no extensions, so it is not available here. It came in anyway; what needs it may not work.',
+  'import.world.requiresDropped':
+    'This file’s list of what it needs had {count} entries this build could not read, and they were left out.',
   // ~~This build does not bring sessions in from a world’s file yet~~ — since
   // P16.3f only an import asked for library objects alone says this.
   'import.world.sessionsNotTaken':
@@ -967,6 +997,9 @@ export function fill(
     // A size arrives in bytes ([P16.3g]: the World file's notes), and *70254592*
     // is not a sentence either.
     if (key === 'bytes' && typeof value === 'number') return megabytes(value);
+    // A capability arrives as a model role's id (2026-10-13), and is said in
+    // the words Settings uses for that role; one that is no role is itself.
+    if (key === 'capability' && typeof value === 'string') return roleLabel(value);
     return String(value);
   });
 }

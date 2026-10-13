@@ -317,6 +317,37 @@ describe('the worlds a session is in', () => {
   });
 });
 
+/**
+ * ***What it was started without*** — 2026-10-13. A session started with
+ * **Start anyway** carries `startedWithout`, and its page says so in one
+ * quiet line above the transcript, beside the health banner; every other
+ * session's page says nothing. `StartedWithout.test.tsx` holds the words.
+ */
+describe('a session started without what it asked for', () => {
+  it('says what it plays without, and says nothing for a session that lacked nothing', async () => {
+    readSession.mockResolvedValue({
+      session: {
+        ...SESSION,
+        startedWithout: {
+          at: '2026-10-13T09:00:00.000Z',
+          unmet: [{ kind: 'mode', id: 'storyengine.campaign', installed: null, substituted: true }],
+        },
+      },
+      activeJob: null,
+    });
+    const first = renderPage();
+
+    const said = await screen.findByText(/started without what its world or setup asked for/);
+    expect(said.closest('[role="status"]')?.textContent).toContain('storyengine.campaign');
+    first.unmount();
+
+    readSession.mockResolvedValue({ session: SESSION, activeJob: null });
+    renderPage();
+    expect(await screen.findByText('I knock twice.')).toBeTruthy();
+    expect(screen.queryByText(/started without/)).toBeNull();
+  });
+});
+
 describe('submitting a turn', () => {
   it('sends the text with the head it was written against', async () => {
     renderPage();

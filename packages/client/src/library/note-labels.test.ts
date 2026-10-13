@@ -382,3 +382,37 @@ describe('a refused macro, in words', () => {
     expect([...reasons].filter((reason) => MACRO_REASONS[reason] === undefined)).toEqual([]);
   });
 });
+
+/**
+ * ***What a file asks for is said of the file*** (2026-10-13, the review of
+ * the owner's *build the promise*). The requirement notes are read from two
+ * rows: the World's, when a World lands, and the manifest's, when none does —
+ * a Setup published alone, a selection's snapshot, a file whose World was
+ * refused. The sentences said *This world asks for…*, which on the second row
+ * named a world the file does not carry and the import did not land. *This
+ * file* is true of both rows, so it is what every one of them says; a sentence
+ * that slips back to *world* fails here rather than on somebody's single
+ * Setup.
+ */
+describe('what a file asks for, in words', () => {
+  it('names the file, never a world, since a file with no World says them too', () => {
+    const said = [
+      sentence({
+        key: 'import.world.requiresMode',
+        params: { mode: 'storyengine.campaign', minVersion: '2.1.0' },
+      }),
+      sentence({ key: 'import.world.requiresCapability', params: { capability: 'image' } }),
+      sentence({ key: 'import.world.requiresCapabilityUnknown', params: { capability: 'audio' } }),
+      sentence({
+        key: 'import.world.requiresExtension',
+        params: { extension: 'dice', minVersion: '0.1.0' },
+      }),
+      sentence({ key: 'import.world.requiresDropped', params: { count: 2 } }),
+    ];
+
+    for (const one of said) {
+      expect(one).toMatch(/^This file/);
+      expect(one).not.toMatch(/\bworld\b/i);
+    }
+  });
+});

@@ -1676,7 +1676,13 @@ sketch.
   repair*: it is portable, so a sampling seed added to it would travel inside
   every exported actor card. *(2026-10-12: that a seed travels was never the
   harm — [26 B20](26-open-questions.md) decides a kept picture's recipe is
-  portable, as a type of its own; what must not travel is the binding.)*
+  portable, as a type of its own; what must not travel is ~~the binding~~ *the
+  binding's connection, its id included*.)* *(2026-10-13, the owner's decision:
+  "the binding" said more than anything decided — the model it names is the
+  picture's history and does travel, in a recipe and on a rendition record
+  alike. What stays home is the connection, and with it the connection's id: a
+  session export and a World file carry each record's binding as `{ modelId }`,
+  and a recipe never had the id ([22 §7](22-internal-contracts.md)).)*
 - ~~`asset: AssetRef | null`~~ → **`RenditionAsset | null`**. `MediaRole` has
   eight members and none of them is `illustration`, so a picture of a moment
   filed under one carries a role that is a duplicate of `purpose` or a lie;

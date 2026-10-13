@@ -14,6 +14,7 @@ import {
   type ImportNote,
   type ImportPreview,
   type ImportReport,
+  type ModelRole,
   type NearMissOffer,
   WORLD_FILE_MANIFEST,
   WORLD_FILE_MANIFEST_MAX_BYTES,
@@ -60,6 +61,7 @@ import { manifestFromBytes, surveyManifest } from '../import/world/reader.js';
 import { ZipFileSource } from '../import/zip-source.js';
 import { LandedDatabaseSource, LandedZipSource } from '../import/landed-source.js';
 import type { FileSource } from '../import/source.js';
+import { rolesThatResolve } from '../providers/account-roles.js';
 import { readSession } from '../sessions/store.js';
 import { statFile } from '../storage/files.js';
 import { looksLikeSqlite, SnapshotSpaceError } from '../storage/sqlite-snapshot.js';
@@ -133,6 +135,26 @@ interface UploadResult {
 }
 
 const MEGABYTE = 1024 * 1024;
+
+/**
+ * ***The roles that resolve for an account, asked when a file wants them*** —
+ * 2026-10-13: a World file's `requires.capabilities` is checked against the
+ * model roles (`requires.ts`), on the import and on the look before it. The
+ * account is read **now** rather than held, `connectionFor`'s rule in
+ * `app.ts`: a capability revoked between upload and commit is revoked, and an
+ * account gone since resolves no personal connection. Passed to every sweep
+ * here as a function, so only a file naming a capability pays for the read.
+ */
+function rolesOf(services: AppServices, handle: string): () => Promise<ReadonlySet<ModelRole>> {
+  return async () => {
+    const held = await services.accounts.find(handle);
+    return rolesThatResolve(
+      services.layout,
+      handle,
+      held?.capabilities ?? { privateConnections: false },
+    );
+  };
+}
 
 /** `@fastify/multipart`'s overrun signal, by code rather than by class. */
 /**
@@ -567,6 +589,7 @@ export function registerImportRoutes(app: FastifyInstance, services: AppServices
         sessions: services.sessions,
         handle: account.handle,
         tags: services.tags,
+        roles: rolesOf(services, account.handle),
         files: opened.source,
         freeBytes: services.freeBytes,
         log: request.log,
@@ -701,6 +724,7 @@ export function registerImportRoutes(app: FastifyInstance, services: AppServices
         sessions: services.sessions,
         handle: account.handle,
         tags: services.tags,
+        roles: rolesOf(services, account.handle),
         files: opened.source,
         freeBytes: services.freeBytes,
         log: request.log,
@@ -963,6 +987,7 @@ export function registerImportRoutes(app: FastifyInstance, services: AppServices
         sessions: services.sessions,
         handle: account.handle,
         tags: services.tags,
+        roles: rolesOf(services, account.handle),
         files,
         freeBytes: services.freeBytes,
         log: request.log,
@@ -1251,12 +1276,23 @@ async function previewUpload(
     reimport: 'unknown',
   });
 
-  const world = (
+  /**
+   * ***Async since 2026-10-13***: a file naming a capability is answered
+   * against the account's roles, read here once — and only then — so the look
+   * says met, not met or cannot be checked exactly as the commit will.
+   */
+  const world = async (
     manifest: Parameters<typeof previewWorld>[1],
     format: 'world-file' | 'package-export',
-  ) =>
+  ): Promise<ImportPreview> =>
     previewWorld(
-      { library: services.library, sessions: services.sessions, handle },
+      {
+        library: services.library,
+        sessions: services.sessions,
+        handle,
+        roles:
+          manifest.requires.capabilities.length === 0 ? null : await rolesOf(services, handle)(),
+      },
       manifest,
       format,
       filename,
@@ -1641,6 +1677,7 @@ async function importOneFile(
       sessions: services.sessions,
       handle,
       tags: services.tags,
+      roles: rolesOf(services, handle),
       files: packageExportRoot(legacy),
       freeBytes: services.freeBytes,
       ...(onConflict === undefined ? {} : { onConflict }),
@@ -1667,6 +1704,7 @@ async function importOneFile(
       sessions: services.sessions,
       handle,
       tags: services.tags,
+      roles: rolesOf(services, handle),
       files,
       freeBytes: services.freeBytes,
       ...(onConflict === undefined ? {} : { onConflict }),
@@ -1826,6 +1864,7 @@ async function importLanded(
       sessions: services.sessions,
       handle,
       tags: services.tags,
+      roles: rolesOf(services, handle),
       files,
       // What a CHARX is identified by: the file the person sent, rather than
       // the `card.json` inside every one of them.

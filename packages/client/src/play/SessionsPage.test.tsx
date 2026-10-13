@@ -2,7 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -673,6 +673,80 @@ describe('starting a session in a world', () => {
     invalidated.mockRestore();
   });
 
+  /**
+   * ***A World that wants what this install lacks is asked about*** —
+   * 2026-10-13, the owner's *build the promise*. The route refuses
+   * `unmet-requirements` with the list; the form shows it in a dialog rather
+   * than a line under Start, and **Start anyway** sends the same request again
+   * with `degraded: true` — every field as the form holds it.
+   */
+  it('asks before starting a world that wants what this install lacks, and starts it anyway on a word', async () => {
+    withWorlds(HARBOUR);
+    createSession.mockRejectedValueOnce(
+      new ApiError(
+        422,
+        'unmet-requirements',
+        'Not here.',
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        [{ kind: 'capability', id: 'image', checkable: true }],
+      ),
+    );
+    await chooseHarbour();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Start' }));
+    const dialog = await screen.findByRole('alertdialog');
+    expect(dialog.textContent).toContain('Making images');
+    // Asked in the dialog, not refused under the form, and not in English the server chose.
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(dialog.textContent).not.toContain('Not here.');
+
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Start anyway' }));
+    await waitFor(() => {
+      expect(createSession).toHaveBeenCalledTimes(2);
+    });
+    expect(createSession).toHaveBeenLastCalledWith({
+      degraded: true,
+      world: 'w-harbour',
+      setup: null,
+      lore: ['book-rain', 'book-tide'],
+      treatment: 'treat-wet',
+      mode: SCENE,
+    });
+    expect(createSession.mock.calls[0]?.[0]).not.toHaveProperty('degraded');
+    await waitFor(() => {
+      expect(screen.queryByRole('alertdialog')).toBeNull();
+    });
+  });
+
+  /** **Cancel** sends nothing: the refusal made nothing, so there is nothing to take back. */
+  it('sends nothing more when the dialog is cancelled', async () => {
+    withWorlds(HARBOUR);
+    createSession.mockRejectedValueOnce(
+      new ApiError(
+        422,
+        'unmet-requirements',
+        'Not here.',
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        [{ kind: 'extension', id: 'dice', minVersion: '0.1.0' }],
+      ),
+    );
+    await chooseHarbour();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Start' }));
+    const dialog = await screen.findByRole('alertdialog');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(createSession).toHaveBeenCalledTimes(1);
+  });
+
   /** *None* beside a one-treatment World is a choice, and it travels as `null`. */
   it('sends no treatment, as null, when None is chosen beside a world that has one', async () => {
     withWorlds(HARBOUR);
@@ -1111,6 +1185,50 @@ describe('starting a session in a world', () => {
           opening: 'o-docks',
         });
       });
+    });
+
+    /**
+     * ***Start anyway on the Setup branch*** (2026-10-13, the review of *build
+     * the promise*). The form builds two requests — one from a Setup, one from
+     * its own fields — and each spreads `degraded` for itself; the World test
+     * above goes through the second. This goes through the first, which is
+     * where a Setup for a missing mode arrives: without `degraded` on the
+     * retry, the route refuses the same request again and the dialog reopens.
+     */
+    it('starts the world’s setup anyway on a word, with degraded on the retry alone', async () => {
+      withWorlds(ONE_SETUP);
+      createSession.mockRejectedValueOnce(
+        new ApiError(
+          422,
+          'unmet-requirements',
+          'Not here.',
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          [{ kind: 'mode', id: 'storyengine.campaign', installed: null, substituted: true }],
+        ),
+      );
+      renderPage();
+      await userEvent.click(await screen.findByText(/Nothing chosen yet/));
+      await chooseWorldNamed('The ledger set');
+      expect(setupValue()).toBe('setup-ledger');
+
+      await userEvent.click(screen.getByRole('button', { name: 'Start' }));
+      const dialog = await screen.findByRole('alertdialog');
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Start anyway' }));
+
+      await waitFor(() => {
+        expect(createSession).toHaveBeenCalledTimes(2);
+      });
+      expect(createSession).toHaveBeenLastCalledWith(
+        expect.objectContaining({ setup: 'setup-ledger', world: 'w-ledger', degraded: true }),
+      );
+      expect(createSession.mock.calls[0]?.[0]).toEqual({
+        setup: 'setup-ledger',
+        world: 'w-ledger',
+      });
+      expect(createSession.mock.calls[0]?.[0]).not.toHaveProperty('degraded');
     });
 
     /** A person's own Setup outranks the World's, and survives the World going. */

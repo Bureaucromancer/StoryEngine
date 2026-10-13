@@ -75,7 +75,7 @@ describe('the World’s contents', () => {
           landedId: refusedByLibrary,
         },
       ],
-      requires: { modes: [], extensions: [], capabilities: [] },
+      unmet: [],
       omitted: [],
     };
     const writer = storeOf();

@@ -363,6 +363,12 @@ export interface NewSession {
   voice?: SessionFile['voice'];
   dispatch?: SessionFile['dispatch'];
   speakers?: SessionFile['speakers'];
+  /**
+   * What a session started past `unmet-requirements` started without —
+   * 2026-10-13, `SessionFile.startedWithout` says why it is on the record.
+   * Decided at the route, which is where the requirements are checked.
+   */
+  startedWithout?: SessionFile['startedWithout'];
 }
 
 export async function createSession(
@@ -396,6 +402,7 @@ export async function createSession(
     ...(spec.voice === undefined ? {} : { voice: spec.voice }),
     ...(spec.dispatch === undefined ? {} : { dispatch: spec.dispatch }),
     ...(spec.speakers === undefined ? {} : { speakers: spec.speakers }),
+    ...(spec.startedWithout === undefined ? {} : { startedWithout: spec.startedWithout }),
   };
 
   const root = sessionRoot(context.layout, handle, session.id);

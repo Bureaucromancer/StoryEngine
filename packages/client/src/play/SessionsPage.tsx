@@ -5,6 +5,8 @@ import { useState } from 'react';
 import { getRouteApi, Link, useNavigate } from '@tanstack/react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
+import type { UnmetRequirement } from '@storyengine/shared';
+
 import {
   ApiError,
   createSession,
@@ -24,6 +26,7 @@ import { control, disclosure, link, page } from '../ui/classes.js';
 import { Fine, Note, PageTitle } from '../ui/Text.js';
 import { ImportSession } from './ImportSession.js';
 import { RenameSession } from './RenameSession.js';
+import { StartAnyway, unmetOf } from './StartAnyway.js';
 import { AddToWorld } from './SessionWorlds.js';
 import { SetupFields } from './SetupFields.js';
 import { setupFromForm } from './setup-from-form.js';
@@ -433,6 +436,11 @@ function spreadSetup(answers: Record<string, unknown>): { modeConfig?: Record<st
  * form sends one only for a Setup it read as having none, so that refusal too
  * means the Setup changed underneath it; the choices are let go so the next
  * Start begins on the Setup's opening, which is what the route will do.
+ *
+ * ***Not `unmet-requirements`*** (2026-10-13): what a World or a Setup asks
+ * for that this install lacks is a question, not a refusal to explain, and
+ * `StartAnyway`'s dialog asks it — so the line under the form is not drawn
+ * for that class at all.
  */
 function refusal(error: Error): string {
   if (errorCode(error) === SETUP_OPENING_REFUSED) return SETUP_WORDS.staleOpening;
@@ -516,6 +524,13 @@ export function SessionsPage(): React.JSX.Element {
    */
   const [memberNames, setMemberNames] = useState<Record<string, string>>({});
   /** The session just created, when its treatment has been played before — [08 §6]. */
+  /**
+   * ***What the last Start was refused for lacking*** (2026-10-13) — the
+   * `unmet-requirements` list, shown in `StartAnyway`'s dialog while it is
+   * set. The World's authored `requires` reach this form's Start whichever
+   * path it takes, and a Setup's missing mode the Setup path's.
+   */
+  const [unmet, setUnmet] = useState<UnmetRequirement[] | null>(null);
   const [replaying, setReplaying] = useState<{
     sessionId: string;
     others: { sessionId: string; name: string }[];
@@ -895,7 +910,12 @@ export function SessionsPage(): React.JSX.Element {
     soleSetup(inWorld) === prefilledSetup;
 
   const create = useMutation({
-    mutationFn: () =>
+    /**
+     * ***`degraded` is *Start anyway*** (2026-10-13): `false` from the form's
+     * own Start, `true` only from the dialog that listed what this start
+     * lacks — the same request again, every field as the form holds it.
+     */
+    mutationFn: (degraded: boolean) =>
       /**
        * ***From a Setup, the Setup and nothing the form defaulted*** —
        * [P15.4]. The route layers a parameter over the Setup's value, so
@@ -915,6 +935,7 @@ export function SessionsPage(): React.JSX.Element {
        */
       startingFrom !== undefined
         ? createSession({
+            ...(degraded ? { degraded: true } : {}),
             ...(name.trim() === '' ? {} : { name }),
             setup: startingFrom.id,
             // The World under the Setup — the route layers it one rung below,
@@ -932,6 +953,7 @@ export function SessionsPage(): React.JSX.Element {
               : {}),
           })
         : createSession({
+            ...(degraded ? { degraded: true } : {}),
             ...(name.trim() === '' ? {} : { name }),
             // *None* beside a World is `null`, which overrides the World's own
             // treatment; absent would mean *the World's*, which is not what the
@@ -1030,6 +1052,9 @@ export function SessionsPage(): React.JSX.Element {
       // for its party will not be written: the choices are let go, and the
       // next Start sends none, which the route takes as the Setup's opening.
       if (errorCode(error) === GREETING_SET_ASIDE) setOpenings({});
+      // What the World or the Setup asks for that this install lacks: the
+      // dialog below, rather than a line under the form (`StartAnyway.tsx`).
+      setUnmet(unmetOf(error));
     },
   });
 
@@ -1105,7 +1130,7 @@ export function SessionsPage(): React.JSX.Element {
            * refusal: a session is id-addressed, so an unnamed one freezes
            * nothing, and the name can arrive later through `RenameSession`.
            */
-          create.mutate();
+          create.mutate(false);
         }}
       >
         <div className="flex gap-2">
@@ -1529,7 +1554,23 @@ export function SessionsPage(): React.JSX.Element {
           </div>
         </details>
 
-        {create.isError ? <AlertNote role="alert">{refusal(create.error)}</AlertNote> : null}
+        {create.isError && unmetOf(create.error) === null ? (
+          <AlertNote role="alert">{refusal(create.error)}</AlertNote>
+        ) : null}
+        {unmet === null ? null : (
+          <StartAnyway
+            unmet={unmet}
+            busy={create.isPending}
+            onStart={() => {
+              setUnmet(null);
+              create.mutate(true);
+            }}
+            onCancel={() => {
+              setUnmet(null);
+              create.reset();
+            }}
+          />
+        )}
         {saveSetup.isError ? <AlertNote role="alert">{refusal(saveSetup.error)}</AlertNote> : null}
         {saveSetup.isSuccess ? (
           <AlertNote role="status">{`Saved “${name.trim()}” to your setups.`}</AlertNote>

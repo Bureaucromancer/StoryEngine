@@ -638,7 +638,12 @@ declining forbade keeping it at all. Decided: a seed, the model as answered and
 the prompt are provenance and travel, in a portable recipe of their own; the
 binding's connection does not. So `RenditionProvenance` stays internal, and a
 rendition kept as library media is projected onto the recipe rather than
-exported as itself.)*
+exported as itself.)* *(2026-10-13, the owner's decision: and the record that
+does travel as itself — in a session export, and in a World file's sessions —
+now leaves the connection's id at home too, its binding written as
+`{ modelId }`. The answer this section owed P11 is unchanged in every other
+part: the recipe travels exactly when the turn it hangs on travels, less that
+one key ([22 §7](../22-internal-contracts.md)).)*
 
 ***And a third thing was wrong that this section did not predict.*** Two more
 fields were mistyped in the specification above: `AssembledPrompt.budget` in

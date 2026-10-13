@@ -114,6 +114,14 @@ import {
  *   ones included (the fact check of 2026-10-10). A turn's recorded calls keep
  *   the connection id that answered: an id is not a connection — no URL, no
  *   key — and the record of which model wrote a turn is the transcript's.
+ *   ***A rendition's record does not*** (2026-10-13, the owner's decision):
+ *   its `provenance.binding` travels as `{ modelId }`, the model it was asked
+ *   of kept and the connection's id dropped — by the session export itself
+ *   (`sessions/export.ts`, `travellingRendition`), so the route's file, this
+ *   one, the review's measure and the ledger's digest all carry the same
+ *   records. The calls are not that decision's: it names renditions, and
+ *   whether a call's `resolved.connectionId` should go the same way is not
+ *   decided.
  *   ***Nor its archive*** (2026-10-11, the P16.3f review): `archivedAt` is
  *   the sender putting a session out of their own way, and an archived
  *   session ticked here arrived archived — hidden from the recipient's list
@@ -723,6 +731,12 @@ const STRIPPED_SESSION_FIELDS: ReadonlySet<string> = new Set(['roles', 'stepRole
  *
  * ***And the words of every block a budget dropped*** (2026-10-11, the [P16
  * audit], privacy finding 1) — see {@link withoutUnsentText}.
+ *
+ * *(2026-10-13: "unchanged but for" is this function's own strips. The
+ * envelope it is handed already differs from P11.10's first by one key: each
+ * rendition's `binding.connectionId`, which {@link exportSession} drops for
+ * every road out — the owner's decision of that date — so it is not repeated
+ * here.)*
  */
 function travelling(
   exported: SessionExport,

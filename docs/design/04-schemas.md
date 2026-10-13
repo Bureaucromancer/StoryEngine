@@ -2144,7 +2144,9 @@ format and the frozen package one~~ *the reader is built at
 [P16.3e](workplan/34-p16-world.md) (2026-10-10), for the World file and the
 frozen `.sepack.json` through one path; [16 §5.2](16-publish.md) records what it
 decides*.
-A malformed `requires` entry is dropped ~~with the warning~~, never a block. `requires` is checked at import and produces a
+A malformed `requires` entry is dropped ~~with the warning~~ *with the warning
+(restored 2026-10-13: the import says how many it dropped,
+`import.world.requiresDropped`)*, never a block. `requires` is checked at import and produces a
 clear warning with a degraded-start option rather than a hard block where
 possible.
 
@@ -2158,7 +2160,57 @@ which is why *with the warning* is struck above. **No degraded-start option exis
 anywhere.** Whether the reader should warn about extensions and capabilities, say
 what it dropped, and offer a degraded start — or this paragraph and
 [03 §7.2](03-data-model.md)'s should be narrowed to what was built — is the
-owner's.
+owner's. ***Answered by the owner, 2026-10-13: build the promise*** — the
+promise above this note stands as written, and the build meets it:
+
+- **The capability vocabulary is the model roles** — *the lead's decision of
+  2026-10-13, open to the owner's reversal.* A `requires.capabilities` string
+  that is one of the roles ([20 §5.1](20-tech-stack.md): `prose`, `fast`,
+  `reasoning`, `vision`, `image`, `video`, `speech`, `embedding`) is met when
+  that role resolves for the account — its own bindings over the install's,
+  against the connections it may use, as Settings' *Which models your stories
+  use* resolves it. **Any other string cannot be checked**: it is named, and
+  treated as not known to be met, never passed. *Why the roles*: nothing had
+  defined a vocabulary — the only strings ever written were test fixtures — and
+  the roles are the one enumerated set of what an install can do, and the one a
+  person can change; 03 §7.2's *"an image connection"* is the `image` role. An
+  extension's own manifest `capabilities` ([23](23-extensions.md)) are what an
+  extension asks the host for, and a different vocabulary.
+- **Extensions are unmet by construction.** This build loads no extensions and
+  has no registry to ask, so every extension a World names is said as *not
+  available in this build* — never as looked for and missing.
+- **The import says each unmet requirement**, one note per id (a requirement
+  named twice is one, a mode at the strictest version asked): a mode absent or
+  older (`import.world.requiresMode`), a role that does not resolve
+  (`requiresCapability`), a capability that cannot be checked
+  (`requiresCapabilityUnknown`), every extension (`requiresExtension`), and how
+  many malformed entries were dropped (`requiresDropped`) — **from the
+  manifest, so a file with no World says them too**, on the manifest's own row:
+  a Setup published alone carries its mode in its manifest, and until this
+  arrived without a word. The look before commit answers each capability *met*,
+  *not met* or *cannot be checked*, and each extension as not available.
+- *Publishing still derives modes only* ([16 §4](16-publish.md), dated there):
+  a capability or an extension is in a file only when its author wrote it into
+  the World's `requires`, by hand, since no editor offers the field.
+- **The degraded start** — `POST /api/sessions` checks a World's **authored**
+  `requires`, and whether a Setup it starts through names a mode this install
+  has, before it creates anything. Anything unmet is
+  `422 unmet-requirements` with the list; the same request with
+  `degraded: true` starts anyway — a missing mode in the default one, the
+  Setup's answers to the missing mode's wizard dropped; an older mode on the
+  installed version; an unbound role as it is, what needs it going without;
+  extensions left out — and the session records what it started without
+  (`startedWithout`), which its page says. **A hard block remains only where
+  the caller named a `mode` outright** (`unknown-mode`): that is a person's own
+  choice, not imported content. *Versions are checked only where an author
+  wrote one*: the versions a manifest derives are not kept when a World file
+  lands — the World is written as its author wrote it, so importing your own
+  file back is `unchanged` — and a Setup names its mode by id alone
+  ([docs/api.md](../api.md) has the route). Every door that starts a session —
+  a Setup's page, a World's, the session form — answers the refusal with a
+  dialog listing each item and what *anyway* means for it, **Start anyway**
+  and **Cancel**; a session started anyway says on its page what it started
+  without.
 
 ### 9.1 One action produces a package
 
@@ -2440,6 +2492,12 @@ is not in `PORTABLE_SCHEMAS` — an envelope is not an object somebody edits.
   open, in P16's record. **And a ticked session's prompt blocks the budget
   dropped** travel as their rows with empty `text` — the session never sent
   those words.)*
+  *(2026-10-13, the owner's decision: **and each of a ticked session's
+  rendition records travels without its binding's connection id** — the
+  binding as `{ modelId }`, the model it was asked of kept. The session export
+  writes it so, for the plain export and this file alike, and the reader drops
+  the id from a file written before that. [22 §7](22-internal-contracts.md) has
+  the shape and the reasons.)*
 - **The manifest is the integrity check.** Each object's `contentHash` is checked
   on arrival and a mismatch refuses that object alone; a picture is checked
   against its `sha256` name. The zip's CRCs are parsed and enforced nowhere, as
@@ -2461,6 +2519,13 @@ is not in `PORTABLE_SCHEMAS` — an envelope is not an object somebody edits.
   nor, since [P16.3f](workplan/34-p16-world.md), a session's archived date: an
   archive is the sender's tidiness, and a session landing archived would be
   hidden from the person it was sent to.
+  *(2026-10-13: "a connection" has always meant the connection — its URL, its
+  key — and never its id, which a session's records name in two places. **A
+  picture's record no longer does**, by the owner's decision of that date: its
+  binding travels as the model alone. **A turn's recorded calls still do** —
+  `resolved.connectionId`, which connection answered each call — as P16 chose,
+  on *an id is not a connection*; the decision names renditions, and whether the
+  calls should follow is not decided.)*
 
 ## 10. Not defined here, deliberately
 

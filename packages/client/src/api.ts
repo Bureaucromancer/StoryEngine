@@ -18,8 +18,10 @@ import {
   type PublishPreview,
   type PublishRecord,
   type PublishStart,
+  type StartedWithout,
   type Turn as TurnRecord,
   type TurnPreview,
+  type UnmetRequirement,
 } from '@storyengine/shared';
 
 import type { NotificationList } from './notifications/types.js';
@@ -240,6 +242,18 @@ export class ApiError extends Error {
    * that with nothing rather than a guess. Lifted here for `issues`' reason.
    */
   readonly remedy?: string;
+  /**
+   * ***What a start needs that this install lacks*** — `unmet-requirements`
+   * from `POST /api/sessions` (2026-10-13, the owner's *build the promise*).
+   *
+   * **Lifted here for `issues`' reason**: the start dialog words each item,
+   * and a caller digging the list out of an untyped body is a caller that can
+   * read the wrong key. *A newer server may send a kind this build has never
+   * heard of*, so each item is kept when it is a record naming a `kind` and an
+   * `id`, and the dialog words one it does not know by its id rather than
+   * dropping a requirement the person was meant to see.
+   */
+  readonly unmet?: UnmetRequirement[];
 
   constructor(
     status: number,
@@ -249,6 +263,7 @@ export class ApiError extends Error {
     contentHash?: string,
     issues?: string[],
     remedy?: string,
+    unmet?: UnmetRequirement[],
   ) {
     super(message);
     this.name = 'ApiError';
@@ -258,6 +273,7 @@ export class ApiError extends Error {
     if (contentHash !== undefined) this.contentHash = contentHash;
     if (issues !== undefined) this.issues = issues;
     if (remedy !== undefined) this.remedy = remedy;
+    if (unmet !== undefined) this.unmet = unmet;
   }
 }
 
@@ -353,7 +369,17 @@ function refusalFrom(status: number, payload: Record<string, unknown> | null): A
       ? payload['issues']
       : undefined;
   const remedy = typeof payload?.['remedy'] === 'string' ? payload['remedy'] : undefined;
-  return new ApiError(status, code, message, current, contentHash, issues, remedy);
+  // Each item a record naming a kind and an id (2026-10-13); see `ApiError.unmet`.
+  const unmet = Array.isArray(payload?.['unmet'])
+    ? (payload['unmet'] as unknown[]).filter(
+        (one): one is UnmetRequirement =>
+          typeof one === 'object' &&
+          one !== null &&
+          typeof (one as { kind?: unknown }).kind === 'string' &&
+          typeof (one as { id?: unknown }).id === 'string',
+      )
+    : undefined;
+  return new ApiError(status, code, message, current, contentHash, issues, remedy, unmet);
 }
 
 /**
@@ -1434,6 +1460,12 @@ export interface SessionSummary {
    */
   mode?: { id: string };
   /**
+   * ***What it was started without*** — 2026-10-13: present only on a session
+   * started past `unmet-requirements` with **Start anyway**, and said on its
+   * page in one line (`play/StartedWithout.tsx`). Written once, at creation.
+   */
+  startedWithout?: StartedWithout;
+  /**
    * The session's own copy of its prompt pack — [03 §8], claimed at [P7B.2].
    *
    * ***On the wire since P2 and undeclared here until now.*** `GET
@@ -1742,6 +1774,15 @@ export interface NewSession {
    * which is why `createSession` never sends it.
    */
   openings?: Record<string, string>;
+  /**
+   * ***Start anyway*** — 2026-10-13. Sent only after the server refused this
+   * start `unmet-requirements` and the person chose **Start anyway** in the
+   * dialog that listed what is missing (`play/StartAnyway.tsx`): the same
+   * request again, with this. Never sent by default — a start that quietly
+   * lacked a mode or a model would be the broken session later that 03 §7.2
+   * promises against.
+   */
+  degraded?: boolean;
 }
 
 /**
@@ -1911,6 +1952,7 @@ export function createSession(input: NewSession): Promise<{
     ...(input.openings === undefined || Object.keys(input.openings).length === 0
       ? {}
       : { openings: input.openings }),
+    ...(input.degraded === true ? { degraded: true } : {}),
   });
 }
 

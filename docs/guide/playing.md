@@ -127,6 +127,28 @@ back only a setup the world chose; one you picked yourself — even the world's 
 stays. **Start a session** on a setup's own page starts from the setup alone: that
 session does not join any world or take its lorebooks.
 
+**When a world or a setup needs something this server does not have**, Start asks
+first. A world — often one somebody sent you — can say what it needs: a mode, a
+model for a job such as *Making images*, an extension. A setup names the mode it is
+played in. If any of that is missing, a box lists each thing and what starting
+without it means:
+
+- **A mode this server does not have**, when it is the one the setup is played in:
+  the session starts in the default mode instead, without the answers the setup gave
+  that mode. One the world only asks for besides: whatever needs it may not play.
+- **A mode older than the world asks for**: the session uses the version this server
+  has.
+- **A model not chosen for a job**: whatever needs that job goes without — no
+  pictures, say, until a model for *Making images* is chosen under **Which models your
+  stories use** in Settings.
+- **Something this version cannot check for**, and **an extension** — this version
+  loads none: the session starts without it.
+
+**Start anyway** starts it like that; **Cancel** starts nothing. A session started
+anyway says, above its story, what it started without — for as long as you have it,
+and wherever you send it. Choosing a mode yourself in the form is different: a mode
+this server does not have is never offered there.
+
 ### Starting from a setup
 
 Pick it in **Start from a setup**. The disclosure's summary then reads *From the

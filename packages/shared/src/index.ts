@@ -87,6 +87,10 @@ export * from './publish-constants.js';
 // manifest read two ways would preview one file and import another. An
 // envelope with a hand-written reader, `backup.js`'s precedent: never emitted.
 export * from './world-file.js';
+// What a World or a Setup asks of an install that it does not have, and what a
+// session started anyway did without — 2026-10-13. Shared because the server
+// sends the list and the client words it, from one shape.
+export * from './requires.js';
 // The other direction: what a library object can be written out *as*. Shared
 // because the client builds the menu from the same table the server dispatches
 // on, and two copies of it would disagree about what a file will work in.

@@ -94,6 +94,15 @@ export function registerMode(mode: Mode): void {
  * P7 — where a mode can genuinely be missing rather than merely unknown — is
  * where it earns a visible warning on the session itself.
  *
+ * *(2026-10-13: **met for a session started degraded, and only for one.** A
+ * session started past `unmet-requirements` with `degraded: true` — its
+ * Setup's mode not installed — is created in this default and records what it
+ * started without (`SessionFile.startedWithout`), which its page shows as one
+ * line. A session that arrives already naming a mode this build lacks — an
+ * imported one, or one whose mode was uninstalled since — is still substituted
+ * here with the log line and nothing on the session; that warning is unbuilt,
+ * and is not what the owner's answer of that day asked for.)*
+ *
  * **A literal since [P7.0], where it used to be `SCENE_ID`.** The default is an
  * *id*, and an id is content ([06 §2] — it lands in `session.json`); reaching
  * for the mode's own constant would reintroduce the import the boundary
