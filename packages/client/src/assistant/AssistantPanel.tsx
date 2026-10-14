@@ -79,7 +79,14 @@ const WORDS = labels('assistant.panel', {
  * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.8). It
  * had no phone arm: under the `sm` breakpoint the shell hides the page while
  * a panel is open, and this one stayed 28rem wide at most beside the space
- * the page had left — on a phone held sideways, a third of the screen bare.
+ * the page had left ~~— on a phone held sideways, a third of the screen
+ * bare~~. *(2026-10-14, after review: a phone held upright is narrower than
+ * that, so `w-full` already filled it. The bare strip was on a screen
+ * between 28rem and `sm`'s 40rem wide — a small tablet in split view, or a
+ * desk window narrowed that far — up to a third of it. A phone held
+ * sideways is almost always 40rem or wider, which is the desk's layout,
+ * with the page beside the panel; P12A §2's P12A.8 record says what that
+ * leaves the page with the workbench open as well.)*
  * Below `sm` it is the screen's width, as the workbench is:
  * [10 §7](../../../../docs/design/10-ui-surfaces.md) calls it *the same shape
  * as the workbench (§3)*, and on a phone that shape is the view. With both

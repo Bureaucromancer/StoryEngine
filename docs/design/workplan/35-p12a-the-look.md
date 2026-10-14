@@ -3075,7 +3075,20 @@ a phone. Six things.
   skips a type's arguments and a comparison and reads past an arrow or a brace in
   a string inside an attribute; `sheet` is held to the phone alone, and the
   press's phone query to Tailwind's own breakpoint, with `index.css` refused one
-  of its own.
+  of its own. *(2026-10-14, after review: **what it cannot see**, which its
+  docstring also says — a reveal by size, clip, colour or transform, by a class
+  assembled at run time, by an inline `style`, by a rule in `index.css`, or by a
+  script that shows a thing when a pointer arrives; what a control's child
+  expression renders (a glyph in an expression with no `aria-label` passes as
+  text); a title passed through a spread, or by a component the scan does not
+  know forwards one; an element made interactive by a script; whether the text
+  it counts as visible is hidden at a phone's width; whether an
+  `aria-describedby` is there at all, since one given only on some condition —
+  `InputKind`'s `selected && … ? hintId : undefined` — is counted as present;
+  and a tag written hard against a word of text, `Press<button`, which it takes
+  for a type's arguments. And two things it was built to read it did not: an
+  arbitrary variant naming a hover after a group's or a peer's prefix, and a
+  tag after a word of text — both mended; see* After review *below.)*
 
 **What the stage text said and what turned out different:**
 
@@ -3125,23 +3138,34 @@ a phone. Six things.
 - **Workbench's `aria-expanded` says open while the assistant covers the dock on
   a phone** — it is open, beneath — and a press uncovers it.
 - *Not looked at in a browser* — none is installed where this was built.
+- **A phone held sideways is a desk** *(2026-10-14, after review)*. Nearly every
+  phone is 640px or wider sideways, so none of the `max-sm` rules apply there
+  and `onPhone()` answers *desk*. With both panels open, the dock (`shrink-0`,
+  384px by default) and the assistant (448) leave `<main>` about 12px on an
+  844px screen — as a desk window of that width always has. The fix is a stack
+  wherever the dock, the assistant and a minimum page cannot all fit, with the
+  matching query in `ui/phone.ts`; it is left for T4's answer.
 
 **Tests, each checked against a mutation and restored.** In `theme.test.ts`'s
 new *the phone rules*: *reveals nothing on hover but through a recipe* fails
 with a group's hover arm written back at `PlayPage`'s call site, with a hidden
 span shown by group hover in `InputKind`, and with `invisible` at rest in a
 class list; *reads the hover arms it is meant to* fails with the detector made
-blind to group and peer hover; *brings the row back the same three ways in every
-group, and lets it take a press only then* fails with one group's at-rest
-pointer arm dropped, with every group's, and with the touch arm for presses
-dropped from all three; *makes a panel a sheet on a phone, and nowhere else*
+blind to group and peer hover *(2026-10-14, after review: and every arm it
+finds is one the first detector found too, so a new test beside it holds the
+rarer shapes — see* After review *below)*; *brings the row back the same three
+ways in every group, and lets it take a press only then* fails with one group's
+at-rest pointer arm dropped, with every group's, and with the touch arm for
+presses dropped from all three; *makes a panel a sheet on a phone, and nowhere else*
 fails with the bottom edge unprefixed and with it dropped; *asks the
 stylesheet's question* fails with the query at 48rem; *leaves no control
 explained by its title alone* fails with the folder button's title put back,
 with the handle field's description removed, and with the swatch's exemption
 removed; *reads the controls it is meant to* fails with the tag reader made
 blind, with its `return` guard and its type-argument guard each removed, with
-the brace matcher reading strings as code, and with `aria-label` not consulted;
+the brace matcher reading strings as code, and with `aria-label` not consulted
+*(2026-10-14, after review: the `return` guard is gone, since a tag after any
+word and a space is read now — see* After review *below)*;
 *keeps no reason for a control that has gone* fails with the meter's title
 removed. In `ui/Popover.test.tsx`: *is a sheet in both its places* fails with
 the arm dropped from either placement; *draws the same panel in the same place,
@@ -3180,6 +3204,96 @@ the new notes and hints — with `ui/Legend`, the phone's press and its query, t
 cover, and the three reveal strings; **CSS +0.32**, the sheet's phone block,
 the reveal's pointer arms in three groups, and the legend's grid. **3.88 kB is
 left** under the 325 ceiling, so no raise.
+
+***After review, 2026-10-14*** — a review of the stage's diff, each finding
+verified before it was acted on, found five things, one pair of them one fault:
+that T4's walker and the assistant's docstring counted a phone held sideways as
+a phone, that this record never said what the scan cannot see, that the tag
+reader skipped every tag after a word of text, and that the hover detector
+missed an arbitrary hover variant behind a group's or a peer's prefix, and
+the rarer compounds.
+
+**A phone held sideways is a desk** (two findings, one fault). T4's note asked
+the walker to look, *on a phone held sideways, whether the assistant fills the
+screen*, and the assistant's docstring defended its phone arm with the same
+case — *on a phone held sideways, a third of the screen bare*. But `max-sm:` is
+below 40rem, and nearly every phone is 640px or wider held sideways, so there
+none of the phone rules apply and `onPhone()` answers *desk*: the page beside
+the panels, the assistant 28rem wide. A walker would have recorded a failure
+against a case the breakpoint never claimed, and missed the one a real phone
+can show — with both panels open the dock and the assistant leave `<main>`
+about 12px on an 844px screen. **The words are corrected, and the layout is
+not**: the bare strip the arm fixed was on a screen between 28rem and 40rem,
+a small tablet in split view or a narrowed desk window, since a phone held
+upright is narrower than 28rem and `w-full` already filled it. The docstring's
+clause is struck with a dated note saying so; 05's fourth thing to look at is
+struck, and its dated note sends the walker to a desk browser narrowed to about
+600px for the assistant's width, says a sideways phone gets the desk's layout
+and that this is the rule working, and asks what the page is left with both
+panels open there. *Not done, and said* above has the bullet for that, and why
+it waits on T4. No row of T is edited.
+
+**The record never said what the scan cannot see.**
+[10 §1.3](../10-ui-surfaces.md)'s record says *what the test cannot see* is
+*said there*, pointing here, and the commit said the same; the docstring said
+it, and this record did not. The test bullet above has a dated note listing it,
+with the two entries below added.
+
+**The tag reader skipped every tag after a word of text.** It took a word with
+whitespace before a `<` for a type's arguments, excepting `return` by name, so
+`Press <button title=… aria-label=…>`, or a sentence and then a control on the
+next line as Prettier writes one, was never read — a control explained by its
+title alone, which §0.4 has this test refuse, passing in silence. A type's
+arguments and a comparison written by Prettier either touch their `<` or have
+no name after it, so the reader now skips a `<` only when a word, a `)` or a
+`]` touches it, and the `return` guard is gone with the whitespace it excused.
+**Over the client the answer is the same**: the reader reads six more tags,
+3,530 for 3,524, none of them titled, and the titled controls are the same
+seven with the same answers, so *leaves no control explained by its title
+alone* and the stale check are untouched. Its docstring's *it cannot see*
+gains two entries, both in the note above: an `aria-describedby` given on a
+condition counts as present — `InputKind`'s turn kinds, where only the chosen
+one is described, are the case in the tree — and a tag hard against a word,
+`Press<button`, is still taken for a type's arguments.
+
+**The hover detector named four variants, and read a bracket only at the
+start.** `onHover` named `hover`, `group-hover` and `peer-hover` with or
+without a group's name, and `in-hover`, exactly, and read an arbitrary variant
+only when the variant began with `[`, so `group-[:hover]/turn`,
+`peer-[:hover]` and `has-[:hover]`, and the compounds `has-hover`,
+`group-has-hover` and `in-group-hover`, were not hovers to it — and a `hidden`
+row given `flex` under one of them, or an `sr-only` one undone, was a reveal on
+hover outside the recipe that no test refused. The opacity half of
+such a reveal was still caught, by `opacity-0` at rest; a display or `sr-only`
+toggle was not. It now reads `hover` as the last link of any compound and an
+arbitrary variant naming a hover wherever its brackets sit, and still does not
+read `[@media(hover:none)]`, the touch arm, as one. **Over the client the
+answer is the same**: every hover arm in it is `hover:` or `group-hover/…:`,
+the same thirty-seven under either detector.
+
+**Tests after review, each checked against a mutation and restored.** In
+`theme.test.ts`'s *the phone rules*: *reads the controls it is meant to* has two
+more lines in its source written for the reader — a titled control after a word
+and a space, and one on the line after a sentence, each named by an attribute —
+and fails with the reader's whitespace and `return` guard put back, and still
+with its type-argument guard removed. The new *reads a hover however its
+variant is compounded*, beside *reads the hover arms it is meant to*, refuses a
+reveal under `group-[:hover]/turn`, `peer-[:hover]`, `has-[:hover]`,
+`group-has-hover` and `in-group-hover`, and not under the touch arm; it fails
+with the old detector restored whole, with its `startsWith('[')` alone restored,
+with its anchored list alone restored, and with the touch arm read as a hover.
+*Its classes are written in halves*, variant and utility joined at run time,
+because the build reads test files for class names as it reads comments:
+written whole, the first draft added 0.10 kB of rules nothing spends to the
+stylesheet, measured, and the utility that undoes `sr-only` is spelt in halves
+for the same reason. No test is new for the sideways phone or for the record,
+which are words. `theme.test.ts` passes whole, and `AssistantPanel.test.tsx`
+unchanged.
+
+**Entry after: 321.12 kB, CSS 8.98**, unchanged from `2c1e81ed`, gzip level 9
+over the files `index.html` pulls, the budget test's method: the entry's script
+is the same bytes and the stylesheet is byte for byte the same. **3.88 kB is
+left** under the 325 ceiling.
 
 ---
 

@@ -1418,8 +1418,16 @@ which closes it as a press there always has, closes a correction you meant to
 keep typing — a close writes what was typed, as on a desk; whether the turn that
 last arrived fades in again when the workbench is closed, which
 [P12A §2](35-p12a-the-look.md)'s P12A.6 record left to this row and P12A.8's
-says why it stays; and on a phone held sideways, whether the assistant fills
-the screen.)*
+says why it stays; ~~and on a phone held sideways, whether the assistant fills
+the screen~~ *(2026-10-14, after review: and the width between a phone and a
+desk. In a desk browser narrowed to about 600px — between 28rem and 40rem, a
+width no phone held upright reaches — whether the assistant fills the window.
+A phone held sideways is almost always 40rem or wider and is laid out as a
+desk: the page stays beside the panels and the assistant is 28rem wide, not
+the view, which is the rule working and not a failure. What to look at there is
+what the page is left with the workbench and the assistant both open — about
+12px on an 844px screen, which [P12A §2](35-p12a-the-look.md)'s P12A.8 record
+lists as not done and leaves to this row's answer)*.)*
 
 ***What this list cannot reach*** is whether any of it is beautiful, and the
 gate does not ask. Five of its six rows test a written claim; taste is a

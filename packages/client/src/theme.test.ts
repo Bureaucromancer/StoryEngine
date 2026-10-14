@@ -1007,9 +1007,15 @@ describe('the HUD strip', () => {
  *   renders (a glyph in an expression with no `aria-label` passes as text), a
  *   title passed through a spread or by a component this scan does not know
  *   to forward one, an element made interactive by a script, or whether the
- *   text it calls visible is hidden at a phone's width. ***And it does not
- *   judge a title on what cannot be pressed*** — a badge, a span, a list
- *   item: no phone and no keyboard ever reaches one, so whether it was
+ *   text it calls visible is hidden at a phone's width. *(2026-10-14, after
+ *   review: nor whether an `aria-describedby` is there at all — one given
+ *   only on some condition, as `InputKind` describes the chosen kind alone
+ *   with `selected && … ? hintId : undefined`, is counted as present on every
+ *   element that writes it; nor a tag written hard against a word of text,
+ *   `Press<button`, which it takes for a type's arguments. A tag after a
+ *   word and a space, or on the line after a sentence, it reads.)* ***And it
+ *   does not judge a title on what cannot be pressed*** — a badge, a span, a
+ *   list item: no phone and no keyboard ever reaches one, so whether it was
  *   essential is a judgement per site, and P12A §2's record makes each.
  *   `DECORATION` is the list of controls whose title was judged a
  *   decoration a phone can lose, each with its reason, and a reason for a
@@ -1048,10 +1054,26 @@ describe('the phone rules', () => {
     return found;
   }
 
-  /** A variant that holds only while something is hovered. */
+  /**
+   * A variant that holds only while something is hovered — `hover` itself,
+   * or `hover` as the last link of a compound (`group-hover/turn`,
+   * `peer-hover`, `in-hover`, `has-hover`, `group-has-hover`,
+   * `in-group-hover`), or an arbitrary selector or query that names one
+   * wherever its brackets sit (`[&:hover]`, `group-[:hover]/turn`,
+   * `peer-[:hover]`, `has-[:hover]`, `[@media(hover:hover)]`). A device
+   * that cannot hover, `[@media(hover:none)]`, is not one: it is the touch
+   * arm `reveal` brings the row back under.
+   *
+   * *(2026-10-14, P12A.8, after review: it named four compounds whole and
+   * read an arbitrary variant only when the variant began with its bracket,
+   * so a `hidden` row given `flex` under `group-[:hover]/turn` passed with no
+   * failure at all — a group's hover reveal, which P12A §0.4 has this test
+   * refuse, by the `hidden` or `sr-only` toggle the older `opacity-0` scan
+   * above was never able to see. None was written.)*
+   */
   const onHover = (variant: string): boolean =>
-    /^(?:hover|(?:group|peer)-hover(?:\/.+)?|in-hover)$/.test(variant) ||
-    (variant.startsWith('[') && /:hover\b|\bhover:hover\b/.test(variant));
+    /(?:^|-)hover(?:\/.+)?$/.test(variant) ||
+    (variant.includes('[') && /:hover\b|\bhover:hover\b/.test(variant));
   /** A utility that decides whether a thing is seen, or takes a press, at all. */
   const SEEN =
     /^(?:opacity-.+|visible|invisible|collapse|hidden|block|inline|inline-block|inline-flex|inline-grid|flex|grid|contents|flow-root|table|sr-only|not-sr-only|pointer-events-.+)$/;
@@ -1111,6 +1133,38 @@ describe('the phone rules', () => {
       );
     }
     expect(inRecipes.filter((token) => token === 'opacity-0').length).toBeGreaterThanOrEqual(3);
+  });
+
+  /**
+   * Every hover arm in the client today is `hover:` or `group-hover/…:`, and
+   * the arms the count above finds were the same under the detector this one
+   * replaced, so the count cannot tell a detector that reads the rarer shapes
+   * from one that does not (2026-10-14, P12A.8, after review). These are
+   * written for it: a reveal by display, `sr-only` or opacity under each
+   * shape of variant that names a hover, and the touch arm `reveal` itself
+   * spends, which names a hover only to say there is none — read as one, a
+   * call site that showed a thing to a finger would be refused as hiding it
+   * from one.
+   */
+  it('reads a hover however its variant is compounded', () => {
+    // Each class is written as its variant and its utility apart and joined
+    // here, because the build reads this file for class names too: whole,
+    // each would be emitted into the stylesheet the client ships. For the
+    // same reason the utility that undoes `sr-only`, which nothing in the
+    // client spends, is spelt in halves.
+    const shown: [variant: string, utility: string][] = [
+      ['group-[:hover]/turn', 'flex'],
+      ['peer-[:hover]', ['not', 'sr-only'].join('-')],
+      ['has-[:hover]', 'block'],
+      ['group-has-hover', 'flex'],
+      ['in-group-hover', 'opacity-100'],
+    ];
+    for (const [variant, utility] of shown) {
+      const token = `${variant}:${utility}`;
+      expect(hoverRefusal(token, false), token).toBe('shown on hover');
+    }
+    const touch = ['[@media(hover:none)]', 'opacity-100'].join(':');
+    expect(hoverRefusal(touch, false)).not.toBe('shown on hover');
   });
 
   /**
@@ -1261,11 +1315,17 @@ describe('the phone rules', () => {
     const source = strip(text);
     return [...source.matchAll(/<([A-Za-z][\w.]*)/g)].flatMap((match) => {
       // A type's arguments or a comparison, not a tag: `useState<`, `a<b`,
-      // `)<` — but `return <div` is a tag.
-      const before = /([\w$)\]]+)\s*$/.exec(
-        source.slice(Math.max(0, match.index - 16), match.index),
-      );
-      if (before !== null && before[1] !== 'return') return [];
+      // `)<` — each touches its `<`. Prettier writes a comparison with a
+      // space on both sides, where no name follows the `<` at all, so a word
+      // with whitespace before the `<` is JSX text — `Press <button`, or a
+      // sentence and then a control on the next line, as Prettier writes
+      // one — and its tag is read. `return <div` is the same case, which is
+      // why `return` needs no guard of its own any more.
+      // *(2026-10-14, P12A.8, after review: the whitespace was allowed, with
+      // `return` excepted by name, so every tag after a word of text was
+      // skipped as a type's arguments, and a control explained by its title
+      // alone could stand after a sentence unread. None did.)*
+      if (/[\w$)\]]/.test(source[match.index - 1] ?? '')) return [];
       const tag = readTag(source, match.index + match[0].length);
       return tag === null ? [] : [{ name: match[1] ?? '', ...tag }];
     });
@@ -1352,7 +1412,10 @@ describe('the phone rules', () => {
     // And the reader's edges, on a source written for them: a tag straight
     // after `return` is a tag, a type's arguments and a comparison are not,
     // an arrow inside an attribute does not end the tag, nor a brace inside a
-    // string inside one, and each of the rule's answers comes back.
+    // string inside one, and each of the rule's answers comes back. A tag
+    // after a word of text is a tag too, on the word's line or the next
+    // (2026-10-14, P12A.8, after review): the last two lines are each a
+    // control explained by its title alone, standing after a sentence.
     const read = tagsOf(
       [
         'const x = useState<string>(a<b);',
@@ -1361,15 +1424,31 @@ describe('the phone rules', () => {
         '<input title="A rule" />',
         '<span title="Only a span">Off</span>',
         '<Button title="Says }" onClick={() => say("}")} aria-describedby="why">Go</Button>',
+        '<p>Press <button title="x" aria-label="y">K</button></p>',
+        '<p>\n  A sentence that ends in a word\n  <Link title="x" aria-label="y" href="/">→</Link>\n</p>',
       ].join('\n'),
     );
-    expect(read.map((tag) => tag.name)).toEqual(['button', 'a', 'input', 'span', 'Button']);
+    expect(read.map((tag) => tag.name)).toEqual([
+      'button',
+      'a',
+      'input',
+      'span',
+      'Button',
+      'p',
+      'button',
+      'p',
+      'Link',
+    ]);
     expect(read.map(titleOnly)).toEqual([
       expect.stringMatching(/named by an attribute/),
       null,
       expect.stringMatching(/no text of its own/),
       null,
       null,
+      null,
+      expect.stringMatching(/named by an attribute/),
+      null,
+      expect.stringMatching(/named by an attribute/),
     ]);
   });
 
