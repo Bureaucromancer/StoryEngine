@@ -176,9 +176,9 @@ as it leaves the backdrop.
 
 Expressions come with imported CHARX cards; see
 [Modes](modes.md#time-place-and-the-stage). Each speaker's round **portrait**, beside their
-lines and in the cast, is the character's reference picture or card image — or their
-initial — and does not change with expression. Nothing in StoryEngine draws portraits or
-expressions.
+lines and in the cast, is the character's reference picture or card image — or, when they
+have neither, their initials on a colour of their own — and does not change with
+expression. Nothing in StoryEngine draws portraits or expressions.
 
 ## What the image model is told
 

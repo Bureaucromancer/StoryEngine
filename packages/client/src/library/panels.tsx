@@ -216,7 +216,7 @@ function updatedAt(object: LibraryObject): string | null {
  * concluding the wrong thing about retrieval from a word, *World*, which
  * does something and says when, and *Memories*, which says editing is
  * expected. Their meanings are a legend under the shelf now, one line for each
- * badge the shelf is wearing (`lorebookLegend`, `ui/Legend`), and the badges
+ * badge the shelf is wearing (`panelBadgeLegend`, `ui/Legend`), and the badges
  * carry the word alone. ***Off keeps its title***, and no line: *This book is
  * switched off* is the word again in a sentence, a decoration a phone loses
  * nothing by.

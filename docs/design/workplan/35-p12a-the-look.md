@@ -248,6 +248,14 @@ friction to route around.
   P12A.1's record in §2. Beyond that it moves only with the tokens every page
   spends: P12A.0's radii, and its illustration onto `rounded-media` with every
   other picture. It is not rebuilt.)*
+  *(2026-10-14, the final audit, from P12A.3's review: and one thing it shows
+  follows from another stage rather than from its own code, which that stage
+  did not touch. Play sends `input.actorId` with every move now, so a move
+  played as the persona is headed with the persona's name — *Ned said* where
+  it read *You said* — in the view, its Markdown and text copies, and Print, by
+  [polish §11](06-polish.md)'s rule in `prose.ts`. Older moves, whose records
+  name nobody, keep *You*. See P12A.3's record in §2, beside *The player's own
+  line*.)*
 - **Not a mobile-first pass.** [10 §1](../10-ui-surfaces.md)'s 1.0 bar —
   responsive and genuinely usable — is unchanged. ~~P12A.7~~ *P12A.8 (2026-10-13,
   §0.4)* enforces two rules that
@@ -1189,7 +1197,12 @@ backdrop*.
   of the page: a `fixed` element is fixed to the nearest ancestor with a
   transform, a filter or containment, and the column and `<main>` are where a
   later stage puts one — P12A.6's motions. Outside every box the page owns, it
-  cannot be captured.
+  cannot be captured. *(2026-10-14, [P12A.6](#p12a6--motion-five-of-them) as
+  built: its two transforms are a finished turn's rise (`arrival`, on that
+  turn's `<li>`) and a button's press (`press`, in `ui/Button`), inside the
+  column for the length of a transition and never on the column or on
+  `<main>`. The portal stands regardless: it does not depend on that staying
+  so, and `play/Backdrop.tsx`'s comment carries the same note.)*
 - *"`--color-ink` on the story column clears 4.5:1 whatever is behind it"* — and
   `ink-muted` and `ink-subtle`, as §0.4 decided and P12A.0's pairs measure.
   **`ink-faint` cannot**: it would need the veil at 99.5%. The play column still
@@ -2127,12 +2140,22 @@ that the note be in a live region, and fails with the row's region removed;
 *says what failed and that the story is unaffected* reads the item, since the
 sentences are in the page twice. *Not looked at in a browser*, still.
 
-**Entry after: 317.80 kB, CSS 8.42** — **317.70 and 8.42 before**, at
+**Entry after: ~~317.80~~ *317.79* kB, CSS 8.42** — **317.70 and 8.42 before**, at
 `161d9d92`, gzip level 9 over the files `index.html` pulls, the budget test's
 method. **+0.10 kB**: the live region's copy and the row's region, the two refs
 and their checks, and the recipe's new string. CSS is unchanged: every class
-the fixes spend was already emitted. **2.20 kB is left** for
-[P12A.5](#p12a5--the-column-that-grew-seven-disclosures) onward.
+the fixes spend was already emitted. **~~2.20~~ *2.21* kB is left** for
+[P12A.5](#p12a5--the-column-that-grew-seven-disclosures) onward. *(2026-10-14,
+the final audit: 317.79, measured at `5d01529d` — this stage's after-review
+commit — from a `git archive` build with the budget test's method. That is
+325,422 bytes, or 317.7949 kB, which rounds down; one byte more would have
+rounded to 317.80, so the figure was a byte over what the commit builds, and
+[P12A.5](#p12a5--the-column-that-grew-seven-disclosures)'s *before*, 317.79,
+was right. **+0.10 kB stands**: `161d9d92` builds 325,321 bytes, 317.6963 kB,
+so the change is 101 bytes, or 0.0986 kB, and the rounded figures differ by
+0.09 only because 317.6963 rounds up and 317.7949 rounds down. What was left
+under 320 is 2.21, and no later record or ceiling note used the struck
+figures.)*
 
 ### P12A.5 — The column that grew seven disclosures
 
@@ -3927,6 +3950,68 @@ rule with the build before the change, loses the seven rules above and gains
 nothing. The finding's own figure, 8.98 to 8.80, was not reproduced here: the
 seven rules are 419 bytes before compression. **3.09 kB is left** under the 325
 ceiling.
+
+**Docs: what three records, the guide and a docstring said that the code does
+not.** Six findings, two of them the same figure found twice, and every fix a
+sentence: nothing here changes what the client does, so nothing is pinned by a
+test, and no decision a stage made is reopened.
+
+**§0.3 said the reading view moves in one thing and otherwise only with the
+tokens.** So far as its own code goes, it does. But [P12A.3](#p12a3--faces)
+made Play send `input.actorId` with every move, and the reading view's headings
+follow from that record by [polish §11](06-polish.md)'s rule in `prose.ts`: a
+move played as the persona is headed with the persona's name — *Ned said*
+where it read *You said* — in the view, its Markdown and text copies, and
+Print. P12A.3's review found it, recorded it beside *The player's own line* and
+decided that the rule is the one wanted; §0.3, which is where a reader checking
+the phase's scope looks first, was not told. It has a second dated note after
+P12A.1's, pointing at that record, and its text is unedited.
+
+**P12A.2's portal bullet still said P12A.6's motions put a transform on the
+column and `<main>`.** That was the plan P12A.2 portalled the backdrop
+against. [P12A.6](#p12a6--motion-five-of-them) built its two transforms on a
+finished turn's `<li>` (`arrival`) and on a button (`press`), inside the column
+and only for a transition, and `play/Backdrop.tsx`'s comment has said so since
+P12A.6 built them. The bullet has a dated note saying the same, and that the
+portal stands regardless.
+
+**P12A.4's entry after review was a byte over what its commit builds.** Two
+findings, one figure. Built from a `git archive` of `5d01529d` and measured
+with the budget test's method, the entry is 325,422 bytes, 317.7949 kB —
+317.79, which is [P12A.5](#p12a5--the-column-that-grew-seven-disclosures)'s
+*before* — where P12A.4's record said 317.80, and so 2.21 left under 320 where
+it said 2.20. Both are struck where they stand, with the bytes in a dated
+note. **The +0.10 stands**: `161d9d92`, built the same way, is 101 bytes
+smaller. **P12A.5's record stands too**, and one finding's proposal to make its
++0.93 a +0.92 is not taken: `76fce95a`, built the same way, is 326,373 bytes,
+318.7236 kB, so the stage spent 951 bytes, 0.9287 kB, and left 1.28.
+
+**The guide's *Faces* still described the disc P12A.3 replaced.**
+[Pictures](../../guide/pictures.md) said a portrait falls back to the
+character's *initial*; since [P12A.3](#p12a3--faces) `ui/Face` draws their
+initials on a colour of their own, as [Playing](../../guide/playing.md)'s cast
+panel already says. The phrase is corrected in place, as the guide's prose is,
+and nothing is added: who has a face in the cast and on your own line is
+`playing.md`'s, and it says both.
+
+**`BADGE_WORDS`'s docstring named a function that does not exist.**
+[P12A.8](#p12a8--the-phone-rules)'s legend for a lorebook's badges is drawn by
+`panelBadgeLegend`, beside it in `library/panels.tsx`; the docstring sent a
+reader to `lorebookLegend`. A name in a comment, corrected in place.
+
+*Dated notes, none a rewrite*: §0.3's second note on the reading view, P12A.2's
+portal bullet, and P12A.4's entry figure after review.
+
+*No test is new*: there is no behaviour to pin and no mutation to check one
+against. The `docs` and `release` projects and `tools/entry-budget.test.ts`
+pass after the build, as do the library's tests beside `panels.tsx`. Nothing
+here is drawn, so nothing was looked at in a browser.
+
+**Entry after: 321.91 kB, CSS 8.95** — **321.91 and 8.95 before**, at
+`d262e07b`, gzip level 9 over the files `index.html` pulls, the budget test's
+method: 329,633 bytes and 9,169 both times, since the build drops the
+docstring and the guide is not in the client. **3.09 kB is left** under the
+325 ceiling.
 
 ---
 
