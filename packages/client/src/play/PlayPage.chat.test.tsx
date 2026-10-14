@@ -139,7 +139,9 @@ const row = (actorId: string, presence = true): Record<string, unknown> => ({
   party: null,
 });
 
-function answerSession(over: { chat?: ChatSettings | null; cast?: unknown[] } = {}): void {
+function answerSession(
+  over: { chat?: ChatSettings | null; cast?: unknown[]; roster?: null } = {},
+): void {
   readSession.mockResolvedValue({
     session: {
       id: SESSION_ID,
@@ -148,7 +150,9 @@ function answerSession(over: { chat?: ChatSettings | null; cast?: unknown[] } = 
       updatedAt: '',
       headTurnId: ROUND.id,
       mode: { id: 'storyengine.scene' },
-      cast: { persona: NED.id, actors: [VERA.id, LUND.id] },
+      // `roster: null` is a session with none — an import's, say — so the face
+      // on a line has no *You play* to open.
+      ...(over.roster === null ? {} : { cast: { persona: NED.id, actors: [VERA.id, LUND.id] } }),
     },
     activeJob: null,
     health: [],
@@ -274,6 +278,23 @@ describe('the transcript as a chat', () => {
     expect(document.activeElement).toBe(screen.getByRole('combobox', { name: 'You play' }));
   });
 
+  /**
+   * ***Not named twice*** (2026-10-14, P12A.3, after review). Outside a chat a
+   * face that is not a button is named on an image round it, because nothing
+   * else on that line says who the move was played as. A chat's line does — the
+   * name above the words — so its face stays decorative even when there is no
+   * *You play* to open, rather than reading *Played as Ned, Ned*. Mutation: the
+   * wrapper drawn whenever the face is not a button, and this finds it.
+   */
+  it('names a face that opens nothing once, by the name above the line', async () => {
+    answerSession({ roster: null });
+    renderPage();
+    const line = await lineOf('Well?');
+    expect(within(line).getByText('Ned')).toBeTruthy();
+    expect(within(line).queryByRole('button', { name: /Played as/ })).toBeNull();
+    expect(within(line).queryByRole('img', { name: /Played as/ })).toBeNull();
+  });
+
   it('offers neither swipe nor continue once the chat is narrated', async () => {
     answerSession({ chat: { ...CHAT, voice: 'narrator' } });
     renderPage();
@@ -290,6 +311,65 @@ describe('the transcript as a chat', () => {
     expect(lund.dataset['hidden']).toBe('true');
     expect(within(lund).getByText(/Hidden from the story/)).toBeTruthy();
     expect((await lineOf('"You came."')).dataset['hidden']).toBeUndefined();
+  });
+
+  /**
+   * ***A mention's card opened from a hidden line is drawn whole*** (2026-10-14,
+   * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.3, after
+   * review). The line was `opacity-50`, which made it a stacking context the
+   * card could not leave: half transparent, with later lines' marks drawn over
+   * its links. Read by the class that does the fading, as *opens the wizard
+   * outside the row that fades* in `PlayPage.test.tsx` is, because jsdom
+   * computes no opacity: the card has no fading ancestor, and the line is still
+   * marked hidden and still looks it — its prose in the subtle ink, its name
+   * and what follows the prose ghosted. Mutation: `opacity-50` back on the
+   * line, and the first expectation fails.
+   */
+  it('opens a mention on a hidden line outside anything that fades', async () => {
+    answerSession({ chat: { ...CHAT, hidden: { [ROUND.id]: [2] } } });
+    readTranscript.mockResolvedValue({
+      turns: [
+        LEGACY,
+        {
+          ...ROUND,
+          output: {
+            text: 'Rain on the glass.\n\n"You came."\n\n"Aye, Vera."',
+            messages: [
+              { speaker: null, text: 'Rain on the glass.' },
+              { speaker: VERA, text: '"You came."' },
+              { speaker: LUND, text: '"Aye, Vera."' },
+            ],
+          },
+          // Lund's line starts at 33, after two lines and their blank lines;
+          // "Vera" is six characters into it.
+          spans: [
+            {
+              field: 'output',
+              start: 39,
+              end: 43,
+              target: { kind: 'actor', ref: { id: VERA.id, name: VERA.name } },
+              method: 'matched',
+              confidence: null,
+            },
+          ],
+        },
+      ],
+    });
+    renderPage();
+    const lund = await lineOf('"Aye,');
+
+    await userEvent.click(within(lund).getByRole('button', { name: 'Vera' }));
+
+    const card = screen.getByRole('dialog', { name: 'Who “Vera” is' });
+    expect(card.closest('.opacity-50'), 'the card is inside something that fades').toBeNull();
+    expect(lund.dataset['hidden']).toBe('true');
+    expect(card.closest('p')?.className).toContain('text-ink-subtle');
+    expect(within(lund).getByText('Lund').className).toContain('opacity-50');
+    expect(
+      within(lund)
+        .getByText(/Hidden from the story/)
+        .closest('.opacity-50'),
+    ).not.toBeNull();
   });
 
   it('draws the swipe counter on the message it belongs to', async () => {

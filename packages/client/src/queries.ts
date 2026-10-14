@@ -1001,9 +1001,38 @@ export function useSetCast(
   return useMutation({
     mutationFn: (cast: { persona: string | null; actors: string[] }) =>
       setSessionCast(sessionId, cast),
-    onSuccess: () => {
-      void client.invalidateQueries({ queryKey: ['session', sessionId] });
+    /**
+     * ***The roster the server answered, at once, and pending until the
+     * refetch has landed*** (2026-10-14,
+     * [P12A](../../../docs/design/workplan/35-p12a-the-look.md) P12A.3, after
+     * review). Two halves, each closing its own window.
+     *
+     * *You play* reads its value back from `roster.persona`, and the composer
+     * sends that same persona as the move's `input.actorId`. The invalidation
+     * used to be voided, so the mutation settled the moment the `PUT` did: the
+     * choice was cleared, the select snapped back to the persona just changed
+     * away from, and **a move sent before the refetch went out as that old
+     * persona** — its line wearing for good the face the player had just put
+     * down, which is the stale attribution P12A.3 exists to stop. So the cast
+     * the `PUT` answered goes into the cache straight away, and the page's
+     * `roster.persona` is right from the moment the write is acknowledged.
+     *
+     * And the invalidation is returned, as `useSetChatSettings`' and
+     * `useSetHidden`'s are, so `isPending` holds — and each caller's own
+     * `onSuccess`, which clears its choice, waits — until the refetched session
+     * is in the cache. An answer with no roster in it writes nothing, and that
+     * half alone keeps the choice on screen until the refetch says what was
+     * stored.
+     */
+    onSuccess: (written) => {
+      const cast = written.session.cast;
+      if (cast !== undefined) {
+        client.setQueryData<{ session: SessionSummary }>(['session', sessionId], (held) =>
+          held === undefined ? held : { ...held, session: { ...held.session, cast } },
+        );
+      }
       void client.resetQueries({ queryKey: previewKey(sessionId) });
+      return client.invalidateQueries({ queryKey: ['session', sessionId] });
     },
   });
 }

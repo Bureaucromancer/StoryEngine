@@ -11,9 +11,11 @@ import { Popover } from './Popover.js';
  * The non-modal popover — [P12A](../../../../docs/design/workplan/35-p12a-the-look.md)
  * P12A.3, built for a mention's card and kept for P12A.4's HUD.
  *
- * ***What makes it not a `Dialog` is what is held***: it closes three ways, it
+ * ***What makes it not a `Dialog` is what is held***: it closes four ways, it
  * gives the keyboard back to its trigger on Escape and leaves it where a press
- * put it otherwise, it traps nothing, and its Escape is its own.
+ * put it otherwise, it traps nothing, and its Escape is its own. *(The fourth,
+ * focus leaving it, since 2026-10-14, after review: it was three, and a card
+ * the keyboard had Tabbed out of stayed drawn and deaf to Escape.)*
  */
 
 function renderPopover(onOuterEscape = vi.fn()) {
@@ -87,19 +89,51 @@ describe('the popover', () => {
 
     fireEvent.pointerDown(screen.getByRole('link', { name: 'Edit Vera’s aliases' }));
     expect(screen.getByRole('dialog')).toBeTruthy();
+    // A press on the card's own text puts focus on the panel, which is inside:
+    // focus moving within it is not focus leaving it (2026-10-14, after review).
+    await userEvent.click(screen.getByRole('dialog'));
+    expect(document.activeElement).toBe(screen.getByRole('dialog'));
 
     await userEvent.click(trigger);
     expect(screen.queryByRole('dialog')).toBeNull();
   });
 
-  /** ***Traps nothing***: Tab leaves it, in reading order, as from any part of the page. */
-  it('lets Tab leave it in reading order', async () => {
+  /**
+   * ***Focus going nowhere is not focus leaving it*** (2026-10-14, after
+   * review). The window losing focus — another application brought forward —
+   * blurs what is focused with no element to go to, as Safari's press on a
+   * button that takes no focus does. Neither is a press outside, and a card
+   * that closed on them would be gone when the reader came back, or would close
+   * under the trigger's own press and open again on its click.
+   */
+  it('stays open when focus goes to no element at all', async () => {
+    const { trigger } = renderPopover();
+    await userEvent.click(trigger);
+
+    fireEvent.focusOut(screen.getByRole('link', { name: 'Open Vera' }), { relatedTarget: null });
+
+    expect(screen.getByRole('dialog')).toBeTruthy();
+    expect(trigger.getAttribute('aria-expanded')).toBe('true');
+  });
+
+  /**
+   * ***Traps nothing***: Tab leaves it, in reading order, as from any part of
+   * the page. ***And leaving it closes it*** (2026-10-14, after review): Tab
+   * past the last link is the keyboard's press outside, so the card does not
+   * stay drawn over the control focus went to, nor wait for an Escape that can
+   * no longer reach it. Moving inside — trigger to link, link to link — keeps
+   * it open, which the first Tab holds.
+   */
+  it('lets Tab leave it in reading order, and closes as it goes', async () => {
     const { trigger } = renderPopover();
     await userEvent.click(trigger);
 
     await userEvent.tab();
     expect(document.activeElement).toBe(screen.getByRole('link', { name: 'Edit Vera’s aliases' }));
+    expect(screen.getByRole('dialog')).toBeTruthy();
     await userEvent.tab();
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(trigger.getAttribute('aria-expanded')).toBe('false');
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'After the story' }));
   });
 });

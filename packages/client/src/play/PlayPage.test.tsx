@@ -58,6 +58,7 @@ const readRenditions = vi.fn();
 const illustrateTurn = vi.fn();
 const readMyRoles = vi.fn();
 const listLibrary = vi.fn();
+const setSessionCast = vi.fn();
 const patchPrefs = vi.fn();
 let prefsStore: Record<string, unknown> = {};
 
@@ -99,6 +100,9 @@ vi.mock('../api.js', async (importOriginal) => {
     impersonateAs: (...a: unknown[]) => impersonateAs(...a) as unknown,
     // Since [26 E15] the composer uploads pictures as they are attached.
     uploadPicture: (...a: unknown[]) => uploadPicture(...a) as unknown,
+    // Since P12A.3 the cast panel's *You play* writes the persona, which one
+    // test presses (2026-10-14, after review).
+    setSessionCast: (...a: unknown[]) => setSessionCast(...a) as unknown,
     // Since 2026-10-04 one test opens the setup wizard, which drafts on open —
     // four model calls, never real ones here, and never answered: the test is
     // about where the dialog is drawn, not what it shows.
@@ -685,6 +689,63 @@ describe('the player’s own line', () => {
 
     await userEvent.click(face);
     expect(document.activeElement).toBe(screen.getByRole('combobox', { name: 'You play' }));
+  });
+
+  /**
+   * ***Named where nothing beside it names it*** (2026-10-14, P12A.3, after
+   * review). Outside a chat the player's line draws the move's words and the
+   * face, and no name. With no cast panel to open — a session with no roster,
+   * one an import played as Ned — the face is not a button, and as a bare face
+   * it was `aria-hidden` initials: nobody told who the move was played as.
+   * Mutation: the wrapper removed, and there is no image to find.
+   */
+  it('names the face when it is not a button, since nothing beside it does', async () => {
+    readSession.mockResolvedValue({
+      session: { ...SESSION, headTurnId: 'turn-2' },
+      activeJob: null,
+      cast: [],
+    });
+    renderPage();
+    const line = await lineOf('I light the lamp.');
+
+    expect(within(line).getByRole('img', { name: 'Played as Ned' })).toBeTruthy();
+    expect(within(line).queryByRole('button', { name: /Played as/ })).toBeNull();
+  });
+
+  /**
+   * ***A move sent while the session catches up goes as who was just chosen***
+   * (2026-10-14, P12A.3, after review). *Play as them* is acknowledged before
+   * the session is read again, and the composer sends the cached persona as
+   * the move's `input.actorId`; the cache used to keep the old one until the
+   * refetch, so a move sent in that window was recorded — for good — as the
+   * persona just put down. The refetch is held here. Mutation: the cast the
+   * `PUT` answered not written into the cache, and the move goes as Vera.
+   */
+  it('sends a move as the persona just chosen, before the session is read again', async () => {
+    setSessionCast.mockResolvedValue({
+      session: { ...SESSION, headTurnId: 'turn-2', cast: { persona: 'actor-ned', actors: [] } },
+    });
+    renderPage();
+    const choice = await screen.findByRole('combobox', { name: 'You play' });
+    await within(choice).findByRole('option', { name: 'Ned' });
+    readSession.mockReturnValue(new Promise<never>(() => undefined));
+
+    await userEvent.selectOptions(choice, 'actor-ned');
+    await userEvent.click(screen.getByRole('button', { name: 'Play as them' }));
+    await waitFor(() => {
+      expect(setSessionCast).toHaveBeenCalledWith(SESSION.id, { persona: 'actor-ned', actors: [] });
+    });
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Play as them' })).toHaveProperty('disabled', true);
+    });
+
+    await userEvent.type(screen.getByRole('textbox', { name: 'What do you do?' }), 'I wait.');
+    await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+    await waitFor(() => {
+      expect(submitTurn).toHaveBeenCalledWith(
+        expect.objectContaining({ text: 'I wait.', actorId: 'actor-ned' }),
+      );
+    });
   });
 
   /**

@@ -361,6 +361,7 @@ changes them for you: they change when you change them.
 
 At the top, **You play** says which character you play. Choose another and press
 **Play as them** to play as them from your next move; choosing alone changes nothing.
+Choosing **Nobody in particular** keeps the panel, so you can choose somebody again.
 
 A character counts as met only once their presence has been set on this line, and
 nothing in play sets it: until you tick **In the scene** (or, in a chat where the
@@ -487,7 +488,9 @@ delivered on the next turn with no judgement. Rewind afterwards to put it back.
 ## Reading a story
 
 **Read it as a story**, in the session panel, shows the line as prose with none of the
-machinery: your moves as quoted blocks (*You did*, *You said*), each speaker's lines
+machinery: your moves as quoted blocks, headed with the character you played them as
+(*Vera said*), or *You did* and *You said* for a move played as nobody in particular
+or from before the character was recorded with it; each speaker's lines
 under their name, and illustrations in place. **Copy as Markdown**, **Copy as text**
 and **Print** are at the top; printing gives the whole story, black on white, without
 the app around it. (Over plain HTTP to a network address the browser will not copy;

@@ -2,7 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -31,7 +31,7 @@ vi.mock('../api.js', async (importOriginal) => {
   };
 });
 
-const { CastPanel } = await import('./CastPanel.js');
+const { CastPanel, castPanelShows } = await import('./CastPanel.js');
 
 const SESSION_ID = '01a008de-7e08-70d0-899c-f6869d6b9aeb';
 
@@ -204,6 +204,17 @@ describe('the cast panel', () => {
   });
 
   /**
+   * ***A roster is a reason to draw the panel*** (2026-10-14,
+   * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.3, after
+   * review), as a chat is: *You play* is inside it, and is the only control
+   * that seats a persona. No rows, no chat and no roster is still nothing.
+   */
+  it('is drawn for a roster with nobody in it, and not for no roster at all', () => {
+    expect(castPanelShows([], undefined, { persona: null, actors: [] })).toBe(true);
+    expect(castPanelShows([], undefined, undefined)).toBe(false);
+  });
+
+  /**
    * ***A face on every row, outside a chat as in one*** —
    * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.3. Every
    * row is a claim that this person is in this story, which is [10 §1.3]'s test
@@ -257,6 +268,77 @@ describe('who you play', () => {
         actors: ['actor-vera', 'actor-lund'],
       });
     });
+  });
+
+  /**
+   * ***Choosing nobody does not take the choice away*** (2026-10-14, P12A.3,
+   * after review). A session whose one row is its persona, outside a chat and
+   * with nothing written about anybody else: choosing *Nobody in particular*
+   * empties the rows. The panel used to go with them, and *You play* with the
+   * panel, so nothing in the product could set a persona there again.
+   * Mutation: the old two-question rule, rows or a chat, and the select is
+   * gone once the refetch lands.
+   */
+  it('stays to be chosen from again after nobody is chosen', async () => {
+    answerWith([VERA], { persona: 'actor-vera', actors: [] });
+    renderPanel();
+
+    const choice = await screen.findByRole('combobox', { name: 'You play' });
+    await within(choice).findByRole('option', { name: 'Vera Kohl' });
+    expect((choice as HTMLSelectElement).value).toBe('actor-vera');
+
+    // What the server answers after the write, and what the refetch reads: a
+    // roster with nobody in it, and no rows, since nothing names anybody.
+    setSessionCast.mockResolvedValue({
+      session: { id: SESSION_ID, cast: { persona: null, actors: [] } },
+    });
+    answerWith([], { persona: null, actors: [] });
+    await userEvent.selectOptions(choice, '');
+    await userEvent.click(screen.getByRole('button', { name: 'Play as them' }));
+
+    await waitFor(() => {
+      expect(setSessionCast).toHaveBeenCalledWith(SESSION_ID, { persona: null, actors: [] });
+    });
+    await waitFor(() => {
+      expect(screen.queryByText('Vera Kohl', { selector: 'span' })).toBeNull();
+    });
+    const after = screen.getByRole('combobox', { name: 'You play' });
+    expect((after as HTMLSelectElement).value).toBe('');
+    expect(within(after).getByRole('option', { name: 'Vera Kohl' })).toBeTruthy();
+  });
+
+  /**
+   * ***What was sent stays on screen until the session has caught up***
+   * (2026-10-14, P12A.3, after review). The write used to settle as soon as the
+   * `PUT` did, so the choice was cleared and the select went back to the
+   * persona just changed away from — the button live again, as though nothing
+   * had happened — until the refetch came. The refetch is held here, and the
+   * answer carries no roster, so what holds the choice is the mutation staying
+   * pending until the session is read again. Mutation: the invalidation voided,
+   * not returned, and the select reads *Nobody in particular* again.
+   */
+  it('keeps the persona it sent on screen until the session has caught up', async () => {
+    answerWith([VERA], { persona: null, actors: ['actor-vera'] });
+    renderPanel();
+
+    const choice = await screen.findByRole('combobox', { name: 'You play' });
+    await within(choice).findByRole('option', { name: 'Vera Kohl' });
+    const reads = readSession.mock.calls.length;
+    readSession.mockReturnValue(new Promise<never>(() => undefined));
+
+    await userEvent.selectOptions(choice, 'actor-vera');
+    const press = screen.getByRole('button', { name: 'Play as them' });
+    await userEvent.click(press);
+
+    // The refetch has been asked for, so the write's answer has been handled;
+    // a moment more for anything that would follow it.
+    await waitFor(() => {
+      expect(readSession.mock.calls.length).toBeGreaterThan(reads);
+    });
+    await act(() => new Promise((settle) => setTimeout(settle, 20)));
+
+    expect((choice as HTMLSelectElement).value).toBe('actor-vera');
+    expect((press as HTMLButtonElement).disabled).toBe(true);
   });
 
   it('says who the session is played as, even somebody the library no longer has', async () => {

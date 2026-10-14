@@ -13,12 +13,17 @@ import { drawnTile } from './tile.js';
  * generalised"*.
  *
  * **One component, because there were two spellings of the fallback and a third
- * was on its way.** The sign-in gallery drew [12 §5.4]'s tile — two initials by
+ * was on its way.** The sign-in gallery draws [12 §5.4]'s tile — two initials by
  * grapheme, a hue from the handle — and the play page's portrait drew one letter
  * cut by code point on a grey disc; [10 §1.3](../../../../docs/design/10-ui-surfaces.md)
  * then asked for faces in the cast panel, the library and the editors, each of
- * which would have grown its own. The tile is `tile.ts`'s, and this is the one
- * place that decides when to draw it.
+ * which would have grown its own. The tile is `tile.ts`'s, and for an actor this
+ * is the one place that decides when to draw it. **The account faces are not on
+ * it yet**: `auth/Gallery.tsx`'s `Tile` still chooses between its own `<img>`,
+ * which has no error fallback, and its own `DrawnFace`, and
+ * `settings/UserSettings.tsx`'s `AvatarField` draws its own tile. P12A.3's
+ * decision named `Portrait`'s spelling and not theirs, so a change here — to
+ * this markup or this fallback — reaches neither of them.
  *
  * ***The fallback is designed, not defaulted***, which is P12A.3's own sentence:
  * most actors will have no portrait for a long time, so the tile is the common
@@ -39,6 +44,11 @@ import { drawnTile } from './tile.js';
  * it stands for, and a screen reader hearing *Vera, Vera* on every line is the
  * face getting in the way of the words. A face that is also a control — the
  * player's own line, which opens who you play — names itself on the control.
+ * *(2026-10-14, P12A.3, after review: not every face is beside its name. A
+ * face is decorative when the name is beside it **or on what holds it**: the
+ * player's line outside a chat draws no name, so `PlayedAs` names the face on
+ * its button, or, where there is no button, on an image wrapped round it —
+ * this face staying hidden inside either.)*
  */
 export function Face(props: {
   /** The immutable key the hue is taken from: an actor's id, an account's handle. */

@@ -1164,7 +1164,11 @@ export function PlayPage({
       {/* **Who is in the story, and what the software thinks is true of them** —
           [10 §13.2], [P7.2]. Below the HUD because a cast is a list and the HUD
           is a line, and above the transcript for the reason both are: state
-          rather than narration. Renders nothing for a session with no cast. */}
+          rather than narration. Renders nothing for a session with no cast.
+          *(2026-10-14, P12A.3, after review: and no roster — a session that
+          has one keeps the panel with nobody in it, because* You play *is
+          inside and is the only way to seat a persona again; see
+          `castPanelShows`.)* */}
       <CastPanel
         sessionId={sessionId}
         locale={locale}
@@ -1343,7 +1347,12 @@ export function PlayPage({
             chat={chat}
             actors={actorObjects}
             onWhoYouPlay={
-              castPanelShows(session.data?.cast ?? [], chat) && roster !== undefined
+              // The panel's own question, so the page and the panel cannot
+              // disagree about whether *You play* is there. Since the panel
+              // renders for any roster (2026-10-14, P12A.3, after review) this
+              // comes to `roster !== undefined`; the call stays so that a change
+              // to when the panel is drawn reaches the faces too.
+              castPanelShows(session.data?.cast ?? [], chat, roster) && roster !== undefined
                 ? focusWhoYouPlay
                 : undefined
             }
@@ -1969,6 +1978,9 @@ function TurnView({
             actor={actors.find((one) => one.id === turn.input?.actorId)}
             name={actors.find((one) => one.id === turn.input?.actorId)?.name}
             onWho={onWhoYouPlay}
+            // Nothing beside it names who the move was played as, so the face
+            // does (2026-10-14, P12A.3, after review) — `PlayedAs` says how.
+            nameShown={false}
           />
           <p className={`${story} text-ink-subtle`}>{turn.input.text}</p>
         </div>

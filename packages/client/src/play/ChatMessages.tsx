@@ -232,6 +232,8 @@ function InputLine(props: {
           actor={props.actor}
           name={props.name}
           onWho={props.onWho}
+          // This line draws the name above the words, so the face need not.
+          nameShown
         />
       )}
       <div className="flex min-w-0 flex-1 flex-col gap-1">
@@ -311,6 +313,22 @@ function MessageLine(props: {
    */
   const unspoken = narrator || props.narrated;
   const name = message.speaker?.name ?? '';
+  /**
+   * ***A hidden line is ghosted by its parts, not as a whole*** (2026-10-14,
+   * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.3, after
+   * review). It was `opacity-50` on the line, and opacity below one makes an
+   * element a stacking context, which a mention's card cannot escape: opened
+   * from a hidden line, the card was drawn at half opacity with the next lines'
+   * prose showing through it, and the marks of later lines — positioned, and
+   * later in paint order — were drawn over its text and its links, in exactly
+   * the case where a person has stopped to look at that line. So the line
+   * itself is never translucent. **The prose is dimmed by its colour**, which
+   * holds a card without trapping it; and everything else on the line — the
+   * face, the name, and all that follows the prose — is ghosted in a box of its
+   * own as the whole line was, none of which holds a card. The input line keeps
+   * its whole-line ghost: it draws no mentions.
+   */
+  const ghost = props.hidden ? 'opacity-50' : '';
 
   const prose = editing ? (
     <EditBox
@@ -328,151 +346,153 @@ function MessageLine(props: {
     <MentionOverlay
       text={message.text}
       spans={props.spans}
-      className={`whitespace-pre-wrap ${story} text-ink`}
+      className={`whitespace-pre-wrap ${story} ${props.hidden ? 'text-ink-subtle' : 'text-ink'}`}
     />
   );
 
   const body = (
     <div className="flex min-w-0 flex-1 flex-col gap-1">
-      {narrator ? null : <span className="text-sm font-medium text-ink">{name}</span>}
+      {narrator ? null : <span className={`text-sm font-medium text-ink ${ghost}`}>{name}</span>}
       {prose}
-      {message.reasoning === undefined || message.reasoning === '' ? null : (
-        <details>
-          <summary className={`${disclosure.quiet} text-sm`}>{WORDS.thinking}</summary>
-          <p className="whitespace-pre-wrap text-sm text-ink-subtle">{message.reasoning}</p>
-        </details>
-      )}
-      {/* ***Edited, and the original a click away*** — [P14 §1.9.4]: the
+      {/* Everything on the line after its prose, ghosted together — `ghost`. */}
+      <div className={`flex flex-col gap-1 ${ghost}`}>
+        {message.reasoning === undefined || message.reasoning === '' ? null : (
+          <details>
+            <summary className={`${disclosure.quiet} text-sm`}>{WORDS.thinking}</summary>
+            <p className="whitespace-pre-wrap text-sm text-ink-subtle">{message.reasoning}</p>
+          </details>
+        )}
+        {/* ***Edited, and the original a click away*** — [P14 §1.9.4]: the
           editor's rewrite (or cleanup's trim) is the line; what the model
           wrote is `original`, offered, never shown in its place. */}
-      {message.original === undefined ? null : <EditedOriginal text={message.original} />}
-      {/* ***Continuity, as a checklist on the line it is about*** — each
+        {message.original === undefined ? null : <EditedOriginal text={message.original} />}
+        {/* ***Continuity, as a checklist on the line it is about*** — each
           finding says what is wrong, and one that names its words and their
           fix is applied by the edit gesture: a sibling with that substitution,
           the line as it was staying on the tree. */}
-      {props.notices.length === 0 ? null : (
-        <ul aria-label={WORDS.findings} className="flex flex-col gap-1 text-sm text-ink-subtle">
-          {props.notices.map((notice, at) => (
-            <li key={at} className="flex items-start gap-2">
-              <span className="flex-1">{notice.issue}</span>
-              {notice.quote !== undefined &&
-              notice.fix !== undefined &&
-              message.text.includes(notice.quote) ? (
-                <Button
-                  type="button"
-                  size="compact"
-                  disabled={props.busy}
-                  onClick={() => {
-                    gestures.onEditMessage(
-                      turn,
-                      index,
-                      message.text.replace(notice.quote ?? '', () => notice.fix ?? ''),
-                    );
-                  }}
-                >
-                  {WORDS.apply}
-                </Button>
-              ) : null}
-            </li>
-          ))}
-        </ul>
-      )}
-      {props.hidden ? <Fine>{WORDS.hidden}</Fine> : null}
-      {props.counters.map((ids, at) => (
-        <Counter key={at} turnId={turn.id} ids={ids} busy={props.busy} onGo={gestures.onGo} />
-      ))}
-      <div
-        className={`flex flex-wrap gap-2 ${reveal} group-focus-within/line:opacity-100 group-hover/line:opacity-100`}
-      >
-        <Button
-          type="button"
-          size="compact"
-          disabled={props.busy || editing}
-          onClick={() => {
-            setEditing(true);
-          }}
+        {props.notices.length === 0 ? null : (
+          <ul aria-label={WORDS.findings} className="flex flex-col gap-1 text-sm text-ink-subtle">
+            {props.notices.map((notice, at) => (
+              <li key={at} className="flex items-start gap-2">
+                <span className="flex-1">{notice.issue}</span>
+                {notice.quote !== undefined &&
+                notice.fix !== undefined &&
+                message.text.includes(notice.quote) ? (
+                  <Button
+                    type="button"
+                    size="compact"
+                    disabled={props.busy}
+                    onClick={() => {
+                      gestures.onEditMessage(
+                        turn,
+                        index,
+                        message.text.replace(notice.quote ?? '', () => notice.fix ?? ''),
+                      );
+                    }}
+                  >
+                    {WORDS.apply}
+                  </Button>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        )}
+        {props.hidden ? <Fine>{WORDS.hidden}</Fine> : null}
+        {props.counters.map((ids, at) => (
+          <Counter key={at} turnId={turn.id} ids={ids} busy={props.busy} onGo={gestures.onGo} />
+        ))}
+        <div
+          className={`flex flex-wrap gap-2 ${reveal} group-focus-within/line:opacity-100 group-hover/line:opacity-100`}
         >
-          {WORDS.edit}
-        </Button>
-        {/* Not on a line nobody spoke, nor in a narrated chat — `unspoken`. */}
-        {unspoken ? null : (
           <Button
             type="button"
             size="compact"
-            disabled={props.busy}
+            disabled={props.busy || editing}
             onClick={() => {
-              gestures.onSwipe(turn, index);
+              setEditing(true);
             }}
           >
-            {WORDS.swipe}
+            {WORDS.edit}
           </Button>
-        )}
-        {/* The last line only, and not a hidden one — the server refuses to
+          {/* Not on a line nobody spoke, nor in a narrated chat — `unspoken`. */}
+          {unspoken ? null : (
+            <Button
+              type="button"
+              size="compact"
+              disabled={props.busy}
+              onClick={() => {
+                gestures.onSwipe(turn, index);
+              }}
+            >
+              {WORDS.swipe}
+            </Button>
+          )}
+          {/* The last line only, and not a hidden one — the server refuses to
             continue what the characters cannot see (`hidden-message`). */}
-        {unspoken || !props.last || props.hidden ? null : (
+          {unspoken || !props.last || props.hidden ? null : (
+            <Button
+              type="button"
+              size="compact"
+              disabled={props.busy}
+              onClick={() => {
+                gestures.onContinue(turn);
+              }}
+            >
+              {WORDS.continue}
+            </Button>
+          )}
           <Button
             type="button"
             size="compact"
             disabled={props.busy}
             onClick={() => {
-              gestures.onContinue(turn);
+              gestures.onHide(turn, !props.hidden, index);
             }}
           >
-            {WORDS.continue}
+            {props.hidden ? WORDS.unhide : WORDS.hide}
           </Button>
-        )}
-        <Button
-          type="button"
-          size="compact"
-          disabled={props.busy}
-          onClick={() => {
-            gestures.onHide(turn, !props.hidden, index);
-          }}
-        >
-          {props.hidden ? WORDS.unhide : WORDS.hide}
-        </Button>
-        {/* ***Not on the head's last line***: branching there is *continue
+          {/* ***Not on the head's last line***: branching there is *continue
             from here* at the node the head is already on, a button that would
             do nothing visible. Anywhere else it cuts the round or moves the
             head. */}
-        {props.head && props.last ? null : (
-          <Button
-            type="button"
-            size="compact"
-            disabled={props.busy}
-            onClick={() => {
-              gestures.onBranch(turn, index);
-            }}
-          >
-            {WORDS.branch}
-          </Button>
-        )}
-        {/* ***Delete, once per turn, on its last line*** — [P14 §1.6]: the head
+          {props.head && props.last ? null : (
+            <Button
+              type="button"
+              size="compact"
+              disabled={props.busy}
+              onClick={() => {
+                gestures.onBranch(turn, index);
+              }}
+            >
+              {WORDS.branch}
+            </Button>
+          )}
+          {/* ***Delete, once per turn, on its last line*** — [P14 §1.6]: the head
             moves to the turn's parent and the turn stays as a sibling nobody is
             on, so it is the whole exchange that goes, not one message. */}
-        {props.last ? (
-          <Button
-            type="button"
-            size="compact"
-            disabled={props.busy}
-            onClick={() => {
-              gestures.onDelete(turn);
-            }}
-          >
-            {WORDS.delete}
-          </Button>
-        ) : null}
+          {props.last ? (
+            <Button
+              type="button"
+              size="compact"
+              disabled={props.busy}
+              onClick={() => {
+                gestures.onDelete(turn);
+              }}
+            >
+              {WORDS.delete}
+            </Button>
+          ) : null}
+        </div>
       </div>
     </div>
   );
 
   return (
-    <div
-      className={`group/line flex gap-2 ${props.hidden ? 'opacity-50' : ''}`}
-      data-hidden={props.hidden ? 'true' : undefined}
-    >
+    <div className="group/line flex gap-2" data-hidden={props.hidden ? 'true' : undefined}>
       {message.speaker === null ? null : (
-        <Portrait actorId={message.speaker.id} actor={props.actor} name={name} />
+        <span className={`flex shrink-0 self-start ${ghost}`}>
+          <Portrait actorId={message.speaker.id} actor={props.actor} name={name} />
+        </span>
       )}
       {body}
     </div>

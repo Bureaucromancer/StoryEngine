@@ -9,6 +9,7 @@ import { Face, type FaceSize } from '../ui/Face.js';
 
 const WORDS = labels('play.face', {
   playedAs: 'Played as {name}. Change who you play',
+  playedAsOnly: 'Played as {name}',
   you: 'You',
 });
 
@@ -79,6 +80,19 @@ export function Portrait(props: {
  * opens *You play* in the cast panel, which is where who you play is changed
  * for the next move. When the page has no cast panel to open, the face is a
  * face and not a button — a control that does nothing is worse than none.
+ *
+ * ***And it is named where nothing beside it names it*** (2026-10-14, P12A.3,
+ * after review). A face is decorative because its name is beside it, and the
+ * player's line outside a chat has no name beside it: the move's words, and the
+ * face. As a button the face names itself, *Played as Vera. Change who you
+ * play*; as a bare face it was `aria-hidden` initials, so a screen reader heard
+ * nothing about who the move was played as and a sighted reader saw *V* —
+ * though that is the one claim [P12A §1.1](../../../../docs/design/workplan/35-p12a-the-look.md)
+ * says this face exists to make visible. So where the caller draws no name
+ * (`nameShown` false) and there is no button, the face is wrapped in an image
+ * named *Played as Vera*, the face staying hidden inside it. *Not in a chat*,
+ * whose line draws the name above the words: naming the face there too would
+ * read *Played as Ned, Ned*.
  */
 export function PlayedAs(props: {
   actorId: string;
@@ -87,10 +101,23 @@ export function PlayedAs(props: {
   name: string | undefined;
   /** Opens who you play; absent when there is nowhere to open. */
   onWho: (() => void) | undefined;
+  /** Whether the caller draws the name beside the face, so the face need not say it. */
+  nameShown: boolean;
 }): JSX.Element {
   const name = props.name ?? WORDS.you;
   const face = <Portrait actorId={props.actorId} actor={props.actor} name={name} />;
-  if (props.onWho === undefined) return face;
+  if (props.onWho === undefined) {
+    if (props.nameShown) return face;
+    return (
+      <span
+        role="img"
+        aria-label={WORDS.playedAsOnly.replace('{name}', () => name)}
+        className="flex shrink-0 self-start"
+      >
+        {face}
+      </span>
+    );
+  }
   return (
     <button
       type="button"

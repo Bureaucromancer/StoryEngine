@@ -17,8 +17,22 @@ import { useEffect, useId, useRef, useState, type JSX, type ReactNode } from 're
  * corrected sits on a story somebody is still reading. So this one is
  * **anchored** to what opened it and scrolls with it, **traps nothing** (Tab
  * leaves it as it leaves any other part of the page, in reading order, since
- * the panel follows its trigger in the document), and **closes three ways**:
- * its trigger again, Escape, and a press anywhere outside it.
+ * the panel follows its trigger in the document), and **closes four ways**:
+ * its trigger again, Escape, a press anywhere outside it, and focus leaving it.
+ *
+ * ***Focus leaving it is the keyboard's press outside*** (2026-10-14,
+ * P12A.3, after review). It closed three ways, and a keyboard user who Tabbed
+ * past the last link left the card drawn over the lines below its mark — so the
+ * next control they reached could sit under it (WCAG 2.4.11, *focus not
+ * obscured*) — and Escape no longer reached it, since the keystroke no longer
+ * passed through the wrapper. Only a pointer could close it from there. So focus
+ * going to a real element outside the wrapper closes it, as a press there would,
+ * and leaves the keyboard where it went. Focus moving *inside* never closes it:
+ * from the trigger to the first link on opening, onto the panel itself when its
+ * text is clicked, back onto the trigger, whose click then closes it. **A
+ * widget that holds an unsaved value** — P12A.4's HUD, when it reuses this —
+ * will have to commit on blur, as `TokenField` does, or Tabbing away will drop
+ * what was typed.
  *
  * ***Where focus goes, which is the part popovers get wrong.*** Opening hands
  * the keyboard to the first control inside, or to the panel itself when it has
@@ -87,6 +101,17 @@ export function Popover(props: {
         event.stopPropagation();
         setOpen(false);
         trigger.current?.focus();
+      }}
+      onBlur={(event) => {
+        // React's blur bubbles — it is `focusout` underneath — so this hears
+        // focus leaving anything inside. Only a real element outside counts as
+        // the keyboard's press outside. A `null` `relatedTarget` is left alone:
+        // the window losing focus, or Safari's button press that focuses
+        // nothing, would otherwise close the card — and a press on the trigger
+        // would then open it again. The `pointerdown` listener above already
+        // covers presses outside.
+        const into = event.relatedTarget;
+        if (open && into !== null && !event.currentTarget.contains(into)) setOpen(false);
       }}
     >
       <button

@@ -68,9 +68,27 @@ export function focusWhoYouPlay(): void {
  * to. A chat renders even with nobody in it, because the control that seats
  * somebody is inside; anything else keeps the old rule — no cast, no panel —
  * and a session with a persona has a row for them.
+ *
+ * *(2026-10-14, [P12A](../../../../docs/design/workplan/35-p12a-the-look.md)
+ * P12A.3, after review: **and a session with a roster renders too**, even with
+ * nobody seated, for the chat's reason — the control that seats somebody is
+ * inside. The old rule broke the day the panel came to hold the only persona
+ * control. In a session whose one row was its persona, with no presence or
+ * status written for anybody else, choosing* Nobody in particular *emptied the
+ * rows, the panel went with them, and* You play *with the panel: nothing in
+ * the product could set a persona on that session again, and every face on a
+ * line played as the old persona stopped being a way to it. A roster is
+ * `session.cast`, which a session has once it was started with a cast or one
+ * was written through `PUT /cast` — so it survives* Nobody *as
+ * `{ persona: null, actors: [] }`. A session started with no cast at all still
+ * draws no panel, as before: nothing was ever chosen there to take back.)*
  */
-export function castPanelShows(rows: readonly CastRow[], chat: ChatSettings | undefined): boolean {
-  return rows.length > 0 || chat !== undefined;
+export function castPanelShows(
+  rows: readonly CastRow[],
+  chat: ChatSettings | undefined,
+  roster: { persona: string | null; actors: string[] } | undefined,
+): boolean {
+  return rows.length > 0 || chat !== undefined || roster !== undefined;
 }
 
 /** The steps a talkativeness select offers: SillyTavern's slider, in tenths. */
@@ -152,7 +170,7 @@ export function CastPanel(props: {
   const roster = session.data?.session.cast;
   const modeId = session.data?.session.mode?.id;
 
-  if (!castPanelShows(rows, chat)) return null;
+  if (!castPanelShows(rows, chat, roster)) return null;
 
   return (
     <section className="flex flex-col gap-2" aria-label={WORDS.label}>

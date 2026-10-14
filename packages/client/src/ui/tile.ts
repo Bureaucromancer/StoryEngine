@@ -10,8 +10,13 @@
  * its §0.4). It was `auth/tile.ts`, the sign-in gallery's, while the play
  * page's portraits spelled the same idea a second way — one letter, cut by code
  * point, on a grey disc — which is the *second invention* P12A.3 was written
- * to prevent, already made. There is one spelling now, here, and `Face` beside
- * it is the one component that draws it. **The inputs were renamed rather than
+ * to prevent, already made. There is one spelling now, here. `Face` beside it
+ * is the one component that draws it for an actor. The two account sites still
+ * draw it themselves from this same `drawnTile`: the sign-in gallery's
+ * `DrawnFace` (`auth/Gallery.tsx`) and the settings preview in `AvatarField`
+ * (`settings/UserSettings.tsx`). Their sizes and markup are their own, so a
+ * change to `Face`'s markup or its error fallback reaches neither of them.
+ * **The inputs were renamed rather than
  * reinterpreted**: `handle` and `displayName` became `id` and `name`, because
  * an actor has no handle and its immutable key is its id — the argument below
  * for the handle is the argument for the actor's id, word for word.

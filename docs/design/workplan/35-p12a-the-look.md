@@ -1451,12 +1451,23 @@ the server.
   were. The face on a line is a button that hands *You play* the keyboard,
   which scrolls it into view; where the page draws no cast panel, the face is
   a face and not a button. `LorePanel.tsx`'s note has a dated note.
+  *(2026-10-14, after review: sending `actorId` changes one more surface, the
+  reading view — its Markdown and text copies and Print with it. A move played
+  as the persona is headed with the persona's name now, *Ned said*, where it
+  read *You said*, because `prose.ts` keeps *You* for a move whose `actorId`
+  is `null`, [polish §11](06-polish.md)'s rule. That agrees with the chat's
+  line, which showed that name already through the `?? personaId` fallback
+  removed above. Older moves in the same session keep *You*, since their
+  records name nobody, and `prose.test.ts`'s first case already holds a named
+  move. The guide's* Reading a story *says so now.)*
 - **Mentions.** `runsFor` (`library/search.ts`) carries each hit's span, so a
   run is no longer only text and a flag, and the overlay maps a mark to its
   target by what it was cut from rather than by counting. A mark is the
   trigger of **`ui/Popover`**, built here — non-modal, anchored beside its
   trigger and scrolling with it, closed by its trigger, Escape or a press
-  outside, Escape handing the keyboard back and stopping there, no trap — and
+  outside, Escape handing the keyboard back and stopping there, no trap
+  *(2026-10-14, after review: and closed by focus leaving it, the keyboard's
+  press outside — see* After review *below)* — and
   opens a card: the actor's face and name, *Matched by "…"*, **Open** the
   actor's editor, the sentence that names the correction (*a name is marked
   when it is a character's name or one of their aliases*) and a link to
@@ -1583,11 +1594,156 @@ the face and its sites. The mention's card behind a `lazy()` measured
 **316.27**, worse, for the reason that file's earlier notes give. **4.63 kB is
 left** for P12A.4 onward.
 
+***After review, 2026-10-14*** — a review of the stage's diff, each finding
+verified before it was acted on, found nine things, two of them the same one:
+that *You play* could take itself away, that *Play as them* let a move go out
+as the persona just put down, that the popover stayed drawn after the keyboard
+left it, that a card opened from a hidden chat line was half transparent, that
+the player's line outside a chat could name nobody, that the reading view's
+headings changed without a word, and that the corpus said three things that
+are not so.
+
+**You play could take itself away.** Two findings, one fault. The panel was
+drawn for a cast row or a chat, and a session whose one row was its persona —
+a fresh Scene session, outside a chat, with no presence or status written for
+anybody — has nothing else. Choosing *Nobody in particular* and pressing
+*Play as them* wrote `{ persona: null, actors: [] }`, the refetch brought back
+no rows, and the panel went, with *You play* inside it: nothing in the product
+could set a persona on that session again, and every face on a line played as
+the old persona stopped being a button, since the page offers the press only
+where the panel is. So **a roster is a reason to draw the panel**, as a chat
+is, for the chat's reason — the control that seats somebody is inside it.
+`castPanelShows` takes the roster as a third question, and the page asks the
+panel's question with it, which comes to `roster !== undefined` and stays a
+call so that the two cannot drift. A session started with no cast at all has no
+roster and still draws no panel: nothing was chosen there to take back. The
+predicate's docstring and the page's comment over `<CastPanel>` have dated
+notes, 10 §13.2's note has one, and the guide says *Nobody in particular*
+keeps the panel.
+
+**Play as them settled before the session had caught up.** `useSetCast` voided
+its invalidation, so the write was over when the `PUT` was: the choice was
+cleared, the select snapped back to the persona just changed away from with the
+button live again, and a move sent before the refetch went out with that old
+persona as its `input.actorId` — its line wearing for good the face the player
+had put down, the stale attribution this stage exists to stop. Two halves, each
+closing its own window: the cast the `PUT` answered is written into the session
+cache at once, so `roster.persona`, which the composer sends, is right the
+moment the write is acknowledged; and the invalidation is returned, as
+`useSetChatSettings`' and `useSetHidden`'s are, so the mutation — and each
+caller's own `onSuccess`, which clears its choice — waits for the refetch. An
+answer with no roster writes nothing, and the second half alone then keeps the
+choice on screen. Nothing changed in `CastPanel.tsx`.
+
+**The popover stayed open after the keyboard left it.** It closed three ways,
+and Tab past its last link left the `w-64` card drawn over the lines below its
+mark, so the next control could sit under it (WCAG 2.4.11, *focus not
+obscured*), and Escape did nothing from there, the keystroke no longer passing
+through the wrapper; only a pointer could close it. It closes **four ways**
+now: `onBlur` on the wrapper, which hears every `focusout` inside, closes it
+when focus goes to a real element outside, and leaves the keyboard where it
+went, as a press outside does. A `null` `relatedTarget` — the window losing
+focus, Safari's button press that focuses nothing — is left alone, since the
+`pointerdown` listener already covers presses and closing there would let a
+press on the trigger close and reopen it. Focus moving inside never closes it.
+The docstring says four, and 10 §13.1 and the mention bullet above have dated
+notes. **For [P12A.4](#p12a4--the-hud-and-whether-it-can-write)**: a HUD widget
+holding an unsaved value has to commit it on blur, as `TokenField` does, or
+Tabbing out of the popover drops what was typed — said in the docstring and
+beside that stage's text.
+
+**A card opened from a hidden chat line was drawn at half opacity.** The line
+was `opacity-50`, and opacity below one makes a stacking context the card
+cannot leave: the next lines' prose showed through it, and later lines' marks —
+positioned, and later in paint order — were drawn over its links, in exactly
+the case where someone has stopped on that line. **The line is never
+translucent now**: its prose is dimmed by colour, `text-ink-subtle` for
+`text-ink`, which holds a card without trapping it, and the face, the name and
+everything after the prose are ghosted in boxes of their own, none of which
+holds a card — the finding named the face and the name, and the box after the
+prose keeps the rest of the line looking as hidden as it did. With no stacking
+context on the line, the panel's `z-10` takes part in the page's again. *The
+finding's smaller alternative*, `has-[[role=dialog]]:opacity-100` on the line,
+was not taken: jsdom cannot evaluate `:has`, so it could be held only by its
+class string, and the whole line would stop looking hidden while the card was
+open. The input line keeps its whole-line ghost, since it draws no mentions.
+
+**The player's line outside a chat could name nobody.** `Face` is decorative
+because its name is beside it, and outside a chat the player's line draws the
+move's words and the face, no name. Where the page offers no *You play* the
+face is not a button, so it was `aria-hidden` initials: a screen reader heard
+nothing about who the move was played as, and a sighted reader saw *V* —
+though that is the claim §1.1 says this face exists to make visible. `PlayedAs`
+takes `nameShown` now: where the caller draws no name and there is no button,
+the face is wrapped in `role="img"` named *Played as Vera*, through the
+`play.face` table. A chat's line draws the name above the words and passes
+`nameShown`, so it is not named twice (*Played as Ned, Ned*). `Face`'s
+*Decorative* paragraph has a dated note: a face is decorative when the name is
+beside it **or on what holds it**. *The finding's test* set the session's
+roster to `{ persona: null, actors: [] }` with no rows; after the first fix
+that roster draws the panel and the face is a button, so the test uses a
+session with no roster, an import's — which is where a non-chat line can name
+somebody with no *You play* to open.
+
+**The reading view's headings changed and nobody said so.** Recorded beside
+*The player's own line* above, and the guide's *Reading a story*, which
+promised *You did* and *You said* for every move, says what a heading is now —
+the character the move was played as, or *You* for a move played as nobody in
+particular or from before the character was recorded with it. No code: polish
+§11's rule is the one wanted.
+
+**The corpus.** `Face`'s docstring and `tile.ts`'s said `Face` is the one
+place the tile is drawn; the sign-in gallery's `DrawnFace` and the settings
+preview's `AvatarField` still draw it themselves, and the gallery's `<img>` has
+no error fallback. Both docstrings say so now — this stage's own, corrected in
+place — and moving the account faces onto `Face`, with two more sizes, is a
+scope and entry-budget question left to a later stage. 10 §13.2's note from this
+stage counted *who you play* among *the four repairs above*, which it is not
+and which `CastPanel`'s own note says it is not; that clause of the note is
+corrected in place to say it is built beside them.
+
+**Tests after review, each checked against a mutation and restored.** In
+`play/CastPanel.test.tsx`: *is drawn for a roster with nobody in it, and not
+for no roster at all* and *stays to be chosen from again after nobody is
+chosen* fail with the old two-question predicate, rows or a chat; *keeps the
+persona it sent on screen until the session has caught up* — the refetch held,
+the `PUT`'s answer carrying no roster so the cache write cannot hide the other
+half — fails with the invalidation voided and with the hook's `onSuccess` as it
+was. The finding's first test played `actor-ned` and asked that it still be
+offered after *Nobody*; a persona the library lacks is offered only while it is
+the persona, and this file's library holds Vera alone, so the test plays Vera.
+In `play/PlayPage.test.tsx`: *sends a move as the persona just chosen, before
+the session is read again* fails with the cache write removed — the move goes
+as `actor-vera`; *names the face when it is not a button* fails with the
+wrapper removed. In `play/PlayPage.chat.test.tsx`: *names a face that opens
+nothing once* fails with the wrapper drawn whenever the face is not a button,
+`nameShown` ignored; *opens a mention on a hidden line outside anything that
+fades* fails with `opacity-50` back on the line, with the prose's colour dim
+removed, with the name's ghost removed, and with the ghost taken off the box
+after the prose. In `ui/Popover.test.tsx`: *lets Tab leave it in reading order,
+and closes as it goes* fails with the `onBlur` close removed; the new *stays
+open when focus goes to no element at all* fails with a `null` `relatedTarget`
+counted as leaving, which the Tab test alone let survive; the inside check
+removed fails four tests, and *stays open for a press inside it* now also
+presses the card's own text. *Not looked at in a browser*, still.
+
+**Entry after: 315.57 kB, CSS 8.39** — **315.37 and 8.39 before**, at
+`02b335ce`, gzip level 9 over the files `index.html` pulls, the budget test's
+method. **+0.20 kB**: the popover's blur close, the cache write, the named
+wrapper and its label, and the panel's third question. CSS is unchanged: every
+class the fixes spend was already emitted. **4.43 kB is left** for P12A.4
+onward.
+
 ### P12A.4 — The HUD, and whether it can write
 
 §1.4. Audit first, then the strip: the *facts about now* widgets in one line
 above the prose, each opening in place, each writing through a real state effect
 that lands on the record.
+
+*(2026-10-14, from [P12A.3](#p12a3--faces)'s review: `ui/Popover` closes when
+focus leaves it, as a press outside does, so a widget here that holds a value
+not yet written has to commit it on blur, as `TokenField` does, or Tabbing out
+of the popover drops what was typed.)*
 
 ### P12A.5 — The column that grew seven disclosures
 

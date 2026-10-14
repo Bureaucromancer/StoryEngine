@@ -2869,6 +2869,9 @@ highlighted and not linked: the span's target was dropped by the client before
 the mark was drawn, so the transcript could say *the engine knows this name*
 and not *as whom*. The span travels with its mark now, and a mark is a control
 opening a small card beside it — non-modal, closed by Escape or a press outside
+*(2026-10-14, after review: and by the keyboard leaving it — Tab past its last
+link closes it as a press outside would, so the card never sits over the control
+focus moved to, which it did, deaf to an Escape that no longer reached it)*
 — that says **who the engine matched**, with their face; **the words it matched
 by**; ***Open*** them, the actor's editor; and **the correction that exists**:
 the matcher marks a name because it is the actor's name or one of their
@@ -2962,9 +2965,14 @@ player's line is the link into this panel that §1.3 asks of a wrong face: it
 hands *You play* the keyboard. Changing it is the *"explicit act"*
 [06 §8](06-modes-and-turn-pipeline.md) asks a mid-session change to be: nothing
 is written until the button is pressed, and no line already played changes its
-face. *Of the four repairs above, presence and status, and now who you play,
-are built*; merge, split and linking an unresolved mention are not, and the
-panel's own docstring still says why.
+face. *Of the four repairs above, presence and status are built*, and who you
+play beside them, which is not one of the four but the correction a face on the
+player's line leads to; merge, split and linking an unresolved mention are not,
+and the panel's own docstring still says why. *(2026-10-14, after review: the
+panel is drawn for any session with a roster, even with nobody in it. It was
+drawn only for a cast or a chat, so choosing* Nobody in particular *in a session
+whose one row was its persona took the panel away, and* You play *with it, and
+left nothing that could set a persona there again.)*
 
 ---
 
