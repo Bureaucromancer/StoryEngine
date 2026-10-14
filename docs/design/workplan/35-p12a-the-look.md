@@ -1527,7 +1527,11 @@ the server.
   [P12A.7](#p12a7--editors-section-jumps-and-an-identity-header)'s header to
   carry, and `library/note-labels.ts`'s import sentence *"Add a picture in the
   editor instead"* still points at a control that does not exist — found here,
-  left for that stage.
+  left for that stage. *(2026-10-14, after the phase audit: P12A.7 built the
+  header as display only, so the header shows the card and no control replaces
+  it. The import sentence names the database import instead, its old clause
+  struck in the comment above it — see [the final audit](#the-final-audit-2026-10-14)'s
+  editors record.)*
 - *`ui/Popover`* is built here rather than at P12A.4, which §0.4's P12A.4
   bullet names as its builder, because this stage runs first; P12A.4 reuses
   it. **A press outside does not move focus**: Escape gives the keyboard back
@@ -2914,6 +2918,18 @@ actor's line.
   row, and the heading's parent for its section; the chips are a list, and a
   heading sits a level deeper in its row. Those readings go through the
   *Entries* region and `closest('section')` now, and no assertion changed.
+- *(2026-10-14, after the phase audit.)* *Not done, and said*: **the header's
+  picture has no correction path.**
+  [P12A.3](#p12a3--faces) handed this stage two things: the object header's
+  path to a correction, which it found had none — *the editor shows the card
+  and does not replace it* — and the import sentence that promised one, *"Add
+  a picture in the editor instead"*. The header was built as display only, and
+  neither was taken up or named here. Replacing a card's
+  picture is [10 §11](../10-ui-surfaces.md)'s *"uploaded, cropped and
+  replaced"*, which §11.3 asks of the actor avatar by name and which belongs to
+  no stage of this phase, so it is not built now either; the import sentence
+  that promised it is corrected instead, and
+  [the final audit](#the-final-audit-2026-10-14)'s editors record says how.
 
 **Tests, each checked against a mutation and restored**, all in the new
 `editor/jumps.test.tsx`. *A chip for every section, and a section for every
@@ -3708,6 +3724,52 @@ entry's second sentence, and the phone's sentence. The stylesheet, compared
 rule by rule with the build before the change, gains `.sm\:hidden` and nothing
 else — `flex-wrap` and `basis-full` were emitted already. **3.11 kB is left**
 under the 325 ceiling, so no raise.
+
+**Editors: an import sentence that pointed at a control nobody built.**
+[P12A.3](#p12a3--faces) found that `import.aventuras.portraitNotCarried` — the
+warning `library/note-labels.ts` gives when a character's JSON file from
+Aventuras is imported and its portrait dropped — ended *"Add a picture in the
+editor instead"*, and left it for
+[P12A.7](#p12a7--editors-section-jumps-and-an-identity-header)'s header. P12A.7
+built that header as display only — the card's picture through `ui/Face`, its
+tile when there is none — and its record neither took the sentence up nor
+named it among what it did not do, so the sentence closed owned by no stage. A
+person importing that file was told to do what no surface offers: the actor
+editor has no picture control and no media strip, the lorebook's being the
+only one.
+
+**The sentence is corrected, and nothing is built.** Replacing a card's
+picture is [10 §11](../10-ui-surfaces.md)'s *"uploaded, cropped and
+replaced"*, which §11.3 asks of the actor avatar by name, and no stage of this
+phase carries it. The sentence says now that the portrait was not imported and
+that a character's picture cannot be replaced here, and names the road that
+does carry one: Aventuras' whole library, `aventura.db`, whose
+`character_vault` rows have brought their portraits since
+[P13 §1.6](30-p13-aventuras-import.md). That agrees with the guide's import
+table, which already says a character `.json` arrives *without its portrait*
+and the database's vault characters *with their portraits*. **The key
+stays**, so a review saved before reads on in the new words; the struck clause
+and the reason are a dated docstring above it, written as P12A.2's
+`storyPictures` correction was.
+
+*Dated notes, none a rewrite*: P12A.3's bullet that left the sentence for
+P12A.7, and a *Not done, and said* bullet in P12A.7's record for the
+correction path the header did not get.
+
+*No test is new*: the change is one sentence and a comment, so there is no
+behaviour to pin and no mutation to check it against. No test asserted the old
+words, and `note-labels.test.ts`, which holds every key the server emits to a
+sentence, finds the same key. The library's client tests, twenty-six files,
+and the server's Aventuras importer's, thirteen, which emit the key, pass after
+the build, as do `tools/entry-budget.test.ts` and the `docs` and `release`
+projects. *Not looked at in a browser*, and no row of T walks an
+Aventuras import.
+
+**Entry after: 321.91 kB, CSS 9.02** — **321.89 and 9.02 before**, at
+`4bce6222`, gzip level 9 over the files `index.html` pulls, the budget test's
+method. **+0.02 kB** is the sentence's longer words in `note-labels`' chunk,
+which `index.html` preloads; the build drops the comment, and the stylesheet
+is the same file. **3.09 kB is left** under the 325 ceiling, so no raise.
 
 ---
 

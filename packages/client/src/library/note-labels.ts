@@ -449,8 +449,27 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
     '{count} opening messages were not carried: a lorebook has nowhere to put them. Import it as a treatment instead to keep them.',
   'import.aventuras.visualDescriptors':
     '{count} appearance fields carried across to {actor} unchanged.',
+  /**
+   * ***The portrait a vault file drops*** — fired by `portraitWarning`
+   * (`import/aventuras/character.ts`) for a character JSON file only; a
+   * `character_vault` row carries its portrait
+   * ([P13 §1.6](../../../../docs/design/workplan/30-p13-aventuras-import.md)),
+   * which is why the sentence sends a person to the database rather than
+   * anywhere in this app.
+   *
+   * *(2026-10-14, [P12A](../../../../docs/design/workplan/35-p12a-the-look.md)
+   * P12A.3/P12A.7: ~~Add a picture in the editor instead.~~ — no editor
+   * replaces a card's picture. The actor editor's header shows the card and
+   * falls back to the tile; the actor editor has no picture control and no
+   * media strip, the lorebook's being the only one; and changing a card's
+   * picture is something no surface in the app offers, as P12A.3 put it.
+   * P12A.3 found the clause and left it for P12A.7, which built the header as
+   * display only, so the promise pointed at a control nobody was going to
+   * build. The sentence names the road that does carry a portrait, the whole
+   * library's import. The key stays, so a review saved before reads on.)*
+   */
   'import.aventuras.portraitNotCarried':
-    'The portrait in this file was not imported. Add a picture in the editor instead.',
+    'The portrait in this file was not imported, and a character’s picture cannot be replaced here. Import Aventuras’ whole library (aventura.db) instead to bring its portrait.',
   'import.aventuras.lorebookEntries': 'Read as an Aventuras lorebook: {count} entries.',
   'import.aventuras.entryStateRecorded':
     '{count} entries carried tracked state from a story in progress. It is kept as it was and nothing reads it here.',
