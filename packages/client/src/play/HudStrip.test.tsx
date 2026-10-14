@@ -295,6 +295,89 @@ describe('an entry of the strip', () => {
   });
 
   /**
+   * ***A write's answer does not take back what was typed after it was sent***
+   * (2026-10-14, after review). Only the words sent landed; more typed while
+   * the write was out are still unsaved, so they stay in the box, and the Save
+   * that sent the first words does not close the panel over them. Mutation:
+   * the answer reading the render that sent it (`HudEntry`'s `now.current !==
+   * sent` guard removed) — the box goes back to *the docks* and the panel
+   * closes.
+   */
+  it('keeps what was typed while a write was out, and the panel open', async () => {
+    let answer: (result: unknown) => void = () => undefined;
+    writeSessionChannel.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          answer = resolve;
+        }),
+    );
+    renderStrip();
+    const strip = await theStrip();
+    await userEvent.click(within(strip).getByRole('button', { name: 'Place the harbour' }));
+    const box = screen.getByRole<HTMLInputElement>('textbox', { name: 'Place' });
+    await userEvent.clear(box);
+    await userEvent.type(box, 'the docks{Enter}');
+    await waitFor(() => {
+      expect(writeSessionChannel).toHaveBeenCalledTimes(1);
+    });
+
+    await userEvent.type(box, ', north quay');
+    readSession.mockResolvedValue(sessionWith({ hud: [CLOCK, place('the docks')] }));
+    answer({
+      session: { id: SESSION_ID },
+      effect: { applied: true, rejectedReason: null },
+      health: [],
+    });
+
+    await within(strip).findByRole('button', { name: 'Place the docks' });
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Save' }).hasAttribute('disabled')).toBe(false);
+    });
+    expect(box.value).toBe('the docks, north quay');
+    expect(screen.getByRole('dialog', { name: 'Place' })).toBeTruthy();
+    expect(writeSessionChannel).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * ***Text a number box cannot read is said, not written as nothing***
+   * (2026-10-14, after review). A `type="number"` box holding *1-2* or *abc*
+   * reports its value as `''`, as an emptied one does, and for a number that
+   * may be unset an empty box is a write of `null` — a recorded clearing of the
+   * channel. jsdom never sets `badInput` itself, so the box's validity is
+   * stubbed. Mutation: the `badInput` check removed, and `null` is written.
+   */
+  it('says a number box holds text it cannot read, rather than writing nothing for it', async () => {
+    readSession.mockResolvedValue(
+      sessionWith({
+        hud: [
+          {
+            ...ROUND,
+            edit: { kind: 'number', integer: false, nullable: true, min: null, max: null },
+          },
+        ],
+      }),
+    );
+    renderStrip();
+    const strip = await theStrip();
+    await userEvent.click(within(strip).getByRole('button', { name: 'Round 3' }));
+    const box = screen.getByRole('spinbutton', { name: 'Round' });
+    await userEvent.clear(box);
+    Object.defineProperty(box, 'validity', { value: { badInput: true } });
+
+    await userEvent.keyboard('{Enter}');
+    expect(box.getAttribute('aria-invalid')).toBe('true');
+    expect(screen.getByText('That is not a number.')).toBeTruthy();
+
+    await userEvent.tab(); // to Save, still inside
+    await userEvent.tab(); // out of the panel
+    expect(screen.queryByRole('dialog', { name: 'Round' })).toBeNull();
+    expect(within(strip).getByRole('alert').textContent).toBe(
+      'Round was not changed. That is not a number.',
+    );
+    expect(writeSessionChannel).not.toHaveBeenCalled();
+  });
+
+  /**
    * ***Anything else is not changed here, and says so*** — the clock is an
    * object, and an entry from a server older than this stage carries no edit at
    * all; both open to the sentence rather than to a box that would write

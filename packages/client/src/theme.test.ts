@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
-import { page, story } from './ui/classes.js';
+import { page, story, strip as stripItem } from './ui/classes.js';
 
 /**
  * The palette, checked as a thing with rules rather than read as decoration.
@@ -802,5 +802,42 @@ describe("the story's measure", () => {
       .filter((path) => !path.endsWith(RECIPES))
       .flatMap((path) => [...strip(readFileSync(path, 'utf8')).matchAll(/\$\{story\}/g)]);
     expect(spent.length).toBeGreaterThanOrEqual(14);
+  });
+});
+
+/**
+ * ***The HUD strip is set in no ink fainter than the veil was worked out for***
+ * (2026-10-14, [P12A](../../../docs/design/workplan/35-p12a-the-look.md)
+ * P12A.4, after review).
+ *
+ * The strip is the part of Play's column that stays over a backdrop once
+ * P12A.5 has moved the configuration panels out, and the veil's opacity was
+ * worked out for `ink-subtle`: `ink-faint` over it is about 3 to 1 in the
+ * light theme, and 4.35 to 1 on the `surface-muted` ground an item takes while
+ * it is hovered or open. contrast.test.ts measures the pairs, and says why
+ * `ink-faint` is on neither ground; what it cannot see is which ink the strip
+ * spends. The review found the label and *not set* in `ink-faint` — once in
+ * the recipe and once at the call site — so this reads both: the recipe's
+ * strings, and the class lists of the two files that draw the strip and its
+ * entries. A mode's panel text, in `ModeRegion`, is not the strip's and is not
+ * read.
+ */
+describe('the HUD strip', () => {
+  const ROOT = fileURLToPath(new URL('.', import.meta.url));
+  const FAINT = 'text-ink-faint';
+
+  it('spends no ink fainter than ink-subtle, in its recipe or where it is drawn', () => {
+    for (const [name, classes] of Object.entries(stripItem)) {
+      expect(classes.split(/\s+/).map(utilityOf), `strip.${name}`).not.toContain(FAINT);
+    }
+    for (const file of [join('play', 'HudStrip.tsx'), join('play', 'HudEntry.tsx')]) {
+      const spent = literals(strip(readFileSync(join(ROOT, file), 'utf8')))
+        .flatMap((text) => text.split(/\s+/))
+        .map(utilityOf);
+      // Calibrated: a reader gone blind would find nothing, and pass. Both
+      // files lay out their line, so each spends `flex` somewhere.
+      expect(spent, file).toContain('flex');
+      expect(spent, file).not.toContain(FAINT);
+    }
   });
 });

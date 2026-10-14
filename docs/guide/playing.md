@@ -188,11 +188,24 @@ or Marinara chat as a new session — see
 ## The play page
 
 From the top: the session's name, **Rename** and **Add to a world…**, and under them
-**In these worlds** when any world names the session; a strip of the story's state where
-the mode keeps one; the **Cast**; for a Scene chat, **How this chat plays**; the lore
-panel (*Retrieving from …*); the session panel (*Prompted with …*); goals; plot
-hooks; Freeform's dials; picture controls; the **transcript**; and at the bottom the
-composer.
+**In these worlds** when any world names the session; for a Scene chat, **How this chat
+plays**; the lore panel (*Retrieving from …*); the session panel (*Prompted with …*);
+Freeform's dials; the mode's own panels; picture controls; **The story now**, a strip of
+what is true now; the **transcript**; and at the bottom the composer.
+
+The strip is one line. In order it holds:
+
+- a warning, when part of the story's state could not be loaded;
+- the mode's entries, such as a Scene's **Time** and **Place**;
+- **Cast**, with the faces of who is here and *n of m here*;
+- the objective;
+- the plot hooks.
+
+Press an item to open it under the strip. An entry you can change opens to a box.
+**Save**, Enter, Tab away or a press elsewhere saves what you typed; **Escape** drops it.
+Empty the box to make the entry *not set*. If the engine refuses a change, the strip
+says so beside the entry, e.g. *Place was not changed. …*. An entry that cannot be
+changed here, such as **Time**, says *This can't be changed from here*.
 
 The transcript runs oldest at the top, in its own scrolling area. It shows the most
 recent **100** turns of the line you are on; older ones are in the
@@ -286,7 +299,7 @@ reason; **Redo** tries it again. See [Troubleshooting](troubleshooting.md).
 
 Changes to the story's state from the panels — a dial, a hook's pacing or commitment,
 someone's presence or status, a goal's progress, the suggestions and pictures
-switches — are recorded as turns too, with no text of their own. That is what lets you
+switches, a correction made in the strip — are recorded as turns too, with no text of their own. That is what lets you
 rewind them, and why they appear as empty rows in the transcript. The session's
 settings are not turns, and rewinding does not change them: its lorebooks, prompt pack,
 temperature and reply length, memories, a chat's cast list, and the hooks you add or
@@ -351,10 +364,11 @@ pack — the setup names the library preset.
 
 ### Cast
 
-Everyone in the story, each with their face — their portrait, or their initials on a
-colour of their own when they have none — and a badge: **Here**, **Elsewhere**,
-**Dead**, **Departed** — and, where it applies, **You write them**, **Companion** or
-**With you**; someone not yet met says *not yet met*. Each row has **In the scene** and
+**Cast**, in the strip, opens the cast panel: everyone in the story, each with their
+face — their portrait, or their initials on a colour of their own when they have none —
+and a badge: **Here**, **Elsewhere**, **Dead**, **Departed** — and, where it applies,
+**You write them**, **Companion** or **With you**; someone not yet met says *not yet
+met*. Each row has **In the scene** and
 a status list (**Alive**, **Dead**, **Departed**). These are part of the story's state,
 so a character can be dead on one branch and alive on another. Nothing in play
 changes them for you: they change when you change them.
@@ -404,8 +418,9 @@ pack**). See [Presets and prompts](presets.md#a-sessions-own-copy).
 
 A story can have an objective, or a chain of them, written into a setup or set by you.
 A session [started from a setup](#starting-from-a-setup) begins on the setup's first
-one; otherwise you set it here. The panel's heading says where things stand:
-*Working toward: …*, *Playing on, with no objective*, *The story has ended*.
+one; otherwise you set it here. Its line in the strip says where things stand (press it
+to open the panel): *Working toward: …*, *Playing on, with no objective*, *The story has
+ended*.
 
 - **Set an objective** and **Set** adds one and points play at it. The narrator sees
   the current objective every turn.
@@ -420,8 +435,8 @@ one; otherwise you set it here. The panel's heading says where things stand:
 
 A plot hook is something that could happen — a stranger at the door, a storm — kept
 back until the moment suits it. Hooks come from the treatment, the setup and the
-session's lorebooks when the session starts, and you can add your own. The heading
-says how many are eligible now.
+session's lorebooks when the session starts, and you can add your own. Its line in the
+strip says how many are eligible now; press it to open the panel.
 
 - **How often hooks fire**: **Rarely**, **Now and then** (the usual default), **Often**,
   or **Only when I say**. A judgement — one more model call — decides whether one fires.

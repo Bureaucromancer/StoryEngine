@@ -184,7 +184,11 @@ function tokensByTheme(): {
 const PAIRS: [ink: string, on: string[]][] = [
   ['ink', ['surface', 'canvas', 'surface-muted']],
   ['ink-muted', ['surface', 'canvas', 'surface-muted']],
-  ['ink-subtle', ['surface', 'canvas']],
+  // `surface-muted` since P12A.4's review (2026-10-14): the HUD strip's labels
+  // and its *not set* are `ink-subtle`, and an item takes that ground while it
+  // is hovered, focused or open. `ink-faint` is not on it, and cannot be — 4.35
+  // to 1 in light — which is why the strip spends this step instead.
+  ['ink-subtle', ['surface', 'canvas', 'surface-muted']],
   ['ink-faint', ['surface', 'canvas']],
   // A search hit has to be readable, and it is the one pair where the ink and
   // the surface arrived together rather than one landing on the other.
@@ -193,6 +197,14 @@ const PAIRS: [ink: string, on: string[]][] = [
   // while the accent was slate-800 — white on near-black could not miss — and
   // the first thing a hue can get wrong (2026-10-01).
   ['on-accent', ['accent', 'accent-hover']],
+  // `Alert`'s warning tone, at rest on a story surface since P12A.4
+  // (2026-10-13): the HUD strip's health item wears it so that 06 §4.2's
+  // sentence cannot be missed, and `strip` in classes.ts justifies spending
+  // that ground at rest by this row — which that comment claimed before the
+  // row was here. The tone had carried the Shell's banner and every warning
+  // `Alert` unmeasured, so a re-tune of `--color-warn-*` could have taken it
+  // under the floor and nothing would have said so.
+  ['warn-ink', ['warn-surface']],
   /**
    * Every tag swatch, in both themes — [05 §4](../../../../docs/design/05-tagging.md).
    *

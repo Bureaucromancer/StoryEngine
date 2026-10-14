@@ -65,7 +65,13 @@ const WORDS = labels('play.health', {
  * keeps it out of. *What it opens in place* is the recovery, one row per
  * channel with its two offers, which is the part that was always an action
  * rather than a fact. Still `role="status"`, round the item, for the reason
- * above.
+ * above. *(2026-10-14, after review: still a status, and not round the item.
+ * The item's panel is hidden while shut and shown on a press, and shown inside
+ * a polite live region it would be read out — the channel, the reason, both
+ * offers — on every open, while focus landing on* Try again *says that much
+ * again. So the live region is a copy of the two sentences, out of sight, and
+ * the item beside it is a plain button; a refused retry's note, outside any
+ * region now, has one of its own.)*
  */
 export function ChannelHealth(props: { sessionId: string }): JSX.Element | null {
   const session = useSession(props.sessionId);
@@ -74,7 +80,13 @@ export function ChannelHealth(props: { sessionId: string }): JSX.Element | null 
   if (degraded.length === 0) return null;
 
   return (
-    <div role="status">
+    <div>
+      {/* The live region is the two sentences, not the item: un-hiding the rows
+          inside a status region would read every one of them out on every
+          open, while focus also lands on Try again. */}
+      <span role="status" className="sr-only">
+        {headline(degraded.length)} {WORDS.unaffected}
+      </span>
       <Popover
         place="under"
         label={WORDS.panel}
@@ -146,12 +158,17 @@ function DegradedRow(props: { sessionId: string; channel: DegradedChannel }): JS
           Accept the reset
         </Button>
       </div>
-      {refused ? (
-        // **Said rather than swallowed.** A retry that still does not fit is the
-        // expected outcome until an author ships a fix, and a button that
-        // appeared to do nothing would read as broken.
-        <Fine>That value still does not fit. It is kept, and you can try again later.</Fine>
-      ) : null}
+      {/* Its own live region (2026-10-14, after review), now the panel sits in
+          none: mounted empty, so the region is there before the note is added
+          to it, which is when a screen reader listens. */}
+      <div role="status">
+        {refused ? (
+          // **Said rather than swallowed.** A retry that still does not fit is the
+          // expected outcome until an author ships a fix, and a button that
+          // appeared to do nothing would read as broken.
+          <Fine>That value still does not fit. It is kept, and you can try again later.</Fine>
+        ) : null}
+      </div>
     </div>
   );
 }

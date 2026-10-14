@@ -176,11 +176,12 @@ except one where they are made to speak.
 ### Time, place and the stage
 
 A Scene keeps a **clock** — Day 1, 08:00 at the start, five minutes later every turn —
-and, once one is named, a **place**. Both show in the strip at the top. They are given to
-every reply — each character's call as well as a narrator's — to the suggestions and to
-**Draft my next message**, as *When this is happening* and *Where this is happening*.
+and, once one is named, a **place**. Both show in the strip above the transcript. They
+are given to every reply — each character's call as well as a narrator's — to the
+suggestions and to **Draft my next message**, as *When this is happening* and *Where
+this is happening*.
 
-Two switches in the panels under the cast decide how much the scene is staged. Both
+Two switches in the panels above the strip decide how much the scene is staged. Both
 are off by default. With either or both on, one more model call follows every reply,
 shared by the two; **Stage a backdrop** also makes a picture when the place changes:
 

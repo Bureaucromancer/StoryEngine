@@ -146,7 +146,9 @@ export const crossfade = {
  * **A fact first and a control second**, which is the register the strip
  * keeps above the prose: at rest an item reads as a line of muted text — a
  * label in the faintest ink, the value beside it — and only a pointer over it,
- * the keyboard on it or its panel open gives it a ground. A button that looked
+ * the keyboard on it or its panel open gives it a ground. *(2026-10-14, after
+ * review: the faintest ink **the strip can stand on**, which is `ink-subtle`
+ * and not `ink-faint` — `label` says why.)* A button that looked
  * like a button eight times in a row would be the instrument panel
  * [10 §1.1](../../../../docs/design/10-ui-surfaces.md) keeps off a story
  * surface; a line of text that is not obviously pressable is why the ground
@@ -163,8 +165,30 @@ export const crossfade = {
 export const strip = {
   item: 'flex cursor-pointer items-center gap-1 rounded-control px-1.5 py-0.5 text-start text-ink-muted hover:bg-surface-muted hover:text-ink focus-visible:outline-2 focus-visible:outline-focus aria-expanded:bg-surface-muted aria-expanded:text-ink',
   warn: 'flex cursor-pointer items-center gap-1 rounded-control border border-warn-line bg-warn-surface px-1.5 py-0.5 text-start text-warn-ink focus-visible:outline-2 focus-visible:outline-focus',
-  /** The faint word before an item's value — *Time*, *Place*, *Cast*. */
-  label: 'text-ink-faint',
+  /**
+   * The faint word before an item's value — *Time*, *Place*, *Cast*.
+   *
+   * ***`ink-subtle`, the quietest ink the strip can stand on*** (2026-10-14,
+   * after review — it was `ink-faint`). Two grounds rule the faintest step
+   * out. **The item's own**: hovered, focused or open, an item is
+   * `surface-muted`, and `ink-faint` there is 4.35 to 1 in the light theme,
+   * under the floor on the very ground that says *this is the one you are
+   * on*. **And the backdrop's veil**: the strip is the part of Play's column
+   * that stays over a picture once [P12A.5](../../../../docs/design/workplan/35-p12a-the-look.md)
+   * has moved the configuration panels out, and the veil's 82% was worked
+   * out for `ink-subtle` (4.745 to 1 over a black pixel, in light) —
+   * `ink-faint` would need it at 99.5%, P12A.2's finding, and is about 3 to
+   * 1 there. contrast.test.ts measures `ink-subtle` on `surface-muted` for
+   * this, and on the veil already; theme.test.ts refuses `ink-faint` in the
+   * strip.
+   */
+  label: 'text-ink-subtle',
+  /**
+   * An entry with nothing in it — *not set* — in the label's ink, for the
+   * label's two reasons, and set apart from a value by being italic rather
+   * than by being fainter.
+   */
+  unset: 'text-ink-subtle italic',
 } as const;
 
 export const navLink = {

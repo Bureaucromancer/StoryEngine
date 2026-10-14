@@ -665,10 +665,19 @@ export function modeSurfaces(
 /**
  * One value, as its widget shows it — or `null` when there is nothing to show.
  *
- * *A `text` widget still renders through the channel's own `render` template*,
+ * ~~*A `text` widget still renders through the channel's own `render` template*,
  * because that is what `render` is for and a second way to turn a channel value
  * into a string is the drift this file's neighbour spends a paragraph
- * preventing.
+ * preventing.~~ *2026-10-14, [P12A](../../../docs/design/workplan/35-p12a-the-look.md)
+ * P12A.4's review: it never did.* The `text` arm below has shown a string as
+ * itself since P7.11 wrote that sentence. Since P12A.4 the channel's own
+ * surface does the same (`channelSurfaces`, whose comment cites this arm),
+ * because `render` is how a value reads **to a model** and a surface is how it
+ * reads **to a person** — and a strip entry being typed into has to show the
+ * string that was typed. So the two now agree, and the drift the struck
+ * sentence feared is the one they closed. A value that is not a string still
+ * reads through `render` on the channel side (the clock's *Day 3, 09:05*); here
+ * a `text` widget given one shows nothing.
  */
 function renderSurface(
   widget: WidgetSpec,

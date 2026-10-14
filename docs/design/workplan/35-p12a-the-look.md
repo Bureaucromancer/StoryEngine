@@ -1161,7 +1161,11 @@ backdrop*.
   sets fine print in it — field hints, `Fine`, a text widget's label — so over a
   backdrop that print falls below its floor. It is tooling rather than prose,
   and most of it leaves the column with [P12A.5](#p12a5--the-column-that-grew-seven-disclosures)'s
-  move; T1's walker should look at it.
+  move; T1's walker should look at it. *(2026-10-14, from [P12A.4](#p12a4--the-hud-and-whether-it-can-write)'s
+  review: the HUD strip is the part of the column that does not leave with
+  P12A.5 — it is what stays over the picture — and its labels and its* not set
+  *were set in `ink-faint`. They are `ink-subtle` now; see that stage's* After
+  review.)*
 - *"Choose-an-image … an uploaded image, or one already in the library"* (§1.2)
   is **chosen from what the session uses**, §0.4's narrowing: an upload goes
   into a library object first, through the galleries that exist. So
@@ -1933,6 +1937,140 @@ entry with its parse and its words, the popover's second placement and its
 holder, and the `hud` region's arms. **Under the 320 ceiling, with 2.30 kB
 left** for [P12A.5](#p12a5--the-column-that-grew-seven-disclosures) onward, so
 no raise; CSS gained the strip's few new classes.
+
+***After review, 2026-10-14*** — a review of the stage's diff, each finding
+verified before it was acted on, found eleven things, two pairs of them one
+fault each: that the strip's quiet words were in an ink the strip cannot stand
+on, that a write's answer took back what was typed while it was out, that a
+number box's unreadable text was written as nothing, that the health item's
+live region read its rows out on every open, that a docstring claimed a
+contrast pair was measured when it was not, and that the API reference, the
+SDK, 10 §8.0, a docstring and the guide said things that are not so.
+
+**The strip's labels and *not set* were in `ink-faint`** (two findings, one
+fault). An item takes `surface-muted` while it is hovered, focused or open, and
+`ink-faint` on that ground is **4.35 to 1** in the light theme — under the floor
+on the very ground that says *this is the one you are on*. And over a backdrop
+it is about **3 to 1** (2.99 over a black pixel): [P12A.2](#p12a2--the-backdrop-becomes-a-backdrop)'s
+finding was that `ink-faint` can never sit on the veil, and that most of the
+column's fine print would leave with P12A.5 — but the strip is the part of the
+column that stays, which that bullet now has a dated note to say. `strip.label`
+is `ink-subtle`, the quietest ink the veil's 82% was worked out for (4.745 to 1
+over black, in light), and a new recipe beside it, `strip.unset`, is the italic
+*not set* in the same ink, where `HudEntry` had spelled `ink-faint` at the call
+site. A mode's group heading in the strip and a record's or a picture's item
+follow through `strip.label`; a panel's `text` widget (`ModeRegion`'s other
+arm) is not in the strip, takes no hover ground, and is left. `strip`'s
+docstring keeps its *a label in the faintest ink* with a dated note after it,
+and `label`'s own docstring says why.
+
+**A docstring claimed a pair the contrast test did not measure.** `strip`
+justified wearing `Alert`'s warning tone at rest on a story surface by *"whose
+pairs the contrast test already measures"*, and no row measured `warn-ink` on
+`warn-surface` — so a re-tune of `--color-warn-*` could have taken the Shell's
+banner, every warning `Alert` and now the health item under the floor without
+a failure. The row is there now (**6.88** light, **10.37** dark), and the
+sentence is true rather than weakened.
+
+**A write's answer took back what was typed while it was out.** The answer
+closed over the render that sent it, so a write that landed reset the draft
+whatever had been typed since: *the docks*, Save, then *, north quay* before the
+reply — the box went back to *the docks*, and the Save's own close shut the
+panel over it. A Tab away followed at once by reopening and typing a new place
+lost that too, when the first write landed. `HudEntry` keeps what is typed now
+in a ref, kept current as `Popover` keeps its holder, and the answer clears the
+draft and closes only if what is in the box is what it sent; otherwise the
+newer words stay, unsaved, in an open panel.
+
+**A number box's unreadable text was written as nothing.** A `type="number"`
+box holding *1-2* in Chrome or *abc* in Firefox reports its value as `''`, as
+an emptied box does, and for a number that may be unset `parse` read that as
+`null` — a recorded write clearing the channel where the person should have been
+told *That is not a number.* No built-in channel puts a number in the strip, so
+this was latent, but `hudEdit` offers the edit to every mode. `settle` now asks
+the box's own `validity.badInput` first, through a ref on the entry's form —
+live at every close, since the panel is hidden rather than unmade — and says
+the sentence at the box. *Not done here, and said*: the shared `NumberField`'s
+`inputMode="numeric"` still gives an iPhone a keypad without *-* or *.*; it
+predates this stage and every caller has it, so it is a change to `Field.tsx`
+of its own if it is wanted.
+
+**The health item's live region read its rows out on every open.** It was
+`role="status"` round the whole item, and the item's panel is hidden while shut
+and shown on a press: shown inside a polite region, the channel, the reason and
+both offers would be read out on every open, while focus landing on *Try again*
+said as much again. The region is a copy of the two sentences now, `sr-only`
+beside the item, and a refused retry's note — outside any region once the item
+is not one — has a region of its own, mounted empty so that it is listening
+before the note arrives. `ChannelHealth`'s docstring has a dated note after its
+*Still `role="status"`, round the item*.
+
+**The corpus.**
+
+- [The API reference](../../api.md)'s *"A client from before this sends
+  neither"* had the sides backwards: a server sends the fields, and one from
+  before this sends neither, so its entries read as not editable. This stage's
+  own sentence, corrected in place, as `api.ts`'s comment already had it.
+- The SDK's `text` arm still said *a short value, read* and nothing else (two
+  findings), so a mode author declaring a `text` surface on a string channel was
+  not told that a person could now overwrite it from the strip. The arm has a
+  dated paragraph
+  — what is edited and how, that the arm gained no field, that the write is
+  the ordinary route's and admitted by every policy — and the `surface` field a
+  pointer to it. *Found while writing it, and not a finding*: the `toggle`
+  arm's *"a `toggle` over an `engine-computed` channel produces a recorded
+  refusal"* is not so — `engine-computed` refuses a model and a step, and a
+  person's write is admitted by every policy (`refuse`, in `turns/effects.ts`)
+  — so that clause has a dated note rather than standing under a paragraph that
+  says the opposite.
+- [10 §8.0](../10-ui-surfaces.md)'s new note said the paragraph above's *no min
+  or max* still describes `WidgetSpec`, whose `meter` arm has had both since
+  [P14.5a](31-p14-scene-and-session-import.md). This stage's own note,
+  corrected in place to say the `text` arm carries none; the older *Three widget
+  arms ship* paragraph has a dated parenthesis — five ship — rather than a
+  rewrite. 10 §10.1's *beside the cast* is left: it is §0.4's binding wording,
+  and §1.3's note gives the order.
+- `renderSurface`'s docstring in `mode-registry.ts` said a `text` widget renders
+  through the channel's `render` template, and its `text` arm has shown a string
+  as itself since P7.11 wrote that — the arm `channels.ts`'s new comment cites.
+  The sentence is struck, with a dated note saying what the arm does and why the
+  channel's own surface now agrees with it.
+- **The guide described the column before the strip** — the cast, goals and
+  plot hooks under the heading, a HUD *at the top* that only showed things. It
+  describes the strip now, edited in place as user prose: `playing.md`'s *The
+  play page* gives the column's order and the strip's, how an entry is changed,
+  saved, dropped and refused; a correction from the strip is among the changes
+  recorded as turns; *Cast*, *Goals* and *Plot hooks* say each is opened from
+  its line in the strip. `pictures.md` and `modes.md` put the strip above the
+  transcript, and Scene's two switches above the strip.
+
+**Tests after review, each checked against a mutation and restored.** In
+`ui/contrast.test.ts`, the `ink-subtle` row gains `surface-muted` (**6.90**
+light, **5.58** dark), and a new row measures `warn-ink` on `warn-surface`:
+`ink-faint` added to the `surface-muted` row fails the light assertion at 4.35,
+and the light `--color-warn-ink` pointed at `amber-500` fails it at 2.07. In
+`theme.test.ts`, the new *the HUD strip* scan refuses `text-ink-faint` in every
+`strip` recipe and in the class lists of `HudStrip.tsx` and `HudEntry.tsx`,
+calibrated by finding each file's `flex`: it fails with `strip.label` back at
+`ink-faint` and with *not set* spelled `text-ink-faint italic` at the call site.
+In `play/HudStrip.test.tsx`: *keeps what was typed while a write was out, and
+the panel open* holds the `PUT`'s answer open, types more, then lets it land,
+and fails with the `now.current !== sent` guard removed; *says a number box
+holds text it cannot read* stubs the box's `validity` — jsdom never sets
+`badInput` — and fails with the check removed, `null` written. In
+`play/ChannelHealth.test.tsx`: the new *keeps the rows it opens out of its live
+region* fails with `role="status"` back round the item and with the copy of
+the sentences no longer a region; *says so when a retry is refused* now asks
+that the note be in a live region, and fails with the row's region removed;
+*says what failed and that the story is unaffected* reads the item, since the
+sentences are in the page twice. *Not looked at in a browser*, still.
+
+**Entry after: 317.80 kB, CSS 8.42** — **317.70 and 8.42 before**, at
+`161d9d92`, gzip level 9 over the files `index.html` pulls, the budget test's
+method. **+0.10 kB**: the live region's copy and the row's region, the two refs
+and their checks, and the recipe's new string. CSS is unchanged: every class
+the fixes spend was already emitted. **2.20 kB is left** for
+[P12A.5](#p12a5--the-column-that-grew-seven-disclosures) onward.
 
 ### P12A.5 — The column that grew seven disclosures
 

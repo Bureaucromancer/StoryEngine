@@ -2792,9 +2792,9 @@ with an edit is sent even with nothing to show* — `text` empty and `value`
 nothing to show is still left out. The write is `PUT …/channels/:key` below,
 with the value the person typed. A `text` a mode places in the `hud` region of
 `surfaces` carries the same two fields, by the same rule, and a `text` in any
-other region carries neither. A client from before this sends neither and reads
-nothing from them, and one that meets an `edit.kind` it does not know reads it
-as `null`.
+other region carries neither. A server from before this sends neither, and its
+entries read as not editable; a client from before this reads nothing from them,
+and one that meets an `edit.kind` it does not know reads it as `null`.
 
 `chat` is how the session plays as a chat
 ([P14 §1.2](design/workplan/31-p14-scene-and-session-import.md), added at

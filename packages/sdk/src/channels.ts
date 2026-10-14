@@ -110,6 +110,24 @@ export type WidgetSpec =
   /**
    * A short value, read. The clock is the shipped one.
    *
+   * ***Read, and in the HUD written as well*** (2026-10-14,
+   * [P12A](../../../docs/design/workplan/35-p12a-the-look.md) P12A.4, after
+   * review — the stage made it so and this contract had not said it). A `text`
+   * in the `hud` region — a channel's own `surface`, or a `surfaces`
+   * contribution placing one there — is an entry of the strip, and a person can
+   * change it in place. **The arm gained no field to say so**: the host derives
+   * the edit from the channel's declared `schema`, the one every write is judged
+   * against. A `string` is a line of text; a `number` or an `integer` is a
+   * number box held to the schema's `minimum` and `maximum`; anything else — an
+   * object such as the clock, an `enum`, a `const`, a union — stays a readout,
+   * which opens to a sentence saying it is not changed there. The write is the
+   * ordinary `PUT /sessions/:id/channels/:key`, a person's effect on the
+   * record, and a person's write is one every `update` policy admits — so this
+   * is `toggle`'s *a control and no new authority* again: that route always
+   * took a person's write, and the strip is a way to make one. An entry with an
+   * edit and nothing in it stands as *not set* rather than being left out. A
+   * `text` in any other region carries no edit and stays a readout.
+   *
    * ~~**An interface with one literal rather than a union today**, which becomes
    * a union the moment there is a second arm.~~ ***It did, at [P7.11]*** — and
    * the shape the docstring promised is the shape it took: additive, because a
@@ -156,7 +174,14 @@ export type WidgetSpec =
    * an effect. So a mode gains a control and gains no new authority — the
    * policy that decides whether a person may set this is still the channel's
    * own `update`, and a `toggle` over an `engine-computed` channel produces a
-   * recorded refusal rather than a change.
+   * recorded refusal rather than a change. *(2026-10-14, [P12A](../../../docs/design/workplan/35-p12a-the-look.md)
+   * P12A.4's review: the last clause is not so, and the `text` arm above
+   * relies on what is.
+   * `engine-computed` refuses a `model` and a `step` and `user-only` everyone
+   * but a person (`refuse`, in the server's `turns/effects.ts`), so a person's
+   * write is admitted by every policy and a `toggle` over an `engine-computed`
+   * channel changes it. What the first sentence says holds: the widget is a
+   * control, and the route it writes through decides.)*
    *
    * *Boolean and nothing else, which is the honest minimum again.* A `choice`
    * is the obvious next arm and it wants a vocabulary to choose from — the
@@ -473,6 +498,10 @@ export interface ChannelDefinition {
    * person**. They differ in more than wording — a prompt wants "Day 3, 09:05"
    * in a sentence's worth of tokens, a HUD wants a label beside it and no budget
    * at all.*
+   *
+   * *(2026-10-14, [P12A](../../../docs/design/workplan/35-p12a-the-look.md)
+   * P12A.4's review: a `text` surface over a string or a number schema is also
+   * changed by a person, from the strip — see the `text` arm.)*
    */
   surface?: WidgetSpec;
   /**

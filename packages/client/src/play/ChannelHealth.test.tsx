@@ -2,7 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -90,8 +90,12 @@ describe('the channel health banner', () => {
     // channel state is tracked numbers and flags, not the story.
     renderBanner();
 
-    expect(await screen.findByText(/1 channel could not be loaded/)).toBeTruthy();
-    expect(screen.getByText(/Your story is unaffected/)).toBeTruthy();
+    // On the item, unopened. The two sentences are in the page twice since
+    // P12A.4's review — the item, and the live region's copy beside it — so
+    // these read the item, which is what a sighted person sees.
+    const item = within(await screen.findByRole('button', { name: /could not be loaded/ }));
+    expect(item.getByText(/1 channel could not be loaded/)).toBeTruthy();
+    expect(item.getByText(/Your story is unaffected/)).toBeTruthy();
     // *Which*, and why, is the recovery's, opened in place (P12A.4).
     await openBanner();
     expect(screen.getByText(/must be equal to one of the allowed values/)).toBeTruthy();
@@ -117,6 +121,24 @@ describe('the channel health banner', () => {
 
     const banner = await screen.findByRole('status');
     expect(banner.textContent).toContain('could not be loaded');
+  });
+
+  it('keeps the rows it opens out of its live region', async () => {
+    // P12A.4's review (2026-10-14): round the whole item, the polite region
+    // read the rows out as the press un-hid them — the channel, the reason,
+    // both offers — on every open, while focus landing on *Try again* said it
+    // again. The region is the two sentences; the rows are not in any region.
+    renderBanner();
+    await openBanner();
+
+    const regions = screen.getAllByRole('status');
+    for (const region of regions) {
+      expect(within(region).queryByRole('button')).toBeNull();
+      expect(region.textContent).not.toMatch(/allowed values/);
+    }
+    expect(regions.map((region) => region.textContent).join(' ')).toMatch(
+      /Your story is unaffected/,
+    );
   });
 
   it('sends the quarantined value back when asked to try again', async () => {
@@ -160,7 +182,11 @@ describe('the channel health banner', () => {
 
     await userEvent.click(await screen.findByRole('button', { name: 'Try again' }));
 
-    expect(await screen.findByText(/still does not fit/)).toBeTruthy();
+    const note = await screen.findByText(/still does not fit/);
+    expect(note).toBeTruthy();
+    // In a live region of its own, since the item is not one (P12A.4's
+    // review): said as it arrives, not only to someone who looks.
+    expect(note.closest('[role="status"]')).not.toBeNull();
   });
 });
 

@@ -1885,7 +1885,10 @@ declined to mint fields nothing asks for, which is the same discipline
 above should be read as what the vocabulary must be able to grow to, not as a
 description of what it is.** `toggle` is its first *writable* arm, and a write
 goes through the ordinary channel route: a mode gains a control and gains no new
-authority.
+authority. *(2026-10-14, after [P12A](workplan/35-p12a-the-look.md) P12A.4's
+review: five ship now — `meter`, with its own `min` and `max`, and `record`
+arrived at [P14.5a](workplan/31-p14-scene-and-session-import.md) — and a `text`
+in the `hud` region is written as well, the next note says how.)*
 
 ***The `hud` region is drawn, 2026-10-13*** —
 [P12A](workplan/35-p12a-the-look.md) P12A.4. The route had said since P7.11 that
@@ -1895,10 +1898,12 @@ is edited exactly as a channel's own entry is — which is this section's *defin
 in terms of the first* taken at its word. **How it is edited is not a new arm or
 a new field of the vocabulary**: the server derives it from the schema the
 channel already declares, and sends it with the entry beside the value, so the
-strip gains a control and the vocabulary gains nothing — the paragraph above's
-*no min or max* still describes `WidgetSpec`, and a number's bounds reach the
-strip from its schema's `minimum` and `maximum`. A `record` or an `image` placed
-there opens in place under its label, since neither is a line.
+strip gains a control and the vocabulary gains nothing — the `text` arm still
+carries no min or max (the `meter` arm has carried its own since
+[P14.5a](workplan/31-p14-scene-and-session-import.md), a readout's bounds and not
+an editor's), and a number's bounds reach the strip from its schema's `minimum`
+and `maximum`. A `record` or an `image` placed there opens in place under its
+label, since neither is a line.
 
 ***Two of the six slots still have no consumer at all*** — **input-bar actions**
 and **library columns** — and naming them here is cheaper than discovering later

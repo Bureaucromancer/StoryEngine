@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { useRef, useState, type JSX } from 'react';
+import { useEffect, useRef, useState, type JSX } from 'react';
 
 import type { HudEdit } from '../api.js';
 import { labels } from '../i18n/catalogue.js';
@@ -97,6 +97,28 @@ export function HudEntry(props: { sessionId: string; entry: HudEntryShape }): JS
   const [problem, setProblem] = useState<{ at: 'box' | 'write'; text: string } | null>(null);
   /** What was typed when a write last did not land — see `settle`. */
   const tried = useRef<string | null>(null);
+  /**
+   * ***What is typed now, for a write's answer*** (2026-10-14, after review).
+   * The answer closes over the render that sent it, and words typed while it
+   * was out are not the words it wrote — so it reads this rather than its own
+   * `draft`, which is the one it sent. Kept current the way `Popover` keeps
+   * its holder.
+   */
+  const now = useRef(draft);
+  useEffect(() => {
+    now.current = draft;
+  });
+  /**
+   * ***The entry's form, for what its box cannot say in its value***
+   * (2026-10-14, after review). The panel is hidden rather than unmade while
+   * shut, so this is live at every close. A `type="number"` box holding text
+   * the browser cannot read — *1-2* in Chrome, *abc* in Firefox — reports its
+   * value as `''`, the same as a box emptied on purpose, and only its
+   * `validity.badInput` tells the two apart. For a number that may be unset
+   * the difference is *That is not a number.* against a recorded write of
+   * `null` that clears the channel.
+   */
+  const form = useRef<HTMLFormElement>(null);
   const edit = knownEdit(entry.edit);
   const typed = draft ?? startOf(entry.value);
   const range = edit?.kind === 'number' ? rangeOf(edit) : null;
@@ -104,7 +126,10 @@ export function HudEntry(props: { sessionId: string; entry: HudEntryShape }): JS
   /**
    * Writes what was typed, if anything was and it differs. `onLanded` runs
    * when there is nothing left to say — written, or nothing to write.
-   * `asked` is a Save or an Enter; anything else is a close.
+   * *(2026-10-14, after review: written, and nothing typed since it was sent —
+   * see `now`; and a number box holding text it cannot read is something left
+   * to say — see `form`.)* `asked` is a Save or an Enter; anything else is a
+   * close.
    *
    * ***Once at a time.*** A Save still waiting on its answer, then a Tab out
    * of the panel, would otherwise send the same value twice — two turns on the
@@ -120,7 +145,21 @@ export function HudEntry(props: { sessionId: string; entry: HudEntryShape }): JS
    */
   function settle(onLanded: () => void, asked: boolean): void {
     if (write.isPending) return;
-    if (edit === null || draft === null) {
+    if (edit === null) {
+      onLanded();
+      return;
+    }
+    // Before the draft is read, and before `draft === null` closes quietly:
+    // unreadable text the box never reported as a change is still in the box,
+    // and a close that said nothing about it would look like a save.
+    if (
+      edit.kind === 'number' &&
+      form.current?.querySelector('input')?.validity.badInput === true
+    ) {
+      setProblem({ at: 'box', text: WORDS.number });
+      return;
+    }
+    if (draft === null) {
       onLanded();
       return;
     }
@@ -144,6 +183,11 @@ export function HudEntry(props: { sessionId: string; entry: HudEntryShape }): JS
         onSuccess: (result) => {
           if (result.effect.applied) {
             tried.current = null;
+            // Only `sent` landed. Anything typed since — more words after a
+            // Save, or a new place typed into an entry reopened while a close's
+            // write was out — is still unsaved, so it stays in the box, and a
+            // Save does not close the panel over it.
+            if (now.current !== sent) return;
             setDraft(null);
             onLanded();
             return;
@@ -185,7 +229,7 @@ export function HudEntry(props: { sessionId: string; entry: HudEntryShape }): JS
         trigger={
           <>
             <span className={strip.label}>{entry.label}</span>{' '}
-            <span className={entry.text === '' ? 'text-ink-faint italic' : 'text-ink'}>
+            <span className={entry.text === '' ? strip.unset : 'text-ink'}>
               {entry.text === '' ? WORDS.notSet : entry.text}
             </span>
           </>
@@ -201,6 +245,7 @@ export function HudEntry(props: { sessionId: string; entry: HudEntryShape }): JS
            * its own language and before this file has said anything.
            */
           <form
+            ref={form}
             noValidate
             className="flex flex-col gap-2"
             onSubmit={(event) => {

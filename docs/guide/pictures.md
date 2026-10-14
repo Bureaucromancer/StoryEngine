@@ -112,9 +112,9 @@ below), or you choose one (**Choose a backdrop…**, further down).
 own. It is off by default.
 
 While it is on — or while **Show the scene** is — a model call after each reply names the
-place in a few words. The place shows as **Place** in the strip at the top, and the narrator
-is told it. When the place changes, a backdrop is drawn from the place and the treatment's
-tone (no characters, no moment), and shown as soon as it arrives.
+place in a few words. The place shows as **Place** in the strip above the transcript,
+and the narrator is told it. When the place changes, a backdrop is drawn from the place
+and the treatment's tone (no characters, no moment), and shown as soon as it arrives.
 
 A place you have been before is not drawn again: if a finished backdrop was made from the
 same recipe — the same words for the place, the same tone, the same image model — it is
