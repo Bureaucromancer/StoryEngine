@@ -3295,6 +3295,77 @@ over the files `index.html` pulls, the budget test's method: the entry's script
 is the same bytes and the stylesheet is byte for byte the same. **3.88 kB is
 left** under the 325 ceiling.
 
+### The final audit, 2026-10-14
+
+*An audit of the whole phase — `main...p12a`, with `main` at `6197270c` merged
+in — at the seams no stage's own review could see whole, each finding put to a
+skeptic before it was acted on. The confirmed findings are fixed by area, each
+area in a commit of its own, and each area's record is below. No stage's text
+and no row of §3 is edited; where a fix makes an earlier sentence false, that
+sentence gets a dated note where it stands.*
+
+**UI primitives: a modal drawn under the dock, and under `<main>`.**
+`ui/Dialog`'s scrim had no `z-index`. A dialog is rendered where it is
+written rather than portalled out of the page, so its `fixed` scrim made no
+layer of its own and was painted in tree order among the positioned boxes at
+`auto` — and two of those sit where dialogs open. **The dock**, `relative`
+and after `<main>` in the shell, drew over any dialog inside the page wherever
+the two met: at 1280px, in a session with a backdrop channel and the workbench
+open (from *Session settings*, say), *Choose a backdrop…* put the right third
+of its `large` card under the dock, those tiles neither seen nor pressed, and
+the dock undimmed and live beside a dialog that says it is modal. **`<main>`**,
+`relative` since 2026-10-07, drew over the dialogs written before it in the
+tree — the notification bell's, and an administrator's *Restart now*
+confirmation — so a press on either card, where it lay over the page, went to
+the page. That half is older than this phase; [P12A.2](#p12a2--the-backdrop-becomes-a-backdrop)'s
+veil is what made it seen, since the veil is `<main>`'s own background: with a
+picture staged, a band of 82% canvas the column's width lay across the card.
+
+**The scrim is `z-40`.** That is over every `z-10` — the popover in both its
+places and its phone sheet, `TokenField`'s list, the field assist, and the
+sticky `page.actions` and `panel.actions` bars, any of which would also have
+painted over an open modal — and under the two `z-50`s, the notification toast
+and the skip link, which are drawn over everything. Nothing that holds a dialog
+makes a stacking context at rest (`<main>`, Play's column and both asides are
+`z-index: auto`, and no dialog is drawn inside a popover or a sticky bar), so
+the layer takes effect in the root's. *A portal into `document.body` was not
+taken*: it would lift the dialog too, and it moves the element the focus trap
+and the dialogs' tests read, for what one class does. `SCRIM`'s docstring has
+a dated paragraph saying all of this.
+
+*Tests, each checked against a mutation and restored.* `theme.test.ts`'s new
+*the layers a page is drawn in*, beside *the appearance layer is spelled once*,
+reads every string literal in the client's source through the lexer the scans
+there share — a layer under a variant and under a sign is read, and an
+arbitrary layer is read when it is a whole number and refused when it is not.
+*Draws the modal over every layer a page floats, and under what is drawn over
+everything* reads `SCRIM`'s declaration and holds it to one layer, forty: it
+fails with `z-40` removed, and with the scrim at fifty or at ten. *Leaves the
+band between the page and what is drawn over everything to the modal* refuses
+a layer above ten and below fifty anywhere but in that one literal, and holds
+the exemption to that one class: it fails with forty given to the field assist
+or to the dialog's card, with a popover at thirty, with a list at an arbitrary
+forty-five, at a custom property, or at twenty under a breakpoint with `!`, and
+with the exemption widened to every class. *Reads the layers it is meant to* is
+the calibration — six at ten, the backdrop at minus ten, the toast and the skip
+link at fifty, the second under `focus:` — and fails with the reader blind to
+variants and with it blind to the sign. **One mutation survives and is
+equivalent**: the exemption keyed on `Dialog.tsx` alone, since that file sets no
+other layer. The client's dialog sites' tests and their neighbours, fifty-two
+files, pass unchanged after the build, `tailwind-utilities.test.ts` among them,
+which reads `SCRIM` and finds `.z-40` in `dist`. *Not looked at in a browser* —
+none is installed where this was built, and jsdom paints nothing — so the card
+over the dock, the bell's dialog over a staged backdrop, and each taking its
+press, are sitting T's to see; no step of §3 is edited for it.
+
+**Entry after: 321.12 kB, CSS 8.99** — **321.12 and 8.98 before**, at
+`1deb7db3` with this fix alone on top, gzip level 9 over the files
+`index.html` pulls, the budget test's method. The stylesheet gains `.z-40` and
+nothing else, compared rule by rule with a build made before the change: the
+build reads test files for class names, and the new test spells no layer that
+nothing spends — its comments name them as numbers, and its mutations were
+made in the components and undone.
+
 ---
 
 ## 3. Verification — the P12A exit gate

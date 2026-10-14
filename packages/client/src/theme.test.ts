@@ -767,6 +767,139 @@ describe('the appearance layer is spelled once', () => {
 });
 
 /**
+ * ***The layers a page is drawn in, and the modal's alone between them***
+ * (2026-10-14, [P12A]'s final audit).
+ *
+ * `ui/Dialog` is rendered where it is written, not portalled, so the one thing
+ * that puts a modal over the page is its scrim's `z-index` — and until this
+ * audit the scrim had none. A `fixed` box without one is painted in tree order
+ * among the positioned boxes at `auto`, so the dock, `relative` and after
+ * `<main>`, covered the right third of Play's *Choose a backdrop* card at a
+ * desk's width, and `<main>`, `relative` since 2026-10-07, took the presses
+ * meant for the notification bell's dialog and the restart confirmation, both
+ * drawn before it — under P12A.2's veil, which is `<main>`'s own background, it
+ * washed them out as well. `Dialog.tsx`'s docstring on `SCRIM` has the whole
+ * account.
+ *
+ * The client draws in three layers, and this holds the middle one empty but
+ * for the modal:
+ *
+ * - **Ten and below** — a page's own floating things: the popover in both its
+ *   places and its phone sheet, `TokenField`'s list, the field assist, the
+ *   sticky action bars, and the backdrop under everything at minus ten. Each
+ *   of these must be under an open modal, since the modal says nothing behind
+ *   it can be used.
+ * - **The scrim, at forty**, and nothing else.
+ * - **Fifty and above** — what is drawn over everything, a modal included:
+ *   the notification toast, which can arrive while a dialog is open, and the
+ *   skip link while it holds the keyboard.
+ *
+ * So a new floating thing lands below the modal or deliberately above it, and
+ * never beside it, where tree order would decide again which of the two is
+ * drawn on top. **It reads string literals only**, through the lexer the
+ * scans above share, after comments are stripped, so the layer a class sets
+ * under a variant or a sign is read — `focus:` on the skip link, the minus on
+ * the backdrop — and a class assembled at run time, an inline `style` or a
+ * rule in `index.css` is not; none sets a layer today. An arbitrary layer is
+ * read when it is a whole number and refused when it is not, since the scan
+ * could not place it.
+ *
+ * *The layers are named in this comment only as numbers*, because the build
+ * reads this file for class names as it reads a component, and a class spelled
+ * here is a rule in the stylesheet whether or not anything spends it.
+ */
+describe('the layers a page is drawn in', () => {
+  const ROOT = fileURLToPath(new URL('.', import.meta.url));
+  const DIALOG = join('ui', 'Dialog.tsx');
+
+  function sources(dir: string): string[] {
+    return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+      const path = join(dir, entry.name);
+      if (entry.isDirectory()) return sources(path);
+      if (!/\.tsx?$/.test(entry.name) || /\.test\.tsx?$/.test(entry.name)) return [];
+      return [path];
+    });
+  }
+
+  /** The scrim's class list, read off its declaration rather than its comment. */
+  const scrim = /const SCRIM =\s*'([^']*)'/.exec(
+    strip(readFileSync(join(ROOT, DIALOG), 'utf8')),
+  )?.[1];
+
+  /**
+   * The layer a class sets: a number, `'auto'`, `null` for one the scan
+   * cannot place, and `undefined` for a class that sets none. `utilityOf`
+   * drops the sign, so it is read back off the class.
+   */
+  function layerOf(token: string): number | 'auto' | null | undefined {
+    const utility = utilityOf(token);
+    const shape = /^z-(?:(\d+)|\[(-?\d+)\]|(auto)|\[[^\]]*\]|\([^)]*\))$/.exec(utility);
+    if (shape === null) return undefined;
+    if (shape[3] !== undefined) return 'auto';
+    const value = shape[1] ?? shape[2];
+    if (value === undefined) return null;
+    const escaped = utility.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const negative = new RegExp(`(?:^|:)!?-${escaped}!?$`).test(token);
+    return negative ? -Number(value) : Number(value);
+  }
+
+  const layers = sources(ROOT).flatMap((path) => {
+    const inDialog = path.endsWith(DIALOG);
+    return literals(strip(readFileSync(path, 'utf8'))).flatMap((text) =>
+      text
+        .split(/\s+/)
+        .filter((token) => token !== '')
+        .flatMap((token) => {
+          const layer = layerOf(token);
+          return layer === undefined
+            ? []
+            : [{ path: path.slice(ROOT.length), token, layer, scrim: inDialog && text === scrim }];
+        }),
+    );
+  });
+
+  it('reads the layers it is meant to', () => {
+    // Calibrated, so a reader that stopped finding them cannot pass: six
+    // things float at ten — the popover's two places, `TokenField`'s list, the
+    // field assist and the two sticky bars — the backdrop is at minus ten, and
+    // the toast and the skip link (under `focus:`) are at fifty.
+    const at = (layer: number): number => layers.filter((found) => found.layer === layer).length;
+    expect(at(10)).toBeGreaterThanOrEqual(6);
+    expect(at(-10)).toBeGreaterThanOrEqual(1);
+    expect(at(50)).toBeGreaterThanOrEqual(2);
+    expect(layers.some((found) => found.token.includes(':') && found.layer === 50)).toBe(true);
+  });
+
+  it('draws the modal over every layer a page floats, and under what is drawn over everything', () => {
+    expect(scrim, 'Dialog.tsx declares no SCRIM').toBeDefined();
+    const set = (scrim ?? '').split(/\s+/).flatMap((token) => {
+      const layer = layerOf(token);
+      return layer === undefined ? [] : [layer];
+    });
+    expect(set, 'the scrim sets no layer, so tree order decides what covers it').toEqual([40]);
+  });
+
+  it('leaves the band between the page and what is drawn over everything to the modal', () => {
+    // The exemption is one class in one literal, so that it cannot grow into
+    // a file's or a pattern's without this line saying so.
+    expect(
+      layers.filter((found) => found.scrim).map(({ path, token }) => `${path}: ${token}`),
+    ).toEqual([`${DIALOG}: z-40`]);
+    const offenders = layers
+      .filter(
+        ({ layer, scrim: isScrim }) =>
+          layer === null || (typeof layer === 'number' && layer > 10 && layer < 50 && !isScrim),
+      )
+      .map(({ path, token, layer }) =>
+        layer === null
+          ? `${path}: ${token} — a layer the scan cannot place`
+          : `${path}: ${token} — between the page and what is drawn over everything`,
+      );
+    expect(offenders).toEqual([]);
+  });
+});
+
+/**
  * ***Two faces, and the story's travels with its step*** (2026-10-01) — [10 §1.2].
  *
  * §1.2 says what separates the quiet surfaces from the tooling ones: **type**,

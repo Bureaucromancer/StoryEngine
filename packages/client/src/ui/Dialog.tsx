@@ -94,8 +94,47 @@ const SIZE: Record<'default' | 'wide' | 'large', string> = {
  * misspelt here would have passed the one test that exists to catch it. In
  * a quoted constant the test reads it again, and the template is left holding
  * two names.
+ *
+ * ***`z-40`, because a modal is drawn where it is written*** (2026-10-14,
+ * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md)'s final
+ * audit). The dialog is rendered in place rather than portalled out of the
+ * page, and a `fixed` box with no `z-index` makes no layer of its own: it is
+ * painted in tree order among the other positioned boxes at `z-index: auto`.
+ * Two of those sit where a modal is opened, and each drew over one:
+ *
+ * - **The dock**, `relative` and after `<main>` in the shell, drew over every
+ *   dialog inside the page wherever the two met. At 1280px, with the
+ *   workbench open, the right third of Play's *Choose a backdrop* card — a
+ *   `large` dialog — lay under the dock, its tiles neither seen nor pressed,
+ *   and the dock stayed undimmed and live beside a dialog that says it is
+ *   modal.
+ * - **`<main>`**, `relative` since 2026-10-07 (`Shell.tsx` says why), drew
+ *   over the dialogs written before it in the tree — the notification bell's,
+ *   in the header, and the restart confirmation, in the banner under it — so
+ *   wherever a card lay over the page, a press on it went to the page
+ *   instead. That much is older than this phase; P12A.2's veil made it seen:
+ *   the veil is `<main>`'s own background, so once a backdrop is staged a
+ *   band of it, the column's width, washed those cards out as well.
+ *
+ * `z-40` lifts the scrim into a layer of its own in the root stacking context
+ * — nothing that holds a dialog makes one: `<main>`, Play's column and both
+ * asides are `z-index: auto` — and places it between the client's two other
+ * kinds of layer. **Over every `z-10`**, which is where a page's own
+ * floating things are: the popover in both its places and its phone sheet,
+ * `TokenField`'s list, the field assist, and the sticky action bars of
+ * `page.actions` and `panel.actions`, any of which would otherwise paint
+ * over an open modal. **Under every `z-50`**, which is what is drawn over
+ * everything, a modal included: the notification toast, which can arrive
+ * while a dialog is open, and the skip link while it holds the keyboard.
+ * `theme.test.ts` holds the scrim to `z-40` and keeps the band between the
+ * two empty but for it, so the next floating thing chooses a side rather
+ * than landing on the modal's.
+ *
+ * *A portal into `document.body` would also lift it*, and it was not taken:
+ * it moves the dialog in the DOM that the focus trap and the dialogs' tests
+ * read, for what one class does.
  */
-const SCRIM = 'fixed inset-0 flex items-center justify-center bg-overlay p-4';
+const SCRIM = 'fixed inset-0 z-40 flex items-center justify-center bg-overlay p-4';
 
 export function Dialog({
   role,
