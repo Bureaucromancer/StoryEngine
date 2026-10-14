@@ -1359,17 +1359,30 @@ preference off, so that *absent* has something to be told from, and then with
 it on (macOS: Accessibility › Display › **Reduce motion**; Windows: Accessibility
 › Visual effects › **Animation effects** off; GNOME: Accessibility › **Reduce
 animation**), reloading the page after the change. **A turn arriving**: send a
-move — the finished turn fades and rises into place, and only that one; reload,
-and nothing on the page moves. **The streaming state**: the small dot under the
+move — the finished turn fades and rises into place, and only that one; ~~reload,
+and nothing on the page moves~~ *(2026-10-14, after review: reload, and no turn
+moves — every turn is simply there. Two things can still fade in on a reload,
+and neither is a turn arriving: a staged backdrop fades in once its picture has
+loaded, as P12A.2 built it — `play/Backdrop.tsx` draws the first picture waiting
+and shows it on `load` — and a workbench left open paints closed for the round
+trip that reads the preference, and then enters with `enter`. Shut the
+workbench, or tell these two apart from a turn. And step to a sibling of the
+turn that arrived and back again: it is drawn still, since a head move forgets
+the arrival.)* **The streaming state**: the small dot under the
 transcript, beside *Waiting for the first words…* and then alone on that line,
 breathing until the turn is over. **A panel entering**: open a dialog (**Choose a
 backdrop…**), a strip item's popover, the workbench (**Ctrl+`**) and the
 assistant — each fades in, and none fades out. **A scene changing**: **Choose a
-backdrop…** twice, the picture fading over the last. **A press**: hold any
-button down — it sits a pixel lower while held, and a greyed one does not move.
-With the preference on, each is *absent*: the turn is simply there, the dot is
-drawn and holds still, a panel is simply open, the picture simply changes, and a
-held button is simply lower. One thing to judge with the preference off, which
+backdrop…** twice, the picture fading over the last. **A press**: ~~hold any
+button down~~ *(2026-10-14, after review: hold Send down — or Stop, or a
+dialog's own buttons)* — it sits a pixel lower while held, and a greyed one does
+not move. *(2026-10-14, after review: only a button drawn by `ui/Button`
+presses. A strip item, the Do/Say/Think/Story toggles, the context meter and the
+backdrop tiles are drawn by hand and do not, and their not moving is not a
+failure.)* With the preference on, each is *absent*: the turn is simply there,
+the dot is drawn and holds still, a panel is simply open, the picture simply
+changes, and a held ~~button~~ *Send (2026-10-14, after review)* is simply
+lower. One thing to judge with the preference off, which
 the stage named and left: a reply that streamed leaves for a moment when it
 finishes and comes back as the record — say whether that return reads as the
 turn settling or as a flicker.)*

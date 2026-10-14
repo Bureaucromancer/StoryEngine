@@ -67,6 +67,20 @@ const SIZE: Record<'default' | 'wide' | 'large', string> = {
     'flex max-h-full w-full max-w-3xl flex-col gap-4 overflow-y-auto rounded-panel border border-line bg-surface p-6',
 };
 
+/**
+ * The scrim, which centres the card and dims the page behind it.
+ *
+ * ***A quoted constant, not text in the template*** (2026-10-14,
+ * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.6, after
+ * review). It was a `className="…"` until the scrim began to spend `enter`,
+ * and then the list sat in a template literal beside the recipe —
+ * `tailwind-utilities.test.ts` reads quoted literals only, so a utility
+ * misspelt here would have passed the one test that exists to catch it. In
+ * a quoted constant the test reads it again, and the template is left holding
+ * two names.
+ */
+const SCRIM = 'fixed inset-0 flex items-center justify-center bg-overlay p-4';
+
 export function Dialog({
   role,
   labelledBy,
@@ -85,7 +99,7 @@ export function Dialog({
       // ***It fades in*** (2026-10-13, P12A.6) — the scrim, and the card with
       // it, as one: `enter` in `classes.ts`, which says why a panel fades
       // rather than slides and why closing does not move.
-      className={`${enter} fixed inset-0 flex items-center justify-center bg-overlay p-4`}
+      className={`${enter} ${SCRIM}`}
     >
       <div className={SIZE[size]}>{children}</div>
     </div>

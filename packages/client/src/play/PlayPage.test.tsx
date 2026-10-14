@@ -1236,6 +1236,62 @@ describe('a turn arriving, and the streaming state', () => {
   });
 
   /**
+   * ***And a step away and back does not make it arrive again*** (2026-10-14,
+   * P12A.6 after review). The `<li>` is keyed by the turn, so stepping to its
+   * sibling unmounts it and stepping back mounts it fresh; a head move starts
+   * no job, so nothing used to forget the arrival, and the turn faded and rose
+   * on every return — the regenerate-then-compare flow, at its first swipe.
+   * Mutation: the dispatch dropped from `goToSibling`.
+   */
+  it('forgets the arrival when the head moves, so a step back to the turn draws it still', async () => {
+    const OTHER: TurnRecord = {
+      ...NEXT,
+      id: 'turn-2b',
+      output: { text: 'The hall is dark, and nobody answers.' },
+    };
+    const line = (turn: TurnRecord) => ({
+      turns: [TURN, turn],
+      siblings: { [turn.id]: [OTHER.id, NEXT.id] },
+    });
+    moveHead.mockResolvedValue({ session: SESSION, abandoned: { escapedEffects: 0 } });
+    renderPage();
+    await screen.findByText('I knock twice.');
+    readTranscript.mockResolvedValue(line(NEXT));
+
+    act(() => {
+      handlers.onFrame({ event: 'snapshot', data: { job: { id: 'job-1', status: 'running' } } });
+      handlers.onFrame({
+        event: 'progress',
+        id: 'job-1.1',
+        data: { jobId: 'job-1', seq: 1, key: 'turn.started', params: { turnId: 'turn-2' } },
+      });
+      handlers.onFrame({
+        event: 'progress',
+        id: 'job-1.2',
+        data: { jobId: 'job-1', seq: 2, key: 'turn.finished', params: { state: 'complete' } },
+      });
+    });
+    // Arrived, as the test above has it: the precondition, not the claim.
+    await screen.findByText('2 of 2');
+    expect(
+      arrives(screen.getByText('The hall is cold, and someone has lit a lamp.').closest('li')),
+    ).toBe(true);
+
+    readTranscript.mockResolvedValue(line(OTHER));
+    await userEvent.click(screen.getByRole('button', { name: 'Previous version' }));
+    await screen.findByText('The hall is dark, and nobody answers.');
+    expect(moveHead).toHaveBeenLastCalledWith(SESSION.id, OTHER.id, true);
+
+    readTranscript.mockResolvedValue(line(NEXT));
+    await userEvent.click(screen.getByRole('button', { name: 'Next version' }));
+    const back = (await screen.findByText('The hall is cold, and someone has lit a lamp.')).closest(
+      'li',
+    );
+    expect(moveHead).toHaveBeenLastCalledWith(SESSION.id, NEXT.id, true);
+    expect(arrives(back)).toBe(false);
+  });
+
+  /**
    * And a page opened after the turn ended hears that turn's frames replayed,
    * `turn.finished` among them — which is the case a mount-time animation gets
    * wrong. Mutation: the reducer's arrival taken from any `turn.finished`,

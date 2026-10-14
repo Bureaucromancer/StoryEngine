@@ -64,6 +64,19 @@ const WORDS = labels('assistant.panel', {
   seeingNothing: 'It cannot see any particular object from here.',
 });
 
+/**
+ * The panel's own box, beside the workbench in the shell's dock row.
+ *
+ * ***A quoted constant, not text in the template*** (2026-10-14,
+ * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.6, after
+ * review). It was a `className="…"` until the aside began to spend `enter`,
+ * and then the list sat in a template literal beside the recipe —
+ * `tailwind-utilities.test.ts` reads quoted literals only, so a utility
+ * misspelt here would have passed the one test that exists to catch it.
+ * Quoted, the test reads it again.
+ */
+const ASIDE = 'flex w-full max-w-md min-w-0 flex-col border-s border-line bg-surface';
+
 export function AssistantPanel(props: { onClose: () => void }): JSX.Element {
   const { sessionId, pending, failed, start, starting, startError } = useAssistantSession(true);
   const pathname = useRouterState({ select: (state) => state.location.pathname });
@@ -74,7 +87,7 @@ export function AssistantPanel(props: { onClose: () => void }): JSX.Element {
     <aside
       // Fading in as it opens, as the workbench does (2026-10-13, P12A.6) —
       // `enter` in `classes.ts`.
-      className={`${enter} flex w-full max-w-md min-w-0 flex-col border-s border-line bg-surface`}
+      className={`${enter} ${ASIDE}`}
       aria-label={WORDS.heading}
     >
       <div className="flex items-center justify-between gap-2 border-b border-line px-4 py-2">

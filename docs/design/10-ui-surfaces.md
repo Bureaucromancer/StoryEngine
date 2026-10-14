@@ -206,7 +206,11 @@ motion too — two shadows whose colour is a token, two durations and two easing
 — and radii that differ; one more block, under `prefers-reduced-motion`, zeroes
 every duration. Radius, shadow and motion classes are held to the tokens by a
 source scan in `theme.test.ts` rather than by ESLint, and a motion class may be
-written only in a recipe in `ui/classes.ts`.)*
+written only in a recipe in `ui/classes.ts`.)* *(2026-10-14,
+[P12A](workplan/35-p12a-the-look.md) P12A.6, after review: and one animation
+token, `--animate-busy`, the streaming state's breathing loop; the
+reduced-motion block sets it to `none` rather than zeroing it, because a loop
+runs for ever at any duration.)*
 
 **The look is `packages/client/src/ui/`.** `Button`, `Alert`, `Badge`, `Panel`,
 `Dialog`, the type steps, and the two field primitives. They spend token names
@@ -384,7 +388,9 @@ project already committed to:
   *(2026-10-13, [P12A](workplan/35-p12a-the-look.md) P12A.6: four are named here
   and five shipped — the fifth is that first word, which had no motion until
   now. Each is one recipe in `ui/classes.ts`, spending only the motion tokens
-  §1.2's note names: **a turn arriving** (`arrival`, a fade and a short rise,
+  ~~§1.2's note names~~ *§1.2's notes name — the two durations and two
+  easings, and the loop's `--animate-busy` (2026-10-14, after review)*: **a
+  turn arriving** (`arrival`, a fade and a short rise,
   on the one turn the page watched finish — a page opening mounts every turn,
   and a mount's motion on each would be an event on arrival); **the streaming
   state** (`busy`, a dot that breathes beside *Waiting for the first words…*
@@ -393,7 +399,10 @@ project already committed to:
   the assistant — none fades out); **a scene changing** (`crossfade`, the
   backdrop's, [P12A](workplan/35-p12a-the-look.md) P12A.2's); and **a press
   acknowledged** (`press`, a pixel down under the press, on every enabled
-  button rather than Send alone). `reveal`, older than the vocabulary, spends
+  ~~button rather than Send alone~~ *`ui/Button` rather than Send alone; Play's
+  hand-built buttons — the strip items, the input-kind toggles, the context
+  meter, the backdrop tiles — do not press yet (2026-10-14, after review)*).
+  `reveal`, older than the vocabulary, spends
   the same tokens. With the preference set each is absent rather than fast —
   the loop's token goes to `none`, every duration to zero — which is
   [manual testing](workplan/05-manual-testing.md)'s T5.)*

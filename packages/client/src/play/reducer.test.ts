@@ -713,4 +713,22 @@ describe('the turn that arrives', () => {
     expect(instant.arrived).toBe('t-2');
     expect(reduce(instant, { kind: 'submitted', jobId: 'job-2' }).arrived).toBe('t-2');
   });
+
+  /**
+   * ***And by a head move*** (2026-10-14, P12A.6 after review). A sibling step
+   * starts no job, so the clearing above never reached it, and the turn that
+   * arrived was drawn arriving again each time a step brought it back. The
+   * rest of the state is the move's to leave alone: the stream did not change.
+   * Mutation: `moved` a no-op.
+   */
+  it('is forgotten when the head moves, and nothing else is', () => {
+    const ended = run(watched(), [event(2, 'turn.finished', { state: 'complete' })]);
+    expect(ended.arrived).toBe('t-1');
+
+    const moved = reduce(ended, { kind: 'moved' });
+    expect(moved.arrived).toBeNull();
+    expect(moved).toEqual({ ...ended, arrived: null });
+    // Nothing to forget, nothing changed — the same state, not a copy of it.
+    expect(reduce(moved, { kind: 'moved' })).toBe(moved);
+  });
 });

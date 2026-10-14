@@ -29,7 +29,9 @@ describe('a press acknowledged', () => {
   /**
    * Every variant, because the decision was *every button and not Send
    * alone* — `press`'s docstring says why. Mutation: the recipe dropped from
-   * `Button`, or spent by one variant's string only.
+   * `Button`, or spent by one variant's string only. *(2026-10-14, after
+   * review: every button `ui/Button` draws — the `<button>`s drawn by hand do
+   * not spend it yet, and `press`'s docstring names them and why.)*
    */
   it('is spent by every button, whatever it looks like', () => {
     const variants = ['primary', 'secondary', 'danger', 'dangerOutline', 'quiet'] as const;

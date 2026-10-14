@@ -2507,7 +2507,9 @@ it spends.
   keystroke that asked for it; the other two are one `${enter}` from it, and
   whether a notification should arrive moving is a question this stage was not
   asked.
-- *A sixth token.* The streaming state loops, and a loop is an animation rather
+- *A ~~sixth~~ fifth token* *(2026-10-14, after review: P12A.0 built four —
+  two durations and two easings — so this is the fifth, as `index.css` says)*.
+  The streaming state loops, and a loop is an animation rather
   than a transition: it has no two ends for a duration to carry it between, and
   Tailwind writes an `--animate-*` token's timing into the shorthand. So it is
   `--animate-busy`, with its keyframes inside `@theme`, and its line in the
@@ -2540,14 +2542,21 @@ it spends.
   stream that dropped and came back after its turn ended takes the same path, so
   that turn is drawn without the motion — the cheaper mistake: a turn that is
   simply there is never wrong. The next job, by its POST or its first frame,
-  forgets the last arrival, so a sibling switch or an undo that takes the turn off
-  the path and back does not make it arrive again.
+  forgets the last arrival~~, so a sibling switch or an undo that takes the turn off
+  the path and back does not make it arrive again~~. *(2026-10-14, P12A.6 after
+  review: a head move starts no job, so the next job's clearing never reached a
+  sibling switch, and a turn stepped away from and back to arrived again on every
+  return; `moved` forgets the arrival on every head move, and an undo never
+  remounted the turn — see* After review *below.)*
 - *The cost in coverage, small and named.* Five class lists that were literals —
   `Dialog`'s scrim, the popover's two panels, the two docks — are template
   literals now, with the recipe in a hole, and `tailwind-utilities.test.ts` reads
   quoted literals only, as `reveal`'s call sites already showed. Each list is
   unchanged and was checked by that test until this commit; P12A.0's scan, which
-  reads template text, still reads their radii and shadows.
+  reads template text, still reads their radii and shadows. *(2026-10-14, after
+  review: the five lists are quoted constants again — `SCRIM`, `PANEL_BELOW`,
+  `PANEL_INLINE` and each dock's `ASIDE` — with `enter` alone in the template's
+  hole, and the test reads them; see* After review *below.)*
 - *Not looked at in a browser* — none is installed where this was built — so
   every motion's look, and its absence under the preference, is T5's.
 
@@ -2596,6 +2605,130 @@ spend them, the reducer's field, and the status line's second branch. CSS
 **+0.23**: the `@starting-style` block, the keyframes, the animation and press
 utilities, and the reduced-motion block's fourth line. **0.81 kB is left** for
 [P12A.7](#p12a7--editors-section-jumps-and-an-identity-header) onward.
+
+***After review, 2026-10-14*** — a review of the stage's diff, each finding
+verified before it was acted on, found six things, one pair of them one fault:
+that a turn that arrived arrived again when a sibling step brought it back,
+that four sentences said every button presses where only `ui/Button`'s do, that
+five class lists had left the test that reads them, that the docs counted the
+motion tokens one short, and that T5's walker was told nothing moves on a
+reload.
+
+**A turn that arrived arrived again when a step brought it back** (two
+findings, one fault). The bullet above said the next job forgets the arrival,
+*so a sibling switch or an undo that takes the turn off the path and back does
+not make it arrive again* — and a sibling switch starts no job. Redo a turn, let
+the new attempt finish, and it fades in; step to the attempt it replaced and its
+`<li>`, keyed by the turn, unmounts; step back and it mounts afresh with
+`arrived` still naming it, and fades and rises again, on every return until
+something is sent. That is the regenerate-then-compare flow at its first swipe,
+and the case §0.4's decision exists to rule out. **A head move forgets the
+arrival now**: the reducer takes a `moved` action, which sets `arrived` to null
+(and returns the same state when there is nothing to forget), and `PlayPage`
+dispatches it first in the `onSuccess` of every mutation that moves the head —
+a sibling step, a continue from an earlier turn (which *Branch* at the last
+message is), an undo and a delete — so the turn the refetch remounts already
+sees nothing arriving. *`onSuccess`, not `onMutate`*: a move the server
+refuses (a `409` while a turn runs) moved nothing, and keeps the arrival.
+*Every head move, not only the ones that can bring the turn back*, because which
+those are is a fact about the transcript's paths that the reducer cannot see,
+and a turn that is simply there is never wrong; an undo never remounted the
+turn at all — it appends one after it — and forgets the arrival because it
+moves the head like the rest. Naming a line moves none and keeps it. *Not
+cleared by the arriving `<li>` itself*: on its mount the class would go before
+the motion ran, and its `transitionend` never fires once the reduced-motion
+block has zeroed the duration. The reducer's docstring and the bullet above
+are struck with dated notes, and `moved` carries the reason in its own.
+**Not covered, and left for [P12A.8](#p12a8--the-phone-rules) or T5**: on a
+phone `<main>` is `max-sm:hidden` while a dock is open, and `@starting-style`
+applies when an element goes from undrawn to drawn — so closing the workbench
+before the next job or move very likely draws the arrived turn arriving again.
+Likely, not run: no browser is installed where this was built.
+
+**Four sentences said every button presses, and only `ui/Button`'s do.** T5's
+walker note told a walker to hold *any* button down; [polish §11](06-polish.md)'s
+note said *every button*, 10 §1.3's *every enabled button*, and `press`'s
+docstring *every button presses*. `press` is spent by `ui/Button`, every variant
+of it, and the `<button>`s drawn by hand do not spend it: `ui/Popover`'s
+trigger and with it every item of the HUD strip, `play/InputKind`'s toggles
+beside Send, `play/ContextMeter`, `play/ChooseBackdrop`'s tiles,
+`play/Portrait`, `ui/SelectorBar`, and others in the editors, the library and
+the tag manager. A walker holding a strip item would have recorded a failure
+against a claim the code never made. **The sentences are corrected, and the gap
+is a stated limit of this stage, left for a decision rather than closed in
+passing**: spent in `Popover` itself, `press` would reach the prose —
+`MentionOverlay` makes each mention the trigger of the same Popover — and a
+word of the story that goes down under a press is a different decision from a
+button that does; spent on `strip.item` alone, on `InputKind` and on
+`ContextMeter`, it would close the gap beside Send, which is the inconsistency
+the stage's decision was made against, and whether a selected toggle should
+also travel when pressed is a question about toggles nobody has asked. So: 05's
+note is struck where it said *any button*, and its dated note names Send, Stop
+and a dialog's own buttons and says a hand-built control's not moving is not a
+failure; polish §11 and 10 §1.3 have dated clauses; `press`'s docstring names
+the sites and why they are open; `motion.test.tsx`'s comment says *every
+`ui/Button`*.
+
+**Five class lists had left the test that reads them.** The stage's *cost in
+coverage* bullet named it and accepted it; review asked for it back, and it was
+one move each. `Dialog`'s scrim, the popover's two placements and the two docks'
+asides are module-level quoted constants again — `SCRIM`, `PANEL_BELOW`,
+`PANEL_INLINE`, and `ASIDE` in `Workbench.tsx` and in `AssistantPanel.tsx`, as
+`Alert` and `Badge` keep `BASE` — each list unchanged, with `enter` alone in the
+template's hole, and each with a comment saying why it is quoted.
+`tailwind-utilities.test.ts` reads them: `bg-overlay` misspelt in `SCRIM` fails
+it after a build, as does a token misspelt in each of the other four —
+`overflow-y-auto` in `PANEL_BELOW`, `rounded-panel` in `PANEL_INLINE`,
+`border-line` in the workbench's `ASIDE`, `max-w-md` in the assistant's. *What
+it still cannot reach*, found by the same mutations: a unit mistyped inside the popover's arbitrary maximum height builds
+a rule and passes, because Tailwind emits whatever an arbitrary value's
+brackets hold, quoted or not. `Popover.tsx`'s comment says so without spelling
+the misspelling out — the first wording did, and the build, which reads
+comments too, emitted it into the stylesheet until the sentence changed.
+
+**The docs counted the motion tokens one short.** 10 §1.3's note said each
+recipe spends only the tokens *§1.2's note names*, and `busy` spends
+`--animate-busy`, which §1.2's note never named, under a reduced-motion block it
+described as zeroing durations alone; and the bullet above called the loop's
+token a *sixth* where `index.css` counts four and one. 10 §1.2 has a dated note
+naming the animation token and why the block sets it to `none` rather than
+zero; §1.3's pointer is struck for *§1.2's notes*, naming the four and the loop;
+the bullet above reads *fifth*, dated. `crossfade`'s docstring, which calls it
+*the first of the five motions P12A.6 names*, has a dated clause: the first
+built, and the fourth in 10 §1.3's order.
+
+**T5's walker was told that on a reload nothing on the page moves.** Two things
+do, and neither is a turn arriving: a staged backdrop fades in once its picture
+has loaded, as [P12A.2](#p12a2--the-backdrop-becomes-a-backdrop) built it —
+`play/Backdrop.tsx` draws the first picture waiting and shows it on `load` —
+and a workbench left open paints closed for the round trip that reads the
+preference, then enters with `enter`. A walker reading the sentence as written
+could record a `FAIL` on an arrival gate that is working, and under the
+two-tier gate that answer stays against the row. 05's sentence is struck and
+its dated note says what does and does not move on a reload, and adds the step
+to a sibling and back that the fix above makes still. T5's row is not edited.
+
+**Tests after review, each checked against a mutation and restored.** In
+`reducer.test.ts`'s *the turn that arrives*, the new *is forgotten when the head
+moves, and nothing else is* fails with `moved` a no-op. In `PlayPage.test.tsx`'s
+*a turn arriving, and the streaming state*, the new *forgets the arrival when
+the head moves, so a step back to the turn draws it still* watches a turn
+finish, steps by the sibling strip to its sibling and back with `moveHead` and
+both transcripts mocked, and asks that the turn's `<li>` no longer carries
+`arrival`; it fails at that assertion with the dispatch dropped from
+`goToSibling`. The other three dispatches are the same line and are not pinned
+apart: a turn a continue or a delete takes off the path comes back by a sibling
+step, which is, and an undo never takes it off. `tailwind-utilities.test.ts`
+fails with each of the five misspellings above, after a build, and passes
+restored. `theme.test.ts`, `ui/motion.test.tsx`, `dock.test.tsx` and
+`AssistantPanel.test.tsx` pass unchanged over the quoted constants. *Not looked
+at in a browser*, still.
+
+**Entry after: 319.27 kB, CSS 8.66** — **319.19 and 8.66 before**, at
+`918975f4`, gzip level 9 over the files `index.html` pulls, the budget test's
+method. **+0.08 kB**: the reducer's branch and the four dispatches; the quoted
+constants cost nothing the gzip can see. CSS is unchanged. **0.73 kB is left**
+for [P12A.7](#p12a7--editors-section-jumps-and-an-identity-header) onward.
 
 ### P12A.7 — Editors: section jumps and an identity header
 

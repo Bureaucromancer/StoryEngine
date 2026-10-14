@@ -643,10 +643,13 @@ had let a second press start a second turn. Everything below is kept as the
 argument it was.
 
 *(2026-10-13, [P12A](35-p12a-the-look.md) P12A.6: **the acknowledgement moves
-now**, and still claims no progress. Every button goes down a pixel under a
+now**, and still claims no progress. Every button ~~goes~~ *drawn by
+`ui/Button` goes (2026-10-14, after review)* down a pixel under a
 press and comes back when it is let go — `press` in `ui/classes.ts`, spent by
 `ui/Button`, so Send is not the only control that answers, and a disabled one
-never does — and the wait's sentence has a dot beside it that breathes from
+never does *(2026-10-14, after review: the strip's items, the input-kind
+toggles beside Send and the context meter are hand-built buttons and do not yet
+press)* — and the wait's sentence has a dot beside it that breathes from
 Send until the turn is over, staying on that line alone once words arrive,
 because a stream that paused looked exactly like one that had finished. With
 the system's reduced-motion preference set, the press does not travel and the

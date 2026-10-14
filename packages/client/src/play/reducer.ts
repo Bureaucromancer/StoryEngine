@@ -206,8 +206,15 @@ export interface PlayState {
    * record's too.
    *
    * Cleared when a new job starts — by `submitted` or by the new job's first
-   * frame, `forJob` — so a turn that arrived once does not arrive again when
-   * a sibling switch or an undo takes it off the path and back.
+   * frame, `forJob` — ~~so a turn that arrived once does not arrive again when
+   * a sibling switch or an undo takes it off the path and back.~~
+   * *(2026-10-14, P12A.6 after review: a head move starts no job, so the next
+   * job's clearing never reached a sibling switch — swipe away from the turn
+   * that arrived and back, and its `<li>` mounted again with this still naming
+   * it, and faded and rose on every return until the next job. `moved` forgets
+   * the arrival on every head move — `PlayPage` dispatches it when a sibling
+   * step, a continue, an undo or a delete has been accepted — and an undo
+   * never remounted the turn in any case: it appends a turn after it.)*
    */
   arrived: string | null;
   /** A failure class, never a message: the server sends classes ([01 §2]). */
@@ -250,9 +257,34 @@ export type PlayAction =
    * action and genuinely has no class.
    */
   | { kind: 'status'; status: PlayState['status']; error?: string }
-  | { kind: 'submitted'; jobId: string };
+  | { kind: 'submitted'; jobId: string }
+  /**
+   * ***The head moved*** (2026-10-14, P12A.6 after review) — a sibling step, a
+   * continue from an earlier turn, an undo or a delete, once the server has
+   * accepted it.
+   *
+   * **A head move starts no job**, so neither `submitted` nor `forJob` ever
+   * sees one, and the arrival they clear outlived it: the turn that arrived
+   * left the path with a sibling step and came back with the next, and its
+   * `<li>` — keyed by the turn's id, so a fresh mount — was drawn arriving
+   * again on every return until something was sent. Every head move forgets
+   * the arrival rather than only the ones that can bring the turn back,
+   * because which those are is a fact about the transcript's paths, which the
+   * reducer cannot see, and a turn that is simply there is never wrong.
+   *
+   * *Not cleared by the arriving `<li>` itself*, on its mount or its
+   * `transitionend`: the first would take the class away before the motion
+   * ran, and the second never fires once the reduced-motion block has zeroed
+   * the duration.
+   */
+  | { kind: 'moved' };
 
 export function reduce(state: PlayState, action: PlayAction): PlayState {
+  if (action.kind === 'moved') {
+    // The same state when there is nothing to forget, so a move that follows
+    // no arrival re-renders nothing on its account.
+    return state.arrived === null ? state : { ...state, arrived: null };
+  }
   if (action.kind === 'status') {
     return {
       ...state,

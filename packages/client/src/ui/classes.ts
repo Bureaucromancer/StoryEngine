@@ -117,7 +117,8 @@ export const reveal =
  * ***A room change is a fade*** — the backdrop's crossfade (2026-10-13),
  * [10 §2.3](../../../../docs/design/10-ui-surfaces.md), built at
  * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.2 and the
- * first of the five motions P12A.6 names.
+ * first of the five motions P12A.6 names *(2026-10-14, P12A.6, after review:
+ * the first built, and the fourth in 10 §1.3's order — a scene changing)*.
  *
  * *"It does not animate a transition the reader has to wait through. A room
  * change is a fade, not an event."* So a new picture arrives **over** the one
@@ -242,16 +243,29 @@ export const enter = 'transition-opacity duration-arrive ease-arrive starting:op
  * because the person just did this; `swap`, because neither end of a press is
  * an arrival.
  *
- * **Spent by `ui/Button`, so every button presses and not Send alone.** A
- * press answered on one button teaches that the others did not register, and
- * polish §11 put Send's busy state in `ui/` rather than at its call site for a
- * reason that holds more strongly for a pressed state, which no button lacks.
- * **`enabled:`**, because a disabled Send that went down under a press would
- * acknowledge a press that does nothing — the false answer §11 removed when it
- * stopped Send being live for the length of the post. A link drawn as a
- * button (`link.action`) does not press: it is a navigation, and the page
- * changing is its answer. Under reduced motion the press is still drawn, down
- * for as long as it is held, and simply does not travel.
+ * **Spent by `ui/Button`, so every ~~button~~ *`ui/Button`* presses and not
+ * Send alone.** A press answered on one button teaches that the others did not
+ * register, and polish §11 put Send's busy state in `ui/` rather than at its
+ * call site for a reason that holds more strongly for a pressed state, which
+ * no button lacks. **`enabled:`**, because a disabled Send that went down
+ * under a press would acknowledge a press that does nothing — the false answer
+ * §11 removed when it stopped Send being live for the length of the post. A
+ * link drawn as a button (`link.action`) does not press: it is a navigation,
+ * and the page changing is its answer. Under reduced motion the press is still
+ * drawn, down for as long as it is held, and simply does not travel.
+ *
+ * *(2026-10-14, P12A.6, after review: **every `ui/Button`, and not every
+ * button.** The `<button>`s drawn by hand do not spend it yet — `ui/Popover`'s
+ * trigger, and with it every item of the HUD strip; `play/InputKind`'s
+ * toggles, which sit beside Send; `play/ContextMeter`; `play/ChooseBackdrop`'s
+ * tiles; `play/Portrait`; `ui/SelectorBar`; and others in the editors, the
+ * library and the tag manager. Spending it on them is left open rather than
+ * done in passing: spent in `Popover` itself it would reach the prose too,
+ * since `MentionOverlay` makes each mention the trigger of the same Popover,
+ * and a word of the story that went down under a press is a different
+ * decision from a button that does.
+ * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) §2 records it
+ * as a stated limit.)*
  */
 export const press =
   'transition-transform duration-respond ease-swap enabled:active:translate-y-px';

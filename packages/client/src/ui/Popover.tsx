@@ -119,6 +119,27 @@ import { enter } from './classes.js';
  */
 export type PopoverChange = 'trigger' | 'escape' | 'outside' | 'focus';
 
+/**
+ * The panel's two placements — under a block-level trigger, full width and
+ * scrolling within its own height; beside an inline one, a fixed width.
+ *
+ * ***Quoted constants, not text in the template*** (2026-10-14,
+ * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.6, after
+ * review). Each was a `className="…"` until it began to spend `enter`, and
+ * then the list sat in a template literal beside the recipe —
+ * `tailwind-utilities.test.ts` reads quoted literals only, so a utility
+ * misspelt in either, or a token that does not exist, would have passed the
+ * one test that exists to catch it. Quoted, the test reads them again. *Not the bracketed value*: Tailwind emits an arbitrary
+ * value whatever its brackets hold, so a unit mistyped inside the first
+ * list's maximum height builds a rule and passes, quoted or not — a mutation
+ * showed it. (Not spelt out here: the build reads comments too, and the
+ * misspelling written as a class would be emitted from this sentence.)
+ */
+const PANEL_BELOW =
+  'absolute inset-x-0 top-full z-10 mt-1 flex max-h-[70dvh] flex-col gap-2 overflow-y-auto rounded-panel border border-line bg-surface p-3 font-ui text-sm text-ink shadow-overlay';
+const PANEL_INLINE =
+  'absolute start-0 top-full z-10 mt-1 flex w-64 flex-col gap-2 rounded-panel border border-line bg-surface p-3 font-ui text-sm text-ink shadow-overlay';
+
 export function Popover(props: {
   /** What the trigger shows. Its text is the trigger's accessible name. */
   trigger: ReactNode;
@@ -257,7 +278,7 @@ export function Popover(props: {
           // Fading in on every opening, though it is never unmade
           // (2026-10-13, P12A.6): `@starting-style` applies on the way from
           // hidden to drawn as well — `enter` in `classes.ts` says the rest.
-          className={`${enter} absolute inset-x-0 top-full z-10 mt-1 flex max-h-[70dvh] flex-col gap-2 overflow-y-auto rounded-panel border border-line bg-surface p-3 font-ui text-sm text-ink shadow-overlay`}
+          className={`${enter} ${PANEL_BELOW}`}
         >
           {props.children}
         </div>
@@ -268,10 +289,7 @@ export function Popover(props: {
     <span className="relative" {...wrapper}>
       {button}
       {open ? (
-        <span
-          {...dialog}
-          className={`${enter} absolute start-0 top-full z-10 mt-1 flex w-64 flex-col gap-2 rounded-panel border border-line bg-surface p-3 font-ui text-sm text-ink shadow-overlay`}
-        >
+        <span {...dialog} className={`${enter} ${PANEL_INLINE}`}>
           {props.children}
         </span>
       ) : null}

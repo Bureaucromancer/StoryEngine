@@ -48,6 +48,22 @@ import { TurnSubject } from './turn/TurnSubject.js';
 import { Note, SubsectionTitle } from '../ui/Text.js';
 
 /**
+ * The dock's own box — its width the stored size, the full width on a phone;
+ * the comments at its one use say why each is so.
+ *
+ * ***A quoted constant, not text in the template*** (2026-10-14,
+ * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.6, after
+ * review). It was a `className="…"` until the aside began to spend `enter`,
+ * and then the list sat in a template literal beside the recipe —
+ * `tailwind-utilities.test.ts` reads quoted literals only, so a utility
+ * misspelt here would have passed the test that exists for this file's own
+ * history: the resize handle below had no height for three phases. Quoted,
+ * the test reads it again.
+ */
+const ASIDE =
+  'relative flex w-(--workbench-size) shrink-0 flex-col border-s border-line bg-surface max-sm:w-full';
+
+/**
  * The workbench frame — [10 §3](../../../../docs/design/10-ui-surfaces.md),
  * built by [P3.1](../../../../docs/design/workplan/15-p3-implementation.md):
  * a non-modal `<aside>` docked at the shell's inline end, whose subject is
@@ -168,7 +184,7 @@ export function Workbench({ onClose }: { onClose: () => void }): JSX.Element {
       // *It fades in as it opens* (2026-10-13, P12A.6) — `enter` in
       // `classes.ts`. The page beside it narrows at once, since that is
       // layout rather than motion; only the panel's own paint arrives.
-      className={`${enter} relative flex w-(--workbench-size) shrink-0 flex-col border-s border-line bg-surface max-sm:w-full`}
+      className={`${enter} ${ASIDE}`}
     >
       <ResizeHandle
         asideRef={asideRef}

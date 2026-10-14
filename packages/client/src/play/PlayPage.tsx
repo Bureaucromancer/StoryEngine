@@ -807,6 +807,9 @@ export function PlayPage({
   const goToSibling = useMutation({
     mutationFn: (turnId: string) => moveHead(sessionId, turnId, true),
     onSuccess: (result) => {
+      // Before the refetch that remounts the line, so the turn that arrived is
+      // not drawn arriving again when a step brings it back — `moved` says why.
+      dispatch({ kind: 'moved' });
       setAbandoned(result.abandoned.escapedEffects > 0 ? result.abandoned : null);
       void queryClient.invalidateQueries({ queryKey: ['session', sessionId] });
       void queryClient.invalidateQueries({ queryKey: ['transcript', sessionId] });
@@ -834,6 +837,7 @@ export function PlayPage({
   const continueFrom = useMutation({
     mutationFn: (turn: TurnRecord) => moveHead(sessionId, turn.id),
     onSuccess: (result) => {
+      dispatch({ kind: 'moved' });
       setAbandoned(result.abandoned.escapedEffects > 0 ? result.abandoned : null);
       void queryClient.invalidateQueries({ queryKey: ['session', sessionId] });
       void queryClient.invalidateQueries({ queryKey: ['transcript', sessionId] });
@@ -856,7 +860,12 @@ export function PlayPage({
 
   const undo = useMutation({
     mutationFn: (turn: TurnRecord) => undoTurn(sessionId, turn.id),
-    onSuccess: refreshSession,
+    // An undo advances the head, so it forgets the arrival as every head move
+    // does; naming a line below moves none, and keeps it.
+    onSuccess: () => {
+      dispatch({ kind: 'moved' });
+      refreshSession();
+    },
   });
 
   const name = useMutation({
@@ -874,6 +883,7 @@ export function PlayPage({
   const remove = useMutation({
     mutationFn: (turn: TurnRecord) => moveHead(sessionId, turn.parentTurnId ?? null),
     onSuccess: (result) => {
+      dispatch({ kind: 'moved' });
       setAbandoned(result.abandoned.escapedEffects > 0 ? result.abandoned : null);
       refreshSession();
     },
