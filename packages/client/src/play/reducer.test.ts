@@ -642,3 +642,75 @@ describe('a backdrop that lands', () => {
     expect(state.backdrops).toBe(2);
   });
 });
+
+/**
+ * ***The turn that arrives is the one this client watched end*** (2026-10-13,
+ * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.6) —
+ * `PlayState.arrived`, the one turn `PlayPage` draws arriving. The motion is a
+ * mount's, and a page opening mounts every turn, so what is asserted here is
+ * the transition: running, then `turn.finished` for the job that was running.
+ * A page that opens after the end hears the same `turn.finished` replayed and
+ * must not take it for an arrival, and the next job forgets the last one.
+ */
+describe('the turn that arrives', () => {
+  const watched = (): PlayState =>
+    run(reduce(run(INITIAL, [snapshot({ job: null })]), { kind: 'submitted', jobId: 'job-1' }), [
+      event(1, 'turn.started', { turnId: 't-1' }),
+      delta('The rain had not stopped.'),
+    ]);
+
+  it('is the turn this client saw running and then saw end, and nothing before it ends', () => {
+    const running = watched();
+    expect(running.status).toBe('running');
+    expect(running.arrived).toBeNull();
+
+    const ended = run(running, [event(2, 'turn.finished', { state: 'complete' })]);
+    expect(ended.arrived).toBe('t-1');
+  });
+
+  it('is no turn on a page opened after the turn had ended, though its frames replay', () => {
+    const opened = run(INITIAL, [
+      snapshot({ job: { id: 'job-1', status: 'committed', turnId: 't-1', commitStep: 0 } }),
+      event(1, 'turn.started', { turnId: 't-1' }),
+      event(2, 'turn.finished', { state: 'complete' }),
+    ]);
+
+    // The frames were heard — the live turn is rebuilt and closed — and the
+    // ending is still not an arrival, because it was not watched.
+    expect(opened.live?.state).toBe('complete');
+    expect(opened.status).toBe('finished');
+    expect(opened.arrived).toBeNull();
+  });
+
+  it('is forgotten when the next job starts, by its POST or by its first frame', () => {
+    const ended = run(watched(), [event(2, 'turn.finished', { state: 'complete' })]);
+
+    expect(reduce(ended, { kind: 'submitted', jobId: 'job-2' }).arrived).toBeNull();
+    const early = run(ended, [
+      {
+        event: 'progress',
+        id: 'job-2.1',
+        data: { jobId: 'job-2', seq: 1, key: 'turn.started', params: { turnId: 't-2' }, at: 0 },
+      },
+    ]);
+    expect(early.arrived).toBeNull();
+
+    // A job that ran and ended before its own POST answered was watched too —
+    // the frames beat the response — and the late POST keeps its arrival.
+    const instant = run(early, [
+      {
+        event: 'progress',
+        id: 'job-2.2',
+        data: {
+          jobId: 'job-2',
+          seq: 2,
+          key: 'turn.finished',
+          params: { state: 'complete' },
+          at: 0,
+        },
+      },
+    ]);
+    expect(instant.arrived).toBe('t-2');
+    expect(reduce(instant, { kind: 'submitted', jobId: 'job-2' }).arrived).toBe('t-2');
+  });
+});

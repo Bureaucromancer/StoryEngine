@@ -186,6 +186,30 @@ export interface PlayState {
    * (`rewrite`). Null until the server says, and for a narrator's turn.
    */
   order: { speakers: { id: string; name: string }[]; by: string } | null;
+  /**
+   * ***The turn this client watched finish*** (2026-10-13,
+   * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.6) — the
+   * one turn `PlayPage` draws arriving, by `ui/classes.ts`'s `arrival`.
+   *
+   * **Watched is the word that matters.** The arrival is a mount's motion, and
+   * a page opening mounts every turn at once; so it belongs to a turn this
+   * client saw running and then saw end, which is a transition only the
+   * reducer is placed to see — `turn.finished` while the status was
+   * `running`, for the job it was running. A page opened after a turn ended
+   * gets a snapshot that already says `finished` and then the turn's frames
+   * replayed, `turn.finished` among them, and that turn did not just arrive
+   * for anybody: it is the story as it was when they came in. A stream that
+   * dropped and came back after the turn ended takes the same path, so that
+   * turn is drawn without the motion: the cheaper mistake, since a turn that
+   * is simply there is never wrong and one that moves when nothing arrived
+   * is. The id is the live turn's, which `turn.started` named, and is the
+   * record's too.
+   *
+   * Cleared when a new job starts — by `submitted` or by the new job's first
+   * frame, `forJob` — so a turn that arrived once does not arrive again when
+   * a sibling switch or an undo takes it off the path and back.
+   */
+  arrived: string | null;
   /** A failure class, never a message: the server sends classes ([01 §2]). */
   error: string | null;
 }
@@ -210,6 +234,7 @@ export const INITIAL: PlayState = {
   backdrops: 0,
   round: FRESH_ROUND,
   order: null,
+  arrived: null,
   error: null,
 };
 
@@ -268,6 +293,10 @@ export function reduce(state: PlayState, action: PlayAction): PlayState {
       text: same ? state.text : '',
       round: same ? state.round : FRESH_ROUND,
       order: same ? state.order : null,
+      // Null either way: a frame of this job has already cleared it (`forJob`),
+      // and a job whose frames ended it before this POST answered returned
+      // above with its arrival kept.
+      arrived: null,
       status: 'running',
       error: null,
     };
@@ -398,6 +427,7 @@ function applyProgress(state: PlayState, frame: SseFrame): PlayState {
 
   const finished = key === 'turn.finished';
   const current = forJob(state, jobId);
+  const live = applyToLive(state.live, key, params);
   return {
     ...current,
     jobId,
@@ -411,9 +441,15 @@ function applyProgress(state: PlayState, frame: SseFrame): PlayState {
       : jobId !== state.jobId || state.status === 'idle'
         ? 'running'
         : state.status,
-    live: applyToLive(state.live, key, params),
+    live,
     round: key === 'call.started' ? openMessage(current.round, params) : current.round,
     order: key === 'speakers.picked' ? (orderOf(params) ?? current.order) : current.order,
+    // Seen running and seen ending, for the job that was running — `arrived`
+    // says why a replayed ending is not an arrival.
+    arrived:
+      finished && state.status === 'running' && jobId === state.jobId
+        ? (live?.turnId ?? null)
+        : current.arrived,
   };
 }
 
@@ -433,7 +469,7 @@ function applyProgress(state: PlayState, frame: SseFrame): PlayState {
  */
 function forJob(state: PlayState, jobId: string): PlayState {
   if (jobId === state.jobId) return state;
-  return { ...state, text: '', round: FRESH_ROUND, order: null };
+  return { ...state, text: '', round: FRESH_ROUND, order: null, arrived: null };
 }
 
 /**

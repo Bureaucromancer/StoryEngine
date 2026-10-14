@@ -17,7 +17,7 @@ import {
   type TurnPreview,
   type TurnRecord,
 } from '../api.js';
-import { page } from '../ui/classes.js';
+import { arrival, busy, page } from '../ui/classes.js';
 import type { StreamHandlers } from './stream.js';
 
 /**
@@ -1175,6 +1175,137 @@ describe('a turn that finishes instantly', () => {
     });
     expect(screen.getByRole('button', { name: 'Send' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Stop' })).toBeNull();
+  });
+});
+
+/**
+ * ***Two of the five motions, where the page spends them*** (2026-10-13,
+ * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.6). jsdom
+ * runs no transition and applies no stylesheet, so each is read off the
+ * classes — the recipe on the element that should move, and not on the ones
+ * that should not. Whether it looks right moving is T5's, a person's.
+ */
+describe('a turn arriving, and the streaming state', () => {
+  const NEXT: TurnRecord = {
+    ...TURN,
+    id: 'turn-2',
+    parentTurnId: 'turn-1',
+    createdAt: '2026-08-18T10:01:00.000Z',
+    input: { actorId: null, text: 'I step in.', kind: 'action', raw: 'I step in.' },
+    output: { text: 'The hall is cold, and someone has lit a lamp.' },
+  };
+  const classesOf = (element: Element | null): string[] =>
+    (element?.getAttribute('class') ?? '').split(/\s+/);
+  const arrives = (element: Element | null): boolean =>
+    arrival.split(' ').every((token) => classesOf(element).includes(token));
+  /** The dot, found by the recipe it is drawn with — jsdom has no other way to see it. */
+  const dots = (): Element[] =>
+    [...document.querySelectorAll('span')].filter((span) => span.className === busy);
+
+  /**
+   * The motion is a mount's, so this is the gate: the turn that was already on
+   * the page when the turn ran stays as it was, and only the one the page
+   * watched finish is drawn arriving. Mutations: the recipe on every turn, and
+   * on none.
+   */
+  it('draws the turn it watched finish arriving, and not the turns already there', async () => {
+    renderPage();
+    await screen.findByText('I knock twice.');
+    readTranscript.mockResolvedValue({ turns: [TURN, NEXT] });
+
+    act(() => {
+      handlers.onFrame({ event: 'snapshot', data: { job: { id: 'job-1', status: 'running' } } });
+      handlers.onFrame({
+        event: 'progress',
+        id: 'job-1.1',
+        data: { jobId: 'job-1', seq: 1, key: 'turn.started', params: { turnId: 'turn-2' } },
+      });
+      handlers.onFrame({ event: 'delta', data: { text: 'The hall ' } });
+      handlers.onFrame({
+        event: 'progress',
+        id: 'job-1.2',
+        data: { jobId: 'job-1', seq: 2, key: 'turn.finished', params: { state: 'complete' } },
+      });
+    });
+
+    const arrived = (
+      await screen.findByText('The hall is cold, and someone has lit a lamp.')
+    ).closest('li');
+    expect(arrives(arrived)).toBe(true);
+    expect(arrives(screen.getByText('The door opens a handspan.').closest('li'))).toBe(false);
+  });
+
+  /**
+   * And a page opened after the turn ended hears that turn's frames replayed,
+   * `turn.finished` among them — which is the case a mount-time animation gets
+   * wrong. Mutation: the reducer's arrival taken from any `turn.finished`,
+   * watched or not.
+   */
+  it('draws no turn arriving on a page opened after the turn had ended', async () => {
+    renderPage();
+    await screen.findByText('I knock twice.');
+
+    act(() => {
+      handlers.onFrame({
+        event: 'snapshot',
+        data: { job: { id: 'job-1', status: 'committed' } },
+      });
+      handlers.onFrame({
+        event: 'progress',
+        id: 'job-1.1',
+        data: { jobId: 'job-1', seq: 1, key: 'turn.started', params: { turnId: 'turn-1' } },
+      });
+      handlers.onFrame({
+        event: 'progress',
+        id: 'job-1.2',
+        data: { jobId: 'job-1', seq: 2, key: 'turn.finished', params: { state: 'complete' } },
+      });
+    });
+    // The page reads the transcript again on a finished stream; the turn is
+    // drawn from that read as it was from the first.
+    await waitFor(() => {
+      expect(readTranscript).toHaveBeenCalledTimes(2);
+    });
+
+    expect(arrives(screen.getByText('The door opens a handspan.').closest('li'))).toBe(false);
+  });
+
+  /**
+   * The streaming state: beside the sentence while the wait is for the first
+   * word, alone once words are arriving — hidden from a screen reader both
+   * times, since the sentence and the live turn say it in words — and gone
+   * when the turn is over. Mutations: the dot only while waiting, the dot left
+   * after the end, and the sentence's dot dropped.
+   */
+  it('breathes from the press until the turn is over, beside the sentence and then alone', async () => {
+    renderPage();
+    await screen.findByText('I knock twice.');
+    expect(dots()).toHaveLength(0);
+
+    act(() => {
+      handlers.onFrame({ event: 'snapshot', data: { job: { id: 'job-1', status: 'running' } } });
+    });
+    const waiting = screen.getByText('Waiting for the first words…');
+    expect(waiting.getAttribute('role')).toBe('status');
+    expect(dots()).toHaveLength(1);
+    expect(dots()[0]?.parentElement).toBe(waiting);
+    expect(dots()[0]?.getAttribute('aria-hidden')).toBe('true');
+
+    act(() => {
+      handlers.onFrame({ event: 'delta', data: { text: 'The lamp ' } });
+    });
+    expect(screen.queryByText('Waiting for the first words…')).toBeNull();
+    expect(dots()).toHaveLength(1);
+    expect(dots()[0]?.closest('[aria-hidden="true"]')).not.toBeNull();
+
+    act(() => {
+      handlers.onFrame({
+        event: 'progress',
+        id: 'job-1.1',
+        data: { jobId: 'job-1', seq: 1, key: 'turn.finished', params: { state: 'complete' } },
+      });
+    });
+    expect(dots()).toHaveLength(0);
   });
 });
 

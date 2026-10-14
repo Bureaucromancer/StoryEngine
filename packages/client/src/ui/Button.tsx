@@ -3,6 +3,8 @@
 
 import type { ComponentProps, JSX } from 'react';
 
+import { press } from './classes.js';
+
 /**
  * The button.
  *
@@ -97,7 +99,12 @@ export function Button({
   className,
   ...rest
 }: ButtonProps): JSX.Element {
-  const classes = `${BASE} ${VARIANT[variant]} ${SIZE[size]}`;
+  // ***Every button acknowledges its press*** (2026-10-13, P12A.6): the
+  // motion is `press` in `classes.ts`, the one file a motion may be written
+  // in, and it is spent here rather than at Send because a press answered on
+  // one button teaches that the others did not register — the recipe's
+  // docstring has the rest, and why a disabled button does not go down.
+  const classes = `${press} ${BASE} ${VARIANT[variant]} ${SIZE[size]}`;
   return (
     <button {...rest} className={className === undefined ? classes : `${className} ${classes}`} />
   );

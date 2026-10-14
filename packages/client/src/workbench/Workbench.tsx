@@ -26,7 +26,7 @@ import {
 } from '../queries.js';
 import { Button } from '../ui/Button.js';
 import { SelectField } from '../ui/Field.js';
-import { link } from '../ui/classes.js';
+import { enter, link } from '../ui/classes.js';
 import {
   clampSize,
   MAX_SIZE,
@@ -164,7 +164,11 @@ export function Workbench({ onClose }: { onClose: () => void }): JSX.Element {
       // page a gutter. §3 already says what should happen there — *"on a phone
       // the workbench **is** the main view"* — and the shell hides the outlet
       // beneath this breakpoint to complete it.
-      className="relative flex w-(--workbench-size) shrink-0 flex-col border-s border-line bg-surface max-sm:w-full"
+      //
+      // *It fades in as it opens* (2026-10-13, P12A.6) — `enter` in
+      // `classes.ts`. The page beside it narrows at once, since that is
+      // layout rather than motion; only the panel's own paint arrives.
+      className={`${enter} relative flex w-(--workbench-size) shrink-0 flex-col border-s border-line bg-surface max-sm:w-full`}
     >
       <ResizeHandle
         asideRef={asideRef}

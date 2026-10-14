@@ -6,6 +6,8 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { enter } from '../ui/classes.js';
+
 /**
  * ***Starting the assistant*** — the panel's first test, written with the fix
  * it covers (2026-09-27).
@@ -121,5 +123,21 @@ describe('the assistant’s session', () => {
         expect.objectContaining({ sessionId: 'assistant-1', settings: 'here' }),
       );
     });
+  });
+});
+
+/**
+ * ***It fades in as it opens*** (2026-10-13,
+ * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.6), as the
+ * workbench does — `enter` in `ui/classes.ts`, read off the classes since jsdom
+ * runs no transition. Mutation: the recipe dropped from the aside.
+ */
+describe('the panel', () => {
+  it('fades in as it opens', async () => {
+    renderPanel();
+
+    const panel = await screen.findByRole('complementary', { name: 'Assistant' });
+    const classes = (panel.getAttribute('class') ?? '').split(' ');
+    expect(enter.split(' ').filter((token) => !classes.includes(token))).toEqual([]);
   });
 });

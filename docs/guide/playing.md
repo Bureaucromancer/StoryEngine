@@ -233,7 +233,10 @@ the turns after it, not the ones already written.
 Type in the box at the bottom and press **Enter** to send — **Shift+Enter** starts a
 new line. **Send** reads **Sending…** while it goes. The reply streams into the
 transcript; until the first words arrive the page says *Waiting for the first
-words…*.
+words…*. A small dot under the transcript pulses from the moment you send until
+the turn is over, so a reply that pauses mid-way is plainly still being written;
+the finished turn then fades into the story. If your system is set to reduce
+motion, the dot holds still and the turn simply appears.
 
 - **What kind of turn.** Freeform offers **Do**, **Say**, **Think** and **Story**
   (writing the next part yourself); the box's prompt changes with it — *What do you

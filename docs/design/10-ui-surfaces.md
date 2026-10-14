@@ -381,6 +381,22 @@ project already committed to:
   a panel entering, a scene changing. Roughly five motions with names, honouring
   `prefers-reduced-motion`. §9's *something happens between Send and the first
   token* is the first word of it.
+  *(2026-10-13, [P12A](workplan/35-p12a-the-look.md) P12A.6: four are named here
+  and five shipped — the fifth is that first word, which had no motion until
+  now. Each is one recipe in `ui/classes.ts`, spending only the motion tokens
+  §1.2's note names: **a turn arriving** (`arrival`, a fade and a short rise,
+  on the one turn the page watched finish — a page opening mounts every turn,
+  and a mount's motion on each would be an event on arrival); **the streaming
+  state** (`busy`, a dot that breathes beside *Waiting for the first words…*
+  and then alone on that line until the turn is over); **a panel entering**
+  (`enter`, a fade, on a dialog with its scrim, a popover, the workbench and
+  the assistant — none fades out); **a scene changing** (`crossfade`, the
+  backdrop's, [P12A](workplan/35-p12a-the-look.md) P12A.2's); and **a press
+  acknowledged** (`press`, a pixel down under the press, on every enabled
+  button rather than Send alone). `reveal`, older than the vocabulary, spends
+  the same tokens. With the preference set each is absent rather than fast —
+  the loop's token goes to `none`, every duration to zero — which is
+  [manual testing](workplan/05-manual-testing.md)'s T5.)*
 - **Editors navigated by section jumps, not tabs.** Marinara has both — a tab
   rail and anchor chips over one long form. Only the chips come across. They
   give orientation without hiding a field, which is the only version compatible

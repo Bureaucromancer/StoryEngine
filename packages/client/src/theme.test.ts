@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
+import * as recipes from './ui/classes.js';
 import { page, story, strip as stripItem } from './ui/classes.js';
 
 /**
@@ -214,7 +215,9 @@ describe('the steps that are not colours', () => {
   it('stills every motion for someone who has asked for less of it', () => {
     // Exactly the motion tokens @theme declares, so a new one without its
     // line here fails rather than ships — and Tailwind's default duration,
-    // which a bare `transition-*` spends and `reveal` is. A duration or a
+    // which a bare `transition-*` spends and `reveal` is *(was, until P12A.6
+    // named its duration; the line stays as the floor under a recipe that
+    // forgets — `the motions` below refuses one that does)*. A duration or a
     // delay goes to zero; an animation goes to `none`, because an infinite
     // one runs for ever at any duration.
     const block = blockAt(only(LESS_MOTION));
@@ -529,7 +532,9 @@ describe('radius, elevation and motion are spent by name', () => {
     // client spends `rounded-control` some seventy times, its three overlays
     // spend `shadow-overlay`, its eight pictures and the two stand-ins that
     // take a picture's slot `rounded-media`, and `reveal` is the one
-    // `transition-*`. `field-sizing-content` is written only after
+    // `transition-*` *(2026-10-13, P12A.6: one of six motion recipes now,
+    // three of them `transition-opacity` — `the motions` below holds them)*.
+    // `field-sizing-content` is written only after
     // a `${control}` hole, in the composer and the chat's edit box, so it is
     // the proof that a template literal's text is read at all.
     const count = (utility: string): number =>
@@ -546,6 +551,125 @@ describe('radius, elevation and motion are spent by name', () => {
       .filter((found) => found.why !== null)
       .map(({ path, token, why }) => `${path}: ${token} — ${why ?? ''}`);
     expect(offenders).toEqual([]);
+  });
+});
+
+/**
+ * ***The motions: each a recipe, each spent by name, and each still for
+ * someone who has asked for less*** (2026-10-13) — [P12A.6].
+ *
+ * The stage asked for *"the same test `theme.test.ts` already applies to
+ * `reveal`"*, and the phase's audit found that test reads `(hover: none)` and
+ * not reduced motion — so these are new, and they sit beside the scan above
+ * because they extend it. The scan holds that motion is written only in
+ * `ui/classes.ts` and that a duration, an easing or an animation names a
+ * token; these hold what that left open:
+ *
+ * - **Each motion is a named recipe** — the five [10 §1.3] and the stage name,
+ *   and `reveal`, which was the client's one motion before them — and each one
+ *   moves, so a recipe emptied of its motion fails rather than shipping a
+ *   still thing under a motion's name.
+ * - **Nothing transitions on Tailwind's default.** A recipe that names what
+ *   moves names a duration token and an easing token as well, because the
+ *   default is a length nobody chose — `reveal` rode it until this stage — and
+ *   the reduced-motion block reaches it only through a line that is a floor,
+ *   not a design.
+ * - **Motion is written in a motion recipe and nowhere else in the file**,
+ *   which is the scan's rule carried down from files to names: a `transition`
+ *   added to a link's recipe would pass the scan, since it is in the right
+ *   file, and would be a sixth motion nobody named.
+ * - **The one motion that loops is stilled, not slowed.** A transition's
+ *   reduced-motion arm is its duration going to zero, which the P12A.0 test
+ *   above already holds for every duration; a loop's is its animation token
+ *   going to `none`, and this checks that the streaming state spends one that
+ *   does — and that it is the loop, so the arm is the one that matters.
+ */
+describe('the motions', () => {
+  /** What each recipe is, by the name it is exported under. */
+  const MOTIONS: Record<string, string> = {
+    arrival: 'a turn arriving',
+    busy: 'the streaming state',
+    enter: 'a panel or sheet entering',
+    crossfade: 'the backdrop changing',
+    press: 'a press acknowledged',
+    reveal: 'a row of controls coming up under the pointer',
+  };
+
+  /** Every class string an export of `ui/classes.ts` holds. */
+  const stringsOf = (value: unknown): string[] =>
+    typeof value === 'string'
+      ? [value]
+      : typeof value === 'object' && value !== null
+        ? Object.values(value).flatMap(stringsOf)
+        : [];
+  const utilities = (text: string): string[] =>
+    text
+      .split(/\s+/)
+      .filter((token) => token !== '')
+      .map(utilityOf);
+  const moves = (utility: string): boolean =>
+    /^(?:transition(?:-.+)?|(?:duration|delay|ease|animate)-.+)$/.test(utility);
+  const tokens = (namespace: string): Set<string> =>
+    new Set(
+      [...light.keys()]
+        .filter((name) => name.startsWith(`--${namespace}-`))
+        .map((name) => name.slice(namespace.length + 3)),
+    );
+
+  it('names each motion as a recipe beside reveal, and each one moves', () => {
+    for (const [name, what] of Object.entries(MOTIONS)) {
+      const held = stringsOf((recipes as Record<string, unknown>)[name]);
+      expect(held.length, `${name} — ${what} — is not a recipe in ui/classes.ts`).toBeGreaterThan(
+        0,
+      );
+      expect(
+        held.flatMap(utilities).some(moves),
+        `${name} — ${what} — names nothing that moves`,
+      ).toBe(true);
+    }
+  });
+
+  it('names a duration and an easing wherever it transitions, so nothing rides the default', () => {
+    const durations = tokens('transition-duration');
+    const easings = tokens('ease');
+    for (const name of Object.keys(MOTIONS)) {
+      for (const text of stringsOf((recipes as Record<string, unknown>)[name])) {
+        const used = utilities(text);
+        if (!used.some((utility) => /^transition(?:-.+)?$/.test(utility))) continue;
+        expect(
+          used.filter((utility) => durations.has(utility.replace(/^duration-/, ''))),
+          `${name} transitions without naming a duration token: ${text}`,
+        ).toHaveLength(1);
+        expect(
+          used.filter((utility) => easings.has(utility.replace(/^ease-/, ''))),
+          `${name} transitions without naming an easing token: ${text}`,
+        ).toHaveLength(1);
+      }
+    }
+  });
+
+  it('writes motion in a motion recipe and nowhere else in the file', () => {
+    const offenders = Object.entries(recipes)
+      .filter(([name]) => !(name in MOTIONS))
+      .flatMap(([name, value]) =>
+        stringsOf(value).flatMap((text) =>
+          text
+            .split(/\s+/)
+            .filter((token) => moves(utilityOf(token)) || token.startsWith('starting:'))
+            .map((token) => `${name}: ${token}`),
+        ),
+      );
+    expect(offenders).toEqual([]);
+  });
+
+  it('stills the streaming state rather than slowing it', () => {
+    const animations = utilities(recipes.busy).filter((utility) => utility.startsWith('animate-'));
+    expect(animations).toHaveLength(1);
+    const token = `--${animations[0] ?? ''}`;
+    // The loop is what makes `none` the arm that matters: a transition that
+    // ran once would be stilled by its duration already.
+    expect(light.get(token), `${token} is not a token @theme declares`).toMatch(/\binfinite\b/);
+    expect(tokensIn(blockAt(only(LESS_MOTION))).get(token)).toBe('none');
   });
 });
 

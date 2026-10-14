@@ -73,7 +73,10 @@ import { crossfade } from '../ui/classes.js';
  * containment; one that does becomes its containing block, and the layer
  * would then scroll with that ancestor and be clipped by it. The column and
  * `<main>` are exactly where a later stage puts such a thing — P12A.6's
- * motions are transforms and opacity — so the layer is a portal, outside
+ * motions are transforms and opacity *(2026-10-13, P12A.6, as built: the two
+ * transforms are a finished turn's rise and a button's press, inside the
+ * column for the length of a transition and never on it or on `<main>`; the
+ * portal does not depend on that staying so)* — so the layer is a portal, outside
  * every box the page owns, and behind all of them at `-z-10`: after the
  * canvas, before everything else, so the header, the dock and the footer,
  * each on `bg-surface`, cover it, and ~~the column covers it with the veil~~

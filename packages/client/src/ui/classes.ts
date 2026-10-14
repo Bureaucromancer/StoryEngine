@@ -100,8 +100,18 @@ export const link = {
  * the two of them had already been written twice — the same string with a
  * different group name, which is how the next one comes to be written a third
  * time with the media query left out again.
+ *
+ * *(2026-10-13, [P12A](../../../../docs/design/workplan/35-p12a-the-look.md)
+ * P12A.6: on the motion tokens — `respond` for its length and `swap` for its
+ * curve, which are the 150ms and the curve it took from Tailwind's defaults
+ * before, so nothing on screen changes. What changes is that it is spelled the
+ * way every motion in this file is, naming what it spends, and that the
+ * reduced-motion block reaches it by name rather than through the default it
+ * used to ride. A row that comes up under the pointer answers something the
+ * person just did, which is what `respond` is for.)*
  */
-export const reveal = 'opacity-0 transition-opacity [@media(hover:none)]:opacity-100';
+export const reveal =
+  'opacity-0 transition-opacity duration-respond ease-swap [@media(hover:none)]:opacity-100';
 
 /**
  * ***A room change is a fade*** — the backdrop's crossfade (2026-10-13),
@@ -136,6 +146,115 @@ export const crossfade = {
   waiting: 'opacity-0',
   shown: 'opacity-100',
 } as const;
+
+/**
+ * ***A turn arriving*** (2026-10-13) — the first motion
+ * [10 §1.3](../../../../docs/design/10-ui-surfaces.md) names, built at
+ * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.6, where
+ * the backdrop's crossfade above is the fourth.
+ *
+ * **Only the turn this page watched finish wears it**, and that is the design
+ * rather than a detail of it. `starting:` is CSS's `@starting-style`, which
+ * applies to an element's first style and to nothing after, so the motion is
+ * a mount's — and a page opening mounts every turn of the story at once.
+ * Spent by every turn, a forty-turn session would open as forty paragraphs
+ * rising out of nothing: an event to wait through on the one occasion
+ * somebody came to read. So `PlayPage` hands it to the one turn the reducer
+ * saw go from running to finished (`PlayState.arrived`), and to no turn that
+ * was there already — a turn whose stream had ended before the page opened
+ * among them, though its frames are replayed to the page.
+ *
+ * **A fade and a short rise.** The story grows at its end, so what is new
+ * comes up from below into its place; a quarter of a rem is enough to be seen
+ * arriving and not enough to move the line somebody is reading by more than a
+ * hair. `arrive` and `ease-arrive`, which `index.css` names for exactly this —
+ * it starts at once and comes to rest. Under reduced motion the duration is
+ * zero, and the turn is simply there.
+ *
+ * *What it lands on*: the live turn leaves at `turn.finished`, and the
+ * record's turn comes with the transcript's refetch a round trip later, so a
+ * reply that streamed is gone for that moment and then fades back in as the
+ * record, its player's line above it for the first time. The gap is older
+ * than this — the turn used to pop back — and P12A §2's record says why it is
+ * left.
+ */
+export const arrival =
+  'transition duration-arrive ease-arrive starting:translate-y-1 starting:opacity-0';
+
+/**
+ * ***The streaming state*** (2026-10-13) — P12A.6: a dot in the status line's
+ * own ink, breathing from Send until the turn is over.
+ *
+ * Beside *Waiting for the first words…* while nothing has come, and alone on
+ * that line once words are arriving — because a stream that pauses, between
+ * two steps or while a model thinks, looked exactly like one that had
+ * finished: the words stop either way, and the only sign left was Stop where
+ * Send had been. [polish §11](../../../../docs/design/workplan/06-polish.md)'s
+ * bar holds: it says the engine is busy, which the server does report, and
+ * claims no progress, which it does not.
+ *
+ * **It loops, so it is the one motion here whose reduced-motion arm is not a
+ * zeroed duration.** `animate-busy` reads `--animate-busy`, and the
+ * reduced-motion block in `index.css` sets that to `none` — so for someone who
+ * has asked for less motion the dot is drawn and holds still: the motion
+ * absent, not a slower one. theme.test.ts holds the recipe to a token that
+ * block stills. The shape is here with the motion because the two are one
+ * element spelled once, and `bg-current` makes it the line's ink in both
+ * themes without a colour of its own.
+ */
+export const busy = 'inline-block size-2 shrink-0 rounded-full bg-current animate-busy';
+
+/**
+ * ***A panel or sheet entering*** (2026-10-13) — P12A.6: `ui/Dialog` with its
+ * scrim, `ui/Popover` in both its places, the workbench and the assistant,
+ * each fading in where it belongs.
+ *
+ * **A fade and nothing else**, unlike a turn. A panel opens in its own place —
+ * centred, under its trigger, docked at the edge — and one that slid toward
+ * that place would claim to have come from somewhere else. `arrive`, because a
+ * panel opening is something new coming into view, which is the occasion
+ * `index.css` names it for; on `Dialog`'s scrim rather than its card, so the
+ * two fade as one.
+ *
+ * **Leaving does not move, deliberately.** Each of these unmounts when it
+ * closes — `Popover`'s `under` arm is hidden instead — and a fade out needs
+ * the element kept in the tree until the fade has ended: a timer, or a
+ * `transitionend` that a zeroed duration never fires, which is why
+ * `index.css`'s reduced-motion block forbids waiting on one. A panel somebody
+ * dismissed should be gone when they dismiss it.
+ *
+ * `@starting-style` applies when an element goes from undrawn to drawn as
+ * well as when it is made, so the popover that is hidden rather than unmade
+ * fades in on every opening, as the rest do on every mount.
+ */
+export const enter = 'transition-opacity duration-arrive ease-arrive starting:opacity-0';
+
+/**
+ * ***A press acknowledged*** (2026-10-13) — P12A.6, the fifth motion, and
+ * the first word of the vocabulary:
+ * [polish §11](../../../../docs/design/workplan/06-polish.md)'s *something
+ * happens between Send and the first token*, whose bar is **acknowledgement,
+ * not progress**.
+ *
+ * A button goes down a pixel under the pointer or the key and comes back up
+ * when it is let go — the control's own answer to being pressed, before its
+ * label turns to *Sending…* and the status line starts to breathe. `respond`,
+ * because the person just did this; `swap`, because neither end of a press is
+ * an arrival.
+ *
+ * **Spent by `ui/Button`, so every button presses and not Send alone.** A
+ * press answered on one button teaches that the others did not register, and
+ * polish §11 put Send's busy state in `ui/` rather than at its call site for a
+ * reason that holds more strongly for a pressed state, which no button lacks.
+ * **`enabled:`**, because a disabled Send that went down under a press would
+ * acknowledge a press that does nothing — the false answer §11 removed when it
+ * stopped Send being live for the length of the post. A link drawn as a
+ * button (`link.action`) does not press: it is a navigation, and the page
+ * changing is its answer. Under reduced motion the press is still drawn, down
+ * for as long as it is held, and simply does not travel.
+ */
+export const press =
+  'transition-transform duration-respond ease-swap enabled:active:translate-y-px';
 
 /**
  * ***An item of the HUD strip*** (2026-10-13) —

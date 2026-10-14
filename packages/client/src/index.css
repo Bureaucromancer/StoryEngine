@@ -244,7 +244,11 @@
      P12A.2: something does now — the backdrop's `crossfade` in
      `ui/classes.ts` spends `arrive` and `swap`, the first of the five
      motions P12A.6 names, which is why `:root` now carries those two;
-     `respond` is still unspent until P12A.6.)*
+     `respond` is still unspent until P12A.6.)* *(2026-10-13, P12A.6: all
+     four are spent — `respond` and `swap` by `reveal` and a button's
+     press, `arrive` by a finished turn, a panel entering and the backdrop,
+     `ease-arrive` by the first two of those — and one token joins them,
+     `--animate-busy` below, for the one motion that loops.)*
 
      `respond` answers something the person just did — a row of controls
      coming up under the pointer, a press acknowledged. 150ms is Tailwind's
@@ -272,6 +276,37 @@
   --transition-duration-arrive: 300ms;
   --ease-arrive: var(--ease-out);
   --ease-swap: var(--ease-in-out);
+
+  /* ***The one motion that loops*** (2026-10-13, P12A.6) — the streaming
+     state: a dot beside the status line under the transcript, breathing from
+     Send until the turn is over, so that a stream that has paused between
+     two words still reads as a turn being written rather than as one that
+     has stopped. Named like the durations, for what it says — the engine is
+     busy, which is what the live turn's `aria-busy` says to a screen reader —
+     rather than for how it moves.
+
+     **An animation, not a transition, and that is why it is a token of its
+     own.** A loop has no start state and no end state for a duration to
+     carry it between, and Tailwind writes an `--animate-*` token's timing
+     into the shorthand rather than reading a duration, so neither duration
+     above can reach it. What the reduced-motion block does with it is
+     therefore different too: its line is `none`, not `0s`, because an
+     infinite animation runs for ever at any duration, and `none` is what
+     makes the dot *still* rather than fast — T5's *absent, not merely fast*.
+     theme.test.ts holds the block to a `none` for every `--animate-*` here.
+
+     The period is a slow breath, long enough to read as *still going* rather
+     than as an alarm, and it is written here because a period is the token's
+     own value, not a duration a recipe spends. Its curve is `swap`'s: neither
+     end of a breath is an arrival. The keyframes sit inside this block, which
+     is how Tailwind emits them only when something spends the token. */
+  --animate-busy: busy 1.6s var(--ease-swap) infinite;
+
+  @keyframes busy {
+    50% {
+      opacity: 0.25;
+    }
+  }
 
   /* Only the steps this app invented. `text-sm` and `text-xs` stay Tailwind's,
      because a token that aliases a scale one-to-one is a rename, not a step. */
@@ -617,7 +652,11 @@ summary > :is(h1, h2, h3, h4, h5, h6) {
  * ours: it is what a bare `transition-*` class spends when no `duration-*`
  * sits beside it, and `reveal` — the one motion in the client before this —
  * is exactly that. Without its line here the first motion the client ever
- * had would be the one this block missed.
+ * had would be the one this block missed. *(2026-10-13, P12A.6: `reveal`
+ * names its duration now, as every motion recipe must — theme.test.ts
+ * refuses a recipe that moves without naming one — so nothing spends the
+ * default. The line stays: it is the floor under a recipe that forgets,
+ * and it costs one declaration.)*
  *
  * **Zero, not a hair above it.** A common recipe uses `0.01ms` so that
  * `transitionend` still fires; nothing in this client listens for one, and a
@@ -630,6 +669,10 @@ summary > :is(h1, h2, h3, h4, h5, h6) {
  * ever at any duration, and Tailwind writes an `--animate-*` token's timing
  * into the shorthand rather than referring to a duration — so when P12A.6
  * adds one, its line here is `none`, and the test already asks for that.
+ * *(2026-10-13, P12A.6: it did — `--animate-busy`, the streaming state's
+ * breath — and its line is the last below. Under it the dot is drawn and
+ * holds still: the status line still says a turn is being written, and
+ * nothing in it moves.)*
  *
  * Unlayered, like the dark theme, so it outranks Tailwind's own `:root`
  * whatever the selectors weigh.
@@ -639,6 +682,7 @@ summary > :is(h1, h2, h3, h4, h5, h6) {
     --transition-duration-respond: 0s;
     --transition-duration-arrive: 0s;
     --default-transition-duration: 0s;
+    --animate-busy: none;
   }
 }
 

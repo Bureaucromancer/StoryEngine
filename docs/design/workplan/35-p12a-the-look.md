@@ -2452,6 +2452,151 @@ crossfade (already in P12A.2, named here), and Send acknowledging the press
 in `ui/classes.ts` beside `reveal`, with the same test `theme.test.ts` already
 applies to `reveal`: spelled in one place, and honouring its media query.
 
+***Built 2026-10-13***, under [§0.4](#04-what-the-audit-of-2026-10-13-found-and-what-each-finding-decides)'s
+decisions for this stage, which were binding on it: a turn's arrival animates
+only the turn that just finished, each motion is a recipe in `ui/classes.ts`
+spending P12A.0's tokens, and the test is new. The five, each spelled once
+beside `reveal`:
+
+| Motion | Recipe | Spent by | Tokens | With reduced motion asked for |
+|---|---|---|---|---|
+| **A turn arriving** | `arrival` — a fade and a quarter-rem rise, from `@starting-style` | the `<li>` of the one turn `PlayState.arrived` names | `arrive`, `ease-arrive` | no length: the turn is there |
+| **The streaming state** | `busy` — a dot in the status line's ink, breathing | `StreamStatus`, beside *Waiting for the first words…* and then alone on its line, from Send to the turn's end | `--animate-busy`, new: a 1.6s breath on `swap`'s curve | `none`: the dot is drawn and holds still |
+| **A panel or sheet entering** | `enter` — a fade, from `@starting-style` | `ui/Dialog`'s scrim, `ui/Popover` in both places, the workbench, the assistant | `arrive`, `ease-arrive` | no length: the panel is there |
+| **A scene changing** | `crossfade`, [P12A.2](#p12a2--the-backdrop-becomes-a-backdrop)'s, unchanged | `play/Backdrop.tsx` | `arrive`, `swap` | no length: the picture is there |
+| **A press acknowledged** | `press` — a pixel down while held, on an enabled button only | `ui/Button`, every variant | `respond`, `swap` | down while held; it does not travel |
+
+**`reveal` moves onto the tokens** — `duration-respond ease-swap` beside its
+`transition-opacity` — which are what it spent before by default: `respond` is
+150ms, and `swap` is Tailwind's `ease-in-out`, `cubic-bezier(.4,0,.2,1)` in the
+built stylesheet, as is `--default-transition-timing-function`. Nothing on
+screen changes. What changes is that every motion in the client now names what
+it spends.
+
+**What the stage text said and what turned out different:**
+
+- *"With the same test `theme.test.ts` already applies to `reveal`"* — as §0.4
+  found, that test reads `(hover: none)`, not reduced motion; the tests below are
+  new, and they extend P12A.0's scan rather than standing beside it.
+- *"The backdrop's crossfade (already in P12A.2, named here)"* — named, and
+  nothing moved: it was a recipe on the tokens already. It is the fourth row,
+  and 10 §1.3's *a scene changing*.
+- *"Send acknowledging the press"* — **spent by `ui/Button`, not by Send.** A
+  press answered on one button teaches that the others did not register, and
+  [polish §11](06-polish.md) put Send's busy state in `ui/` rather than at its
+  call site for a reason that holds more strongly for a pressed state, which no
+  button lacks. **`enabled:` only**, because a disabled Send that went down under
+  a press would acknowledge a press that does nothing — the false answer §11
+  removed when it stopped Send being live for the length of the post. A link
+  drawn as a button (`link.action`) does not press: it is a navigation, and the
+  page changing is its answer. `press`'s docstring says the same.
+- *A panel entering, and leaving*: **nothing animates out.** Each of these
+  panels unmounts when it closes — `Popover`'s `under` arm is hidden instead —
+  and a fade out needs the element held in the tree until the fade ends: a timer,
+  or a `transitionend` that the reduced-motion block's zero never fires, which is
+  why `index.css` forbids waiting on one. A panel somebody dismissed is gone when
+  they dismiss it. A fade, not a slide: a panel opens in its own place — centred,
+  under its trigger, docked at the edge — and one that slid toward it would claim
+  to have come from somewhere else. `Dialog` spends it on the scrim, which holds
+  the card, so the two fade as one; on the card as well, the card would fade
+  twice over. The hidden popover fades on every opening too: `@starting-style`
+  applies on the way from undrawn to drawn, not only on a mount.
+- *Which panels*: the four the stage named. **Three overlays drawn by hand do not
+  spend it** — `editor/FieldAssist.tsx`'s assist popover, the notification toast
+  and `ui/TokenField`'s suggestion list. The list must be there with the
+  keystroke that asked for it; the other two are one `${enter}` from it, and
+  whether a notification should arrive moving is a question this stage was not
+  asked.
+- *A sixth token.* The streaming state loops, and a loop is an animation rather
+  than a transition: it has no two ends for a duration to carry it between, and
+  Tailwind writes an `--animate-*` token's timing into the shorthand. So it is
+  `--animate-busy`, with its keyframes inside `@theme`, and its line in the
+  reduced-motion block is `none` — which P12A.0's test already demanded of any
+  `--animate-*`, and which is what makes the dot *still* rather than slow. The
+  build keeps the indirection the block needs: `.animate-busy{animation:var(--animate-busy)}`.
+- *Found by building it: the streaming state had nowhere to stand once words
+  arrived.* `StreamStatus` returned nothing while text streamed, so a stream
+  that paused — between two steps, or while a model thinks — looked exactly like
+  one that had finished, and the only sign left was Stop where Send had been. The
+  dot stays on the status line from the press to the end: beside the sentence
+  while nothing has come, alone once words are arriving. Hidden from a screen
+  reader both times, since the sentence and the live turn say it in words. The
+  line no longer comes and goes when the first word lands, taking a line of the
+  transcript's height with it.
+- *Found by building it: what the arrival lands on.* The live turn leaves at
+  `turn.finished`, and the record's turn comes with the transcript's refetch a
+  round trip later — so a reply that streamed is gone for that moment, and then
+  arrives as the record, its player's line above it for the first time. The gap
+  is older than this stage: the turn used to pop back, and now it fades back.
+  **It is left**, because the obvious repair is not one: holding the live turn
+  until the record arrives would make the arrival a dip — the words drawn, then
+  not, then fading in — where the gap at least hands one drawing to the next.
+  Whether the fade reads as the record settling or as a flicker is a person's,
+  with the preference off; 05's note for T5 asks for it.
+- *"Only the turn that just finished"* — and **watched** is the word the reducer
+  keys on: `turn.finished` while the status was `running`, for the job that was
+  running. A page opened after a turn ended is sent its frames again,
+  `turn.finished` among them, and that turn did not just arrive for anybody. A
+  stream that dropped and came back after its turn ended takes the same path, so
+  that turn is drawn without the motion — the cheaper mistake: a turn that is
+  simply there is never wrong. The next job, by its POST or its first frame,
+  forgets the last arrival, so a sibling switch or an undo that takes the turn off
+  the path and back does not make it arrive again.
+- *The cost in coverage, small and named.* Five class lists that were literals —
+  `Dialog`'s scrim, the popover's two panels, the two docks — are template
+  literals now, with the recipe in a hole, and `tailwind-utilities.test.ts` reads
+  quoted literals only, as `reveal`'s call sites already showed. Each list is
+  unchanged and was checked by that test until this commit; P12A.0's scan, which
+  reads template text, still reads their radii and shadows.
+- *Not looked at in a browser* — none is installed where this was built — so
+  every motion's look, and its absence under the preference, is T5's.
+
+**The emitted CSS**, from `packages/client/dist/assets/index-*.css`:
+`@starting-style{.starting\:translate-y-1{--tw-translate-y:var(--spacing);translate:var(--tw-translate-x) var(--tw-translate-y)}.starting\:opacity-0{opacity:0}}`,
+`.animate-busy{animation:var(--animate-busy)}`, `@keyframes busy{50%{opacity:.25}}`,
+`.enabled\:active\:translate-y-px:enabled:active{--tw-translate-y:1px;translate:var(--tw-translate-x) var(--tw-translate-y)}`,
+and
+`@media (prefers-reduced-motion:reduce){:root{--transition-duration-respond:0s;--transition-duration-arrive:0s;--default-transition-duration:0s;--animate-busy:none}}`.
+`.transition-opacity` and `.transition-transform` read `var(--tw-duration,…)` and
+`var(--tw-ease,…)`, which `duration-*` and `ease-*` set from the tokens, so a
+recipe's length is the token's and the block reaches it.
+
+**Tests, each checked against a mutation and restored.** In `theme.test.ts`'s
+new *the motions*: *names each motion as a recipe beside reveal, and each one
+moves* fails with `arrival` emptied to its `starting:` classes; *names a
+duration and an easing wherever it transitions* fails with `reveal` back on
+Tailwind's defaults and with the crossfade's duration dropped, and — with the
+scan — with `enter` at `duration-300`; *writes motion in a motion recipe and
+nowhere else in the file* fails with `transition-colors duration-respond
+ease-swap` in `link.inline`, which the P12A.0 scan passes, since it is the right
+file; *stills the streaming state rather than slowing it* fails with the busy
+line dropped from the reduced-motion block (P12A.0's *stills every motion* with
+it), with that line a slower loop instead of `none`, and with `busy` on
+`motion-safe:animate-pulse` (the scan with it). In `reducer.test.ts`'s new *the
+turn that arrives*: the first test fails with the arrival set before the end; the
+second with the arrival taken from any `turn.finished`, watched or not; the third
+with `forJob` keeping the last arrival, and with `submitted` keeping it. In
+`PlayPage.test.tsx`'s new *a turn arriving, and the streaming state*: the
+watched turn's test fails with every turn drawn arriving and with none; the
+opened-after test with the arrival taken from any `turn.finished`, and with
+every turn drawn arriving; the streaming test with the dot only while waiting,
+with the dot left after the end, and with the sentence's dot dropped. In the new
+`ui/motion.test.tsx`: the press test fails with the recipe dropped from `Button`
+and with it spent by the primary variant alone; the disabled test with
+`active:` not under `enabled:`; the dialog test with the recipe dropped, moved
+onto the card alone, and spent by both; the popover test with either arm without
+it. `dock.test.tsx`'s and `AssistantPanel.test.tsx`'s *fades in as it opens*
+fail with the recipe dropped from each aside. The client's other 158 test files
+pass unchanged, `tailwind-utilities.test.ts` among them after the build.
+
+**Entry after: 319.19 kB** of the 320 ceiling, **CSS 8.66** — **318.93 and 8.43
+before**, at `5987cd17`, gzip level 9 over the files `index.html` pulls, the
+budget test's method. **+0.26 kB**: the four recipes and the call sites that
+spend them, the reducer's field, and the status line's second branch. CSS
+**+0.23**: the `@starting-style` block, the keyframes, the animation and press
+utilities, and the reduced-motion block's fourth line. **0.81 kB is left** for
+[P12A.7](#p12a7--editors-section-jumps-and-an-identity-header) onward.
+
 ### P12A.7 — Editors: section jumps and an identity header
 
 Anchor chips over the long form — never tabs

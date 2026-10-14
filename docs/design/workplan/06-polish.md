@@ -642,6 +642,17 @@ describe, both found in building it: the composer stopped being a one-line
 had let a second press start a second turn. Everything below is kept as the
 argument it was.
 
+*(2026-10-13, [P12A](35-p12a-the-look.md) P12A.6: **the acknowledgement moves
+now**, and still claims no progress. Every button goes down a pixel under a
+press and comes back when it is let go — `press` in `ui/classes.ts`, spent by
+`ui/Button`, so Send is not the only control that answers, and a disabled one
+never does — and the wait's sentence has a dot beside it that breathes from
+Send until the turn is over, staying on that line alone once words arrive,
+because a stream that paused looked exactly like one that had finished. With
+the system's reduced-motion preference set, the press does not travel and the
+dot holds still. This item's bar is unchanged: the dot says the engine is
+busy, which the server reports, and nothing about how far along it is.)*
+
 **The condition is not a regression and was written down before anybody hit
 it.** [P2C brief §3.4](13-p2c-brief.md) says it nearly word for word: *"There is
 no progress, no step display and no spinner."* It was accepted deliberately,

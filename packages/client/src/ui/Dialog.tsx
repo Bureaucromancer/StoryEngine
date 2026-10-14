@@ -4,6 +4,7 @@
 import type { JSX, ReactNode } from 'react';
 
 import { useFocusTrap } from '../useFocusTrap.js';
+import { enter } from './classes.js';
 
 /**
  * The modal.
@@ -81,7 +82,10 @@ export function Dialog({
       aria-modal="true"
       aria-labelledby={labelledBy}
       ref={surface}
-      className="fixed inset-0 flex items-center justify-center bg-overlay p-4"
+      // ***It fades in*** (2026-10-13, P12A.6) — the scrim, and the card with
+      // it, as one: `enter` in `classes.ts`, which says why a panel fades
+      // rather than slides and why closing does not move.
+      className={`${enter} fixed inset-0 flex items-center justify-center bg-overlay p-4`}
     >
       <div className={SIZE[size]}>{children}</div>
     </div>

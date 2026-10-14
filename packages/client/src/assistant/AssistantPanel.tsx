@@ -9,6 +9,7 @@ import { labels } from '../i18n/catalogue.js';
 import { PlayPage } from '../play/PlayPage.js';
 import { AlertNote } from '../ui/Alert.js';
 import { Button } from '../ui/Button.js';
+import { enter } from '../ui/classes.js';
 import { Note } from '../ui/Text.js';
 import { contextFor, sameContext, type AmbientContext } from './context.js';
 import { Proposal } from './Proposal.js';
@@ -71,7 +72,9 @@ export function AssistantPanel(props: { onClose: () => void }): JSX.Element {
 
   return (
     <aside
-      className="flex w-full max-w-md min-w-0 flex-col border-s border-line bg-surface"
+      // Fading in as it opens, as the workbench does (2026-10-13, P12A.6) —
+      // `enter` in `classes.ts`.
+      className={`${enter} flex w-full max-w-md min-w-0 flex-col border-s border-line bg-surface`}
       aria-label={WORDS.heading}
     >
       <div className="flex items-center justify-between gap-2 border-b border-line px-4 py-2">

@@ -13,6 +13,8 @@ import {
   type ReactNode,
 } from 'react';
 
+import { enter } from './classes.js';
+
 /**
  * ***The non-modal popover*** — built at
  * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.3 for a
@@ -252,7 +254,10 @@ export function Popover(props: {
         <div
           {...dialog}
           hidden={!open}
-          className="absolute inset-x-0 top-full z-10 mt-1 flex max-h-[70dvh] flex-col gap-2 overflow-y-auto rounded-panel border border-line bg-surface p-3 font-ui text-sm text-ink shadow-overlay"
+          // Fading in on every opening, though it is never unmade
+          // (2026-10-13, P12A.6): `@starting-style` applies on the way from
+          // hidden to drawn as well — `enter` in `classes.ts` says the rest.
+          className={`${enter} absolute inset-x-0 top-full z-10 mt-1 flex max-h-[70dvh] flex-col gap-2 overflow-y-auto rounded-panel border border-line bg-surface p-3 font-ui text-sm text-ink shadow-overlay`}
         >
           {props.children}
         </div>
@@ -265,7 +270,7 @@ export function Popover(props: {
       {open ? (
         <span
           {...dialog}
-          className="absolute start-0 top-full z-10 mt-1 flex w-64 flex-col gap-2 rounded-panel border border-line bg-surface p-3 font-ui text-sm text-ink shadow-overlay"
+          className={`${enter} absolute start-0 top-full z-10 mt-1 flex w-64 flex-col gap-2 rounded-panel border border-line bg-surface p-3 font-ui text-sm text-ink shadow-overlay`}
         >
           {props.children}
         </span>

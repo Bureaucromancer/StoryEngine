@@ -2,7 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { control, disclosure, link, page, reveal, story } from '../ui/classes.js';
+import { arrival, busy, control, disclosure, link, page, reveal, story } from '../ui/classes.js';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 
@@ -1470,6 +1470,7 @@ export function PlayPage({
             }}
             illustrateNote={illustrateNote('illustration', turn.id)}
             turn={turn}
+            arriving={turn.id === state.arrived}
             siblings={transcript.data?.siblings?.[turn.id] ?? []}
             swipes={transcript.data?.swipes?.[turn.id]}
             head={turn.id === session.data?.session.headTurnId}
@@ -1526,6 +1527,7 @@ export function PlayPage({
         status={state.status}
         error={state.error}
         waiting={send.isPending || gesture.isPending || (running && state.text.length === 0)}
+        streaming={running}
       />
 
       {/* **A refused action says so** — [P6B.0].
@@ -1981,6 +1983,7 @@ function renditionsByTurn(
 
 function TurnView({
   turn,
+  arriving,
   siblings,
   swipes,
   head,
@@ -2006,6 +2009,12 @@ function TurnView({
   illustrateNote,
 }: {
   turn: TurnRecord;
+  /**
+   * Whether this is the turn the page just watched finish — the one turn
+   * drawn arriving (2026-10-13, P12A.6). `PlayState.arrived` says why it is
+   * one turn and never the turns a page opens on.
+   */
+  arriving: boolean;
   siblings: string[];
   /** Where this turn's siblings are drawn — [P14.5], from the transcript. */
   swipes: SwipeGroups | undefined;
@@ -2096,7 +2105,11 @@ function TurnView({
   };
 
   return (
-    <li className="group/turn flex flex-col gap-1">
+    <li
+      className={
+        arriving ? `${arrival} group/turn flex flex-col gap-1` : 'group/turn flex flex-col gap-1'
+      }
+    >
       {/* ***The player's line, under the face its record names*** (2026-10-13,
           P12A.3): `input.actorId`, who the move was played as, and no face
           when it names nobody — `PlayedAs` says why. Beside the line rather
@@ -2630,20 +2643,42 @@ const STOPPING = 'Stopping…';
  * ten step events and this page subscribes to none of them; wiring those is a
  * *step display*, a bigger thing with a contract in it. Nothing here claims a
  * progress the server is not reporting.
+ *
+ * ***And the streaming state beside it*** (2026-10-13,
+ * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.6): a dot
+ * that breathes, `busy` in `ui/classes.ts`, from Send until the turn is over —
+ * beside the sentence while the wait is for the first word, and alone on the
+ * line once words are arriving, when the live turn is what a screen reader
+ * hears and this line has nothing to add but that the engine is still busy.
+ * Hidden from assistive technology both times: the sentence and the live
+ * turn already say it in words. And one line from the press to the end, where
+ * the sentence's line used to go when the first word landed and take a line
+ * of the transcript's height with it.
  */
 function StreamStatus({
   status,
   error,
   waiting,
+  streaming,
 }: {
   status: string;
   error: string | null;
   waiting: boolean;
+  /** A turn is running, so its words may be arriving — the dot alone. */
+  streaming: boolean;
 }): React.JSX.Element | null {
   if (waiting) {
     return (
-      <p role="status" className="text-sm text-ink-subtle">
+      <p role="status" className="flex min-h-5 items-center gap-2 text-sm text-ink-subtle">
+        <span aria-hidden="true" className={busy} />
         {AWAITING}
+      </p>
+    );
+  }
+  if (streaming) {
+    return (
+      <p aria-hidden="true" className="flex min-h-5 items-center gap-2 text-sm text-ink-subtle">
+        <span className={busy} />
       </p>
     );
   }

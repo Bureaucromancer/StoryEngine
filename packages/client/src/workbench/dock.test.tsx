@@ -10,6 +10,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Account, TurnPreview } from '../api.js';
 import { NEWEST } from '../home/log.js';
 import type { StreamHandlers } from '../play/stream.js';
+import { enter } from '../ui/classes.js';
 import {
   OBJECT_ID,
   objectRows,
@@ -282,6 +283,22 @@ describe('the panel frame', () => {
     const dock = screen.getByRole('complementary');
     expect(dock).toHaveProperty('ariaModal', null);
     expect(dock.getAttribute('aria-modal')).toBeNull();
+  });
+
+  /**
+   * ***It fades in as it opens*** (2026-10-13,
+   * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.6) — the
+   * panel-entering motion, `enter` in `ui/classes.ts`, read off the classes
+   * since jsdom runs no transition. Mutation: the recipe dropped from the
+   * aside.
+   */
+  it('fades in as it opens', async () => {
+    renderApp();
+    await overPlay();
+    await userEvent.keyboard(CHORD);
+
+    const classes = (screen.getByRole('complementary').getAttribute('class') ?? '').split(' ');
+    expect(enter.split(' ').filter((token) => !classes.includes(token))).toEqual([]);
   });
 
   it('closes on Escape only when focus is inside it', async () => {
