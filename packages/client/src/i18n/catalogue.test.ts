@@ -99,6 +99,8 @@ const EXEMPT: Record<string, string> = {
   'ui/classes.ts:page': 'Tailwind classes.',
   'ui/classes.ts:crossfade': 'Tailwind classes — the backdrop’s two states and its motion.',
   'ui/classes.ts:strip': 'Tailwind classes — a HUD strip item, at rest and warning.',
+  'ui/classes.ts:reveal':
+    'Tailwind classes — one reveal per group, since a group’s name is part of the class (P12A.8).',
   'workbench/turn/labels.ts:OUTCOME_TONES': 'A call outcome to a `BadgeTone`, which is a colour.',
   'workbench/jump.ts:DOCK_SECTIONS':
     'Element ids the dock’s sections are jumped to by — addresses in the document, not words.',

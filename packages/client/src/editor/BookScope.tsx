@@ -85,6 +85,10 @@ const WORDS = labels('editor.lorebook-scope', {
     'Not in your library any more — deleted, or never on this install. The book keeps naming it; remove it here if you no longer want it.',
   missingWorld:
     'Not among your worlds any more — deleted, or never on this install. The book keeps naming it and it reaches nothing; remove it here if you no longer want it.',
+  missingCharacters:
+    'A character marked Missing is not in your library any more — deleted, or never on this install. The book keeps naming them; remove them here if you no longer want them.',
+  missingWorlds:
+    'A world marked Missing is not among your worlds any more — deleted, or never on this install. The book keeps naming it and it reaches nothing; remove it here if you no longer want it.',
 });
 
 /** The select's own label for each choice. */
@@ -219,6 +223,16 @@ interface Pickable {
  * would rewrite the author's statement on the reader's behalf, and the World
  * may yet arrive. *Only once the list has answered*, or every id would read as
  * missing while it loads.
+ *
+ * ***And why, said in words under the field*** (2026-10-13,
+ * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.8).
+ * The badge's reason was its `title` alone, which a phone never shows and a
+ * keyboard never reaches; `HookFields` met the same badge on review
+ * (2026-10-10) and made the reason the field's hint while any value is
+ * Missing, and this is that move, here: the hint is drawn under the box and
+ * is its description, so it is read at the field as well as seen beneath it.
+ * The badge keeps its title, the per-chip version of the same sentence, for a
+ * pointer.
  */
 function ScopeIds(props: {
   choice: 'actors' | 'worlds';
@@ -266,12 +280,15 @@ function ScopeIds(props: {
     );
   }
 
+  const missing = answered && held.some((id) => !named.has(id));
+
   return (
     <div className="flex flex-col gap-2">
       <TokenField
         label={isActors ? WORDS.characters : WORDS.worldsLabel}
         values={held}
         strict
+        hint={missing ? (isActors ? WORDS.missingCharacters : WORDS.missingWorlds) : undefined}
         nameOf={(id) => named.get(id) ?? id}
         onChange={(ids) => {
           props.onIds(pickableIds(ids, held, offeredIds));

@@ -21,6 +21,7 @@ import {
 import { Button } from './ui/Button.js';
 import { navLink } from './ui/classes.js';
 import { Dialog } from './ui/Dialog.js';
+import { onPhone } from './ui/phone.js';
 import { useTheme } from './ui/useTheme.js';
 import { useLocale } from './i18n/useLocale.js';
 import { workbenchOpenFromPrefs, workbenchOpenPatch } from './workbench/prefs.js';
@@ -127,9 +128,26 @@ export function Shell(): JSX.Element {
   const patchPrefs = usePatchPrefs();
   const workbenchOpen = workbenchOpenFromPrefs(prefs.data?.prefs);
   const patchOpen = patchPrefs.mutate;
+  /**
+   * ***On a phone, Workbench uncovers the dock*** (2026-10-13,
+   * [P12A](../../../docs/design/workplan/35-p12a-the-look.md) P12A.8). Below
+   * `sm` the assistant covers the dock rather than sharing the width with it —
+   * the dock row's comment below says why — so with the assistant open the
+   * dock is either shut or open beneath it, and in both cases pressing
+   * **Workbench** means *show me the workbench*. A toggle would close a dock
+   * nobody could see, or open one under the assistant, and the press would
+   * seem to do nothing. So on a phone the press dismisses the assistant, and
+   * opens the dock if it was shut; the chord takes the same path. On a desk
+   * both are drawn, and the press toggles as it always has.
+   */
   const toggleWorkbench = useCallback(() => {
+    if (assistantOpen && onPhone()) {
+      setAssistantOpen(false);
+      if (!workbenchOpen) patchOpen(workbenchOpenPatch(true));
+      return;
+    }
     patchOpen(workbenchOpenPatch(!workbenchOpen));
-  }, [patchOpen, workbenchOpen]);
+  }, [patchOpen, workbenchOpen, assistantOpen]);
   const closeWorkbench = useCallback(() => {
     patchOpen(workbenchOpenPatch(false));
   }, [patchOpen]);
@@ -351,11 +369,25 @@ export function Shell(): JSX.Element {
         >
           <Outlet />
         </main>
-        {workbenchOpen ? <Workbench onClose={closeWorkbench} /> : null}
+        {workbenchOpen ? <Workbench onClose={closeWorkbench} covered={assistantOpen} /> : null}
         {/* After the workbench in source order, so with both open the assistant
             is the outermost panel — it is the thing you summoned last and the
             thing you dismiss first. Closed is unmounted for the dock's reason:
-            no queries run and the landmark is absent rather than lurking. */}
+            no queries run and the landmark is absent rather than lurking.
+
+            ***On a phone, the outermost panel is the one drawn*** (2026-10-13,
+            [P12A] P12A.8). Below `sm` there is room for one panel, and the
+            dock is `shrink-0` at the screen's width, so with both open the
+            assistant was crushed to its border beside it. The two are a stack
+            there instead, as `<main>` already is under either: the assistant
+            covers the dock (`covered`), which is hidden and not closed — its
+            preference is the account's and a desk may be showing it, and
+            whatever is typed in it is still there when the assistant goes,
+            since nothing in it is unmounted. *The assistant on top, not the dock*, by this
+            comment's own rule: summoned last, dismissed first, and a panel
+            summoned for a question should not open under the thing it was
+            summoned over. Pressing **Workbench** uncovers the dock
+            (`toggleWorkbench` above). */}
         {account === null || !assistantOpen ? null : <AssistantPanel onClose={closeAssistant} />}
       </div>
       {/* Last in the column and outside `<main>`, for the banner's reason: a

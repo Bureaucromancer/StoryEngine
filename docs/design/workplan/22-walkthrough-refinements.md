@@ -375,6 +375,12 @@ requests, not in the app.*~~
 > default width of 384px is wider than the viewport D16 tests. So D16 would fail
 > today against the *app*, before any refinement touched it. The three 375px
 > sentences are still unwritten, and they are the smaller half.
+>
+> *(2026-10-13, [P12A](35-p12a-the-look.md) P12A.8: the comment this cites has
+> its answer, dated, in `workbench/prefs.ts`. P3.8 never landed; the dock became
+> the view below `sm` at [polish §15](06-polish.md), and P12A.8 put the
+> assistant under the same rule and the non-modal popover in a sheet —
+> [P3](15-p3-implementation.md)'s P3.8 has the note.)*
 
 **Nothing about [10 §9](../10-ui-surfaces.md)'s notifications and sounds**,
 which is specified in detail and entirely unbuilt. R7 is its weakest in-tab

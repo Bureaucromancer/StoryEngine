@@ -674,8 +674,60 @@ describe('the Lorebooks panel', () => {
 
     const badges = badgesInRows('World');
     expect(badges).toHaveLength(1);
-    expect(badges[0]?.getAttribute('title')).toMatch(/^Offered to sessions started in the worlds/);
+    // What it does is said under the shelf since P12A.8 (2026-10-13), not in
+    // the badge's title — the next test holds the legend.
+    expect(badges[0]?.getAttribute('title')).toBeNull();
     expect(badgesInRows('Linked')).toHaveLength(0);
+  });
+
+  /**
+   * ***What the badges mean, said under the shelf*** (2026-10-13,
+   * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.8). Each
+   * badge's meaning was its `title`, which a phone never shows — and
+   * *Linked*'s is the sentence that stops a reader concluding a book is in
+   * play when it is not. Said once for each badge the shelf wears, and not for
+   * one it does not: a legend for words nobody can see is a paragraph about
+   * nothing. *Off* has no line — its title is its word again. Mutations: the
+   * legend not drawn; drawn for every badge whatever the shelf wears; *Off*
+   * given a line.
+   */
+  it('says under the shelf what each badge it wears means, and nothing for the rest', async () => {
+    search = { kind: 'lorebooks' };
+    listLibrary.mockResolvedValue({
+      objects: [
+        book('Ardent', { scope: { kind: 'linked', actorIds: ['a1'] }, enabled: false }),
+        book('Brine', { scope: { kind: 'world', worldIds: ['w1'] } }, 'brine'),
+        book(
+          'Cinder',
+          { provenance: { source: 'session', updatedAt: '2026-08-30T10:00:00Z' } },
+          'cinder',
+        ),
+      ],
+    });
+    renderPage();
+    await settled();
+
+    const legend = document.querySelector('dl');
+    expect(legend).not.toBeNull();
+    const terms = [...(legend?.querySelectorAll('dt') ?? [])].map((node) => node.textContent);
+    expect(terms).toEqual(['Linked', 'World', 'Memories']);
+    expect(legend?.textContent).toContain('Editing an entry here is expected');
+    expect(legend?.textContent).toContain(
+      'A book is in play only if the session or its treatment names it.',
+    );
+    expect(legend?.textContent).toContain('Offered to sessions started in the worlds it names');
+  });
+
+  it('draws no legend on a shelf whose books wear none of those badges', async () => {
+    search = { kind: 'lorebooks' };
+    listLibrary.mockResolvedValue({
+      objects: [book('Ardent', { enabled: false }), book('Rain City', {}, 'rain-city')],
+    });
+    renderPage();
+    await settled();
+
+    expect(badgesInRows('Off')).toHaveLength(1);
+    expect(document.querySelector('dl')).toBeNull();
   });
 
   it('reads the tags nothing has ever read', async () => {

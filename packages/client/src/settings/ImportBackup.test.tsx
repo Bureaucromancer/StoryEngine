@@ -267,6 +267,12 @@ describe('importing from a backup', () => {
     });
     // The sentence is the catalogue's, composed from the class the server sent.
     expect(screen.getByText(/preferences were not brought across/i)).toBeTruthy();
+    // ***And what each counted class means, in words*** (2026-10-13,
+    // [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.8): it
+    // was each count's title, which a phone never shows. Mutation: the
+    // legend not drawn here.
+    expect(screen.getByText('Now in your library.')).toBeTruthy();
+    expect(screen.getByText('Imported', { selector: 'li' }).getAttribute('title')).toBeNull();
   });
 });
 

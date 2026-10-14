@@ -208,6 +208,7 @@ export function SetupForm(props: {
   const passwordId = useId();
   const displayNameId = useId();
   const tokenId = useId();
+  const handleRuleId = useId();
   const [handle, setHandle] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
@@ -244,14 +245,21 @@ export function SetupForm(props: {
             }}
             autoComplete="username"
             pattern={HANDLE_PATTERN}
+            // The browser's own message for a handle that does not match the
+            // pattern, which is what a `title` on a patterned field is for. The
+            // rule itself is the sentence under the box, which describes it
+            // (2026-10-13, P12A.8): a title is never shown on a phone until
+            // the form is refused, and a rule a person meets only by breaking
+            // it is a rule said too late — so the sentence carries all of it.
             title="Lowercase letters, digits and hyphens, starting with a letter or a digit and not ending in a hyphen."
+            aria-describedby={handleRuleId}
             maxLength={63}
             autoFocus
             required
           />
-          <p className="mt-1 text-xs text-ink-faint">
-            Lowercase letters, digits and hyphens. This also names your folder on disk, and it
-            cannot be changed later.
+          <p id={handleRuleId} className="mt-1 text-xs text-ink-faint">
+            Lowercase letters, digits and hyphens, starting with a letter or a digit and not ending
+            in a hyphen. This also names your folder on disk, and it cannot be changed later.
           </p>
         </div>
         <div>

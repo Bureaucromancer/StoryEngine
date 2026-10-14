@@ -20,6 +20,7 @@ import { Alert } from '../ui/Alert.js';
 import { Button } from '../ui/Button.js';
 import { control, disclosure } from '../ui/classes.js';
 import { CheckboxField } from '../ui/Field.js';
+import { Legend } from '../ui/Legend.js';
 import { Note, SubsectionTitle } from '../ui/Text.js';
 import { landedPreview, sniffImportFile } from './import-sniff.js';
 import { ImportWorldPreview, WorldLanded, worldSummary } from './ImportWorldLoad.js';
@@ -78,7 +79,15 @@ export const DISPOSITION_LABELS: Record<string, string> = labels('import.disposi
   unrecognised: 'Not recognised',
 });
 
-/** What each class means, in the one place a person can read it. */
+/**
+ * What each class means, in the one place a person can read it.
+ *
+ * *(2026-10-13, [P12A](../../../../docs/design/workplan/35-p12a-the-look.md)
+ * P12A.8: the one place was each count's `title`, which a phone never shows and
+ * a keyboard never reaches, so on a phone it was no place at all. It is a
+ * legend under the counts now, a line for each class the report counted —
+ * `importLegend` below, and `ui/Legend` for why a legend.)*
+ */
 export const DISPOSITION_HELP: Record<string, string> = labels('import.disposition.help', {
   converted: 'Now in your library.',
   unchanged: 'Identical to what is already here, so nothing was written.',
@@ -88,6 +97,14 @@ export const DISPOSITION_HELP: Record<string, string> = labels('import.dispositi
   skipped: 'Deliberately not taken.',
   unrecognised: 'Could not be identified.',
 });
+
+/** A legend line for each class counted, in the counts' order: its word and what it means. */
+export function importLegend(dispositions: readonly string[]): [string, string][] {
+  return dispositions.flatMap((disposition): [string, string][] => {
+    const means = DISPOSITION_HELP[disposition];
+    return means === undefined ? [] : [[DISPOSITION_LABELS[disposition] ?? disposition, means]];
+  });
+}
 
 /** What the verdict is called, for somebody who did not write the probe table. */
 const VERDICT_LABELS: Record<string, string> = labels('import.verdict', {
@@ -1214,12 +1231,13 @@ function Report(props: { report: ImportReport }): JSX.Element {
       <SubsectionTitle as="h4">What happened</SubsectionTitle>
       <ul className="flex flex-wrap gap-x-3 gap-y-1 text-sm text-ink-subtle">
         {counts.map(([disposition, count]) => (
-          <li key={disposition} title={DISPOSITION_HELP[disposition] ?? ''}>
+          <li key={disposition}>
             <strong className="text-ink">{count}</strong>{' '}
             {DISPOSITION_LABELS[disposition] ?? disposition}
           </li>
         ))}
       </ul>
+      <Legend entries={importLegend(counts.map(([disposition]) => disposition))} />
 
       <ul className="flex flex-col gap-2 text-sm">
         {props.report.items.map((item) => (

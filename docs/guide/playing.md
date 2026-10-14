@@ -207,7 +207,9 @@ The strip is one line. In order it holds:
   character, **You**, **Quests** …), the secret plot while it is shown, and the echo
   chamber's reactions. Each opens to its card.
 
-Press an item to open it under the strip. An entry you can change opens to a box.
+Press an item to open it under the strip — on a phone-sized screen it opens along the
+bottom of the screen instead, as does the card a marked name opens. An entry you can
+change opens to a box.
 **Save**, Enter, Tab away or a press elsewhere saves what you typed; **Escape** drops it.
 Empty the box to make the entry *not set*. If the engine refuses a change, the strip
 says so beside the entry, e.g. *Place was not changed. …*. An entry that cannot be
@@ -240,7 +242,9 @@ motion, the dot holds still and the turn simply appears.
 
 - **What kind of turn.** Freeform offers **Do**, **Say**, **Think** and **Story**
   (writing the next part yourself); the box's prompt changes with it — *What do you
-  do?*, *What do you say?* and so on. The choice sticks between turns. Scene and the
+  do?*, *What do you say?* and so on — and beside the buttons a few words say what the
+  kind you chose means: **Think** is *Nobody hears this*. The choice sticks between
+  turns. Scene and the
   assistant take one kind of move and show no buttons.
 - **An empty box.** In a Scene chat, sending nothing means **Let them talk**: the cast
   carries on without you. Anywhere else, an empty Send does nothing.
@@ -278,7 +282,8 @@ anything leaves no turn behind, so send the move again.
 ## Branching, rewinding and undoing
 
 Under each turn — on hover or keyboard focus, and always on a touch screen — are the
-actions for that turn:
+actions for that turn. On a laptop with a touchscreen they stay hidden until looked at,
+so the first tap on a turn shows them and the second presses one:
 
 - **Redo** — another attempt at that turn, from the same point with the same words.
   The page follows the new attempt, and the old one stays beside it. Any dice the turn
@@ -509,7 +514,8 @@ box), by clicking the context meter, or with **Session settings**; **Close** shu
 and so does **Escape** while the keyboard is inside it — but not while you are typing in
 one of its boxes, so a block or a note you are writing is not lost. Its width can be
 dragged, and whether it is open is remembered for your account. On a phone-sized screen
-it takes over the page.
+it takes over the page, and so does the assistant: opened over the workbench, the
+assistant covers it until you close the assistant or press **Workbench**.
 
 Over a session it has two sections, one under the other, with a button for each at the
 top: **Session**, the [session settings](#session-settings), and **Turn record**. The

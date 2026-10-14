@@ -207,6 +207,52 @@ function updatedAt(object: LibraryObject): string | null {
 }
 
 /**
+ * ***A lorebook's badges, their words and what each means*** (2026-10-13,
+ * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.8).
+ *
+ * Each badge's meaning was its `title`, and on a phone a title is never shown
+ * — nor to a keyboard — so three of the four said a word and nothing else:
+ * *Linked*, whose old title is the comment below's example of a reader
+ * concluding the wrong thing about retrieval from a word, *World*, which
+ * does something and says when, and *Memories*, which says editing is
+ * expected. Their meanings are a legend under the shelf now, one line for each
+ * badge the shelf is wearing (`lorebookLegend`, `ui/Legend`), and the badges
+ * carry the word alone. ***Off keeps its title***, and no line: *This book is
+ * switched off* is the word again in a sentence, a decoration a phone loses
+ * nothing by.
+ */
+const BADGE_WORDS = labels('library.lorebook-badge', {
+  off: 'Off',
+  offTitle: 'This book is switched off.',
+  linked: 'Linked',
+  linkedMeans:
+    'Authored as belonging to particular actors. A book is in play only if the session or its treatment names it.',
+  world: 'World',
+  worldMeans:
+    'Offered to sessions started in the worlds it names: a session started in one of them gets this book ticked in its lorebooks at the start. No other session gets it unless somebody chooses it.',
+  memories: 'Memories',
+  memoriesMeans:
+    'Written by play rather than by hand. Editing an entry here is expected; a corrected entry is left alone afterwards.',
+});
+
+/** Which of a lorebook's badges it wears — read once, for the row and the legend. */
+function lorebookMarks(object: LibraryObject): {
+  off: boolean;
+  linked: boolean;
+  forWorlds: boolean;
+  derived: boolean;
+} {
+  return {
+    off: field(object, 'enabled') === false,
+    linked: scopeShelfOf(object) === 'linked',
+    // Only when it names a World — the `Linked` badge's rule, *only when it
+    // names somebody*: a `world` scope naming none reaches no session.
+    forWorlds: worldIdsOf(field(object, 'scope')).length > 0,
+    derived: writtenByPlay(object),
+  };
+}
+
+/**
  * The name cell, which every panel shares and each may add badges to.
  *
  * The link is deliberately not built here from `{kind, id}` alone — see
@@ -214,12 +260,7 @@ function updatedAt(object: LibraryObject): string | null {
  * reintroduces F19 and [polish §4] says so by name.
  */
 function nameBadges(object: LibraryObject): JSX.Element {
-  const enabled = field(object, 'enabled');
-  const linked = scopeShelfOf(object) === 'linked';
-  // Only when it names a World — the `Linked` badge's rule, *only when it
-  // names somebody*: a `world` scope naming none reaches no session.
-  const forWorlds = worldIdsOf(field(object, 'scope')).length > 0;
-  const derived = writtenByPlay(object);
+  const { off, linked, forWorlds, derived } = lorebookMarks(object);
 
   return (
     <>
@@ -236,7 +277,7 @@ function nameBadges(object: LibraryObject): JSX.Element {
        * arguing with them. §5.3 asks for text first and colour second, and the
        * word is what carries it.
        */}
-      {enabled === false ? <Badge title="This book is switched off.">Off</Badge> : null}
+      {off ? <Badge title={BADGE_WORDS.offTitle}>{BADGE_WORDS.off}</Badge> : null}
       {/*
        * Scope is badged only when it is not `global`, for the same reason:
        * global is the default, almost every imported book is one, and a badge
@@ -263,25 +304,21 @@ function nameBadges(object: LibraryObject): JSX.Element {
        * the badge has to say that rather than describe a mechanism: a reader who
        * believes this title will conclude their book is in play when it is not,
        * which is the worst direction for a retrieval claim to be wrong in.
+       * *(2026-10-13, P12A.8: the sentence is the shelf's legend now, not the
+       * badge's title — `BADGE_WORDS` says why — and the reason above is why
+       * it is one of the three said in words.)*
        */}
-      {linked ? (
-        <Badge title="Authored as belonging to particular actors. A book is in play only if the session or its treatment names it.">
-          Linked
-        </Badge>
-      ) : null}
+      {linked ? <Badge>{BADGE_WORDS.linked}</Badge> : null}
       {/*
        * ***For sessions started in particular worlds*** — [P16.2],
        * [15 §5.3]. Badged because, unlike `Linked`, it does something — and
-       * the title says exactly what, and what it does not: offered to a session
+       * the ~~title~~ *legend (2026-10-13, P12A.8)* says exactly what, and what
+       * it does not: offered to a session
        * *at its start*, in one of those worlds, as a tick on the form. Neutral,
        * like `Linked`, because it is an authored statement and not a state
        * anybody needs warning of; the word carries it.
        */}
-      {forWorlds ? (
-        <Badge title="Offered to sessions started in the worlds it names: a session started in one of them gets this book ticked in its lorebooks at the start. No other session gets it unless somebody chooses it.">
-          World
-        </Badge>
-      ) : null}
+      {forWorlds ? <Badge>{BADGE_WORDS.world}</Badge> : null}
       {/*
        * ***Derived from play, not written by hand*** —
        * [08 §2](../../../../docs/design/08-cross-session-memory.md), [P8.2].
@@ -298,11 +335,7 @@ function nameBadges(object: LibraryObject): JSX.Element {
        * does. Neutral rather than danger, because a memory book is working
        * correctly — the warning belongs on the way *out*, not on the shelf.
        */}
-      {derived ? (
-        <Badge title="Written by play rather than by hand. Editing an entry here is expected; a corrected entry is left alone afterwards.">
-          Memories
-        </Badge>
-      ) : null}
+      {derived ? <Badge>{BADGE_WORDS.memories}</Badge> : null}
     </>
   );
 }
@@ -595,6 +628,26 @@ export function panelFor(kind: LibraryKind | undefined): KindPanel {
   if (kind === 'lorebooks') return LOREBOOKS;
   if (kind === 'worlds') return WORLDS;
   return GENERIC;
+}
+
+/**
+ * What the badges on a lorebook shelf mean, one line for each badge some row
+ * of `objects` wears, in the order the row draws them — `BADGE_WORDS` says
+ * why. Empty for every other kind, whose rows wear none of these.
+ */
+export function panelBadgeLegend(
+  kind: LibraryKind | undefined,
+  objects: readonly LibraryObject[],
+): [string, string][] {
+  if (kind !== 'lorebooks') return [];
+  const worn = objects.map(lorebookMarks);
+  const lines: [string, string][] = [];
+  if (worn.some((marks) => marks.linked)) lines.push([BADGE_WORDS.linked, BADGE_WORDS.linkedMeans]);
+  if (worn.some((marks) => marks.forWorlds))
+    lines.push([BADGE_WORDS.world, BADGE_WORDS.worldMeans]);
+  if (worn.some((marks) => marks.derived))
+    lines.push([BADGE_WORDS.memories, BADGE_WORDS.memoriesMeans]);
+  return lines;
 }
 
 /** The badges a panel adds inside the shared name cell. */

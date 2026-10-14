@@ -86,6 +86,16 @@ const WORDS = labels('editor.world-members', {
   unknownKind: 'Unknown kind',
   unknownKindTitle:
     'A kind this version does not know. The world keeps it exactly as it is and carries it with the rest.',
+  /*
+   * ***Said in words too*** (2026-10-13, [P12A] P12A.8): the badge's reason
+   * was its title alone, which a phone never shows and a keyboard never
+   * reaches — `missingNote`'s move, for the other badge. It matters for the
+   * same reason that one does: a row marked with a word nobody explained is a
+   * row somebody removes to tidy up, and this one is a member the world is
+   * carrying intact for a newer build.
+   */
+  unknownNote:
+    'A member marked Unknown kind is of a kind this version does not know. The world keeps it exactly as it is and carries it with the rest.',
 });
 
 export function MembersField(props: {
@@ -155,6 +165,9 @@ export function MembersField(props: {
 
       {rows.some((row) => row.resolution.state === 'missing') ? (
         <Fine>{WORDS.missingNote}</Fine>
+      ) : null}
+      {rows.some((row) => row.resolution.state === 'unknown-kind') ? (
+        <Fine>{WORDS.unknownNote}</Fine>
       ) : null}
 
       {/* Announced rather than only shown: an add moves a row from one list to
@@ -269,6 +282,9 @@ export function WorldMembers(props: { members: readonly Member[] }): JSX.Element
       )}
       {rows.some((row) => row.resolution.state === 'missing') ? (
         <Fine>{WORDS.missingNote}</Fine>
+      ) : null}
+      {rows.some((row) => row.resolution.state === 'unknown-kind') ? (
+        <Fine>{WORDS.unknownNote}</Fine>
       ) : null}
     </section>
   );

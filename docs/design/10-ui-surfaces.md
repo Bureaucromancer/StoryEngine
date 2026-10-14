@@ -525,6 +525,47 @@ rather than shrunken panels, and **no essential action that exists only on
 hover** — Marinara's own rule, which Marinara breaks. §1's 1.0 bar is unchanged:
 responsive and genuinely usable, not phone-first.
 
+***Enforced 2026-10-13*** — [P12A](workplan/35-p12a-the-look.md) P12A.8, under
+its §0.4: the audit's list was the stage's work list, and its test refuses a
+reveal on hover outside the recipe and a control whose only explanation is a
+`title`. What each rule came to, as built — *the phone* is `max-sm:`, below
+Tailwind's `sm`, the client's one spelling of a phone:
+
+- **Sheets.** The non-modal popover — a mention's card, every item of the HUD
+  strip — is drawn along the bottom of the screen at its full width, scrolling
+  inside itself to seven-tenths of the screen's height, in both its placements:
+  the same element in the same place in the document, so the keyboard, Escape
+  and the four ways it closes are a desk's. It is the stylesheet's, not a
+  script's, and has no scrim, since nothing about it is modal. **The workbench**
+  was already the view below `sm` ([polish §15](workplan/06-polish.md), §3's
+  *on a phone the panel is a sheet*); **the assistant** is too now, the screen's
+  width, and with both open the two are a stack — the assistant, summoned last,
+  covers the dock rather than closing it, and **Workbench** uncovers it. The
+  dock's splitter is not drawn there. **The modal dialog stays a centred
+  modal**: it is the screen's width less the page's gutter and scrolls inside
+  its own height, which is not a shrunken panel, and a question that must be
+  answered first is what a phone wants a modal for.
+- **No essential action on hover alone.** No control was hover-only: the one
+  recipe that hides a row until it is looked at, `reveal`, has always carried a
+  keyboard arm and a touch-screen arm. It now carries every arm by group name,
+  and the row takes no tap while it cannot be seen, so on a laptop with a
+  touchscreen the first tap shows the per-turn controls and the second presses
+  one. **What was hover-only was explanation**: a `title`, which a phone never
+  shows and a keyboard never reaches. Each one was judged — essential, and made
+  visible (the turn kind chosen, how auto-mode stops, why a scoped world or
+  character is *Missing*, what *Unknown kind* means on a World, why a picture
+  went as words, what a shelf's lorebook badges and an import's counts mean,
+  the tag manager's folder mode, the whole of the handle rule); or a decoration
+  a phone can lose, and left (the header's chord hint, the selector bar's
+  Ctrl-click, a colour swatch's name, the context meter's sentence, *Off*,
+  and the badges whose reason a note under the field already gives).
+  [P12A](workplan/35-p12a-the-look.md) §2 records each.
+
+*What the test cannot see*, said there: a reveal by size or colour or script,
+and what a control's child expression renders. *What only a phone can show* —
+where a sheet lands, and how it sits under a phone's keyboard — is
+[manual testing](workplan/05-manual-testing.md)'s T4.
+
 ---
 
 ## 2. The surfaces, and an inspector
@@ -1037,6 +1078,14 @@ one.**
 dock is a desktop metaphor. Same content, same toggle, full-height sheet over the
 main view — which is also the honest admission that on a phone the workbench *is*
 briefly a place, because there is no room for it to be anything else.
+*(2026-10-13, [P12A](workplan/35-p12a-the-look.md) P12A.8: built as the view
+rather than over it — below `sm` the dock is the screen's width and the page is
+hidden beneath it, not unmounted, since [polish §15](workplan/06-polish.md).
+The assistant (§7) takes the same shape there, and with both open the two are
+a stack: the assistant covers the dock without closing it, since whether the
+dock is open is the account's preference and a desk may be showing it, and
+**Workbench** on a phone uncovers it. The splitter is not drawn on a phone,
+where the stored width is never read. §1.3's phone rules have the record.)*
 
 ### 3.1 What the panel is about, now that two of its subjects write
 

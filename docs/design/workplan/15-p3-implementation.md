@@ -1073,6 +1073,17 @@ Its real cost is the shell's first-ever narrow audit — the header is a five-it
 flex row inside a centred column and has never been looked at below the fold.
 Budget the audit separately; the sheet is the smaller half.
 
+*(2026-10-13, [P12A](35-p12a-the-look.md) P12A.8: never landed as written, and
+not to be. [Polish §15](06-polish.md) (2026-09-17) made the dock **the view**
+below `sm` — the screen's width, the page hidden beneath — and folded the
+header, which was this stage's audit; P12A.8 gave the assistant the same shape
+and made the two a stack. **Not the dialog and its trap**: the workbench's own
+docstring calls non-modal its load-bearing property and refuses the trap by
+name, and a dock that trapped the keyboard on a phone and not on a desk would
+be two panels under one name. The modal dialog itself stays a centred modal on
+a phone, which is where this stage's sentence is true. `workbench/prefs.ts`'s
+*"the phone sheet is P3.8's problem"* has its answer, dated.)*
+
 ---
 
 ## 3. What the record still owes

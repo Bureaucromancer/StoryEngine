@@ -2219,10 +2219,10 @@ function TurnView({
           the only controls in the transcript, and a keyboard reaching them
           would otherwise tab into things it cannot see — and, since this pass,
           visible always on a device that cannot hover, which is what `reveal`
-          is for and why it is spelled once. */}
-      <div
-        className={`flex gap-2 ${reveal} group-focus-within/turn:opacity-100 group-hover/turn:opacity-100`}
-      >
+          is for and why it is spelled once. *(2026-10-13, P12A.8: the hover
+          and focus arms are the recipe's too, by the turn's group name, and a
+          row nobody can see takes no tap — `reveal` says why.)* */}
+      <div className={`flex gap-2 ${reveal.turn}`}>
         {rerunnable ? (
           <Button
             type="button"

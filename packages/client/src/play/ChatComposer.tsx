@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import type { JSX } from 'react';
+import { useId, type JSX } from 'react';
 
 import { labels } from '../i18n/catalogue.js';
 import { Fine } from '../ui/Text.js';
@@ -136,6 +136,18 @@ export function PushStory(props: {
  * ***Auto-mode's two controls*** — on or off, and how long the chat must be
  * quiet first (SillyTavern's `auto_mode_delay`, 5 seconds by default). The
  * clock itself is `useAutoMode`.
+ *
+ * ***How it stops, said once it is on*** (2026-10-13,
+ * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.8). The
+ * switch's `autoHint` was its label's `title`, which a phone never shows and
+ * a keyboard never reaches — and it is the one thing about auto-mode a person
+ * needs once it is running: that it sends on its own, and that typing or Stop
+ * ends it. What it does before it is on, the two labels say. So the sentence
+ * is drawn under the controls while the switch is on, and the switch is
+ * described by it: on a phone the tap that turns it on is the tap that shows
+ * how to turn it off. *Not drawn while off*, because the composer's row is
+ * what a player looks past on every turn, and a sentence about a switch that
+ * is off is a sentence about nothing happening.
  */
 export function AutoMode(props: {
   on: boolean;
@@ -143,12 +155,14 @@ export function AutoMode(props: {
   onToggle: (on: boolean) => void;
   onSeconds: (seconds: string) => void;
 }): JSX.Element {
+  const hintId = useId();
   return (
     <div className="flex flex-wrap items-center gap-3">
-      <label className="flex items-center gap-2 text-sm text-ink-muted" title={WORDS.autoHint}>
+      <label className="flex items-center gap-2 text-sm text-ink-muted">
         <input
           type="checkbox"
           checked={props.on}
+          aria-describedby={props.on ? hintId : undefined}
           onChange={(event) => {
             props.onToggle(event.target.checked);
           }}
@@ -168,6 +182,11 @@ export function AutoMode(props: {
           }}
         />
       </label>
+      {props.on ? (
+        <p id={hintId} className="basis-full text-xs text-ink-subtle">
+          {WORDS.autoHint}
+        </p>
+      ) : null}
     </div>
   );
 }

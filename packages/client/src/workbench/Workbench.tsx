@@ -63,6 +63,9 @@ import { Note, SubsectionTitle } from '../ui/Text.js';
 const ASIDE =
   'relative flex w-(--workbench-size) shrink-0 flex-col border-s border-line bg-surface max-sm:w-full';
 
+/** Beneath the assistant on a phone — `Workbench`'s `covered`. */
+const COVERED = 'max-sm:hidden';
+
 /**
  * The workbench frame — [10 §3](../../../../docs/design/10-ui-surfaces.md),
  * built by [P3.1](../../../../docs/design/workplan/15-p3-implementation.md):
@@ -124,8 +127,27 @@ const ASIDE =
  * chooses on the route and on one cache entry whose reader provably cannot
  * fetch, and that entry is dropped at submit and again on leave. Written back
  * into [10 §3] rather than left as an implicit reinterpretation.
+ *
+ * ***Covered, on a phone, while the assistant is open over it*** (2026-10-13,
+ * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.8).
+ * Below `sm` an open panel is the view, and two cannot share 375px — the dock
+ * is `shrink-0` at the full width, so beside it the assistant was crushed to
+ * its border. So the shell treats the two as a stack there, as it already
+ * treats `<main>` under either: the assistant, summoned last, covers the
+ * dock, and the dock is hidden beneath it rather than closed — its
+ * preference untouched, anything typed in it kept, nothing unmounted — until the
+ * assistant is dismissed or **Workbench** is pressed, which on a phone
+ * dismisses the assistant to uncover it. `covered` is that state; on a desk it
+ * changes nothing, since both fit. `Shell.tsx` says the rest.
  */
-export function Workbench({ onClose }: { onClose: () => void }): JSX.Element {
+export function Workbench({
+  onClose,
+  covered = false,
+}: {
+  onClose: () => void;
+  /** The assistant is open over the dock — on a phone, it is hidden beneath. */
+  covered?: boolean;
+}): JSX.Element {
   const play = useMatch({ from: '/play/$sessionId', shouldThrow: false });
   // The library detail route only ([P3 §1.3]): the list has no selection
   // concept, so over it the panel stays honestly empty — and the actor
@@ -184,7 +206,7 @@ export function Workbench({ onClose }: { onClose: () => void }): JSX.Element {
       // *It fades in as it opens* (2026-10-13, P12A.6) — `enter` in
       // `classes.ts`. The page beside it narrows at once, since that is
       // layout rather than motion; only the panel's own paint arrives.
-      className={`${enter} ${ASIDE}`}
+      className={covered ? `${enter} ${ASIDE} ${COVERED}` : `${enter} ${ASIDE}`}
     >
       <ResizeHandle
         asideRef={asideRef}
@@ -322,7 +344,11 @@ function ResizeHandle(props: {
       aria-valuemin={MIN_SIZE}
       aria-valuemax={MAX_SIZE}
       aria-valuenow={width}
-      className="absolute -start-1 inset-y-0 w-2 cursor-col-resize touch-none hover:bg-line focus-visible:outline-2 focus-visible:outline-focus"
+      // ***Not on a phone*** (2026-10-13, P12A.8): there the dock is the
+      // screen's width whatever is stored, so a drag along the screen's edge
+      // would change nothing a phone shows and write a width the desk would
+      // open at next — the preference is the account's, not the device's.
+      className="absolute -start-1 inset-y-0 w-2 cursor-col-resize touch-none hover:bg-line focus-visible:outline-2 focus-visible:outline-focus max-sm:hidden"
       onPointerDown={(event) => {
         if (event.button !== 0) return;
         drag.current = {

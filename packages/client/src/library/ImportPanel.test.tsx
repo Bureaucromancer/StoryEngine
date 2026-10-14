@@ -89,13 +89,45 @@ describe('after a sweep', () => {
     await userEvent.type(screen.getByPlaceholderText(/full path/i), '/somewhere/data');
     await userEvent.click(screen.getByRole('button', { name: /import folder/i }));
 
+    // The counts are the row's items; each word is said again in the legend
+    // under them since P12A.8 (2026-10-13), so the counts are read as items.
     await waitFor(() => {
-      expect(screen.getByText('Imported')).toBeTruthy();
+      expect(screen.getByText('Imported', { selector: 'li' })).toBeTruthy();
     });
     // `unchanged` and `skipped` are different answers and both are shown.
-    expect(screen.getByText('Already here')).toBeTruthy();
-    expect(screen.getByText('Skipped')).toBeTruthy();
-    expect(screen.getByText('Credential removed')).toBeTruthy();
+    expect(screen.getByText('Already here', { selector: 'li' })).toBeTruthy();
+    expect(screen.getByText('Skipped', { selector: 'li' })).toBeTruthy();
+    expect(screen.getByText('Credential removed', { selector: 'li' })).toBeTruthy();
+  });
+
+  /**
+   * ***What each counted class means, under the counts*** (2026-10-13,
+   * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.8). It
+   * was each count's `title` — *the one place a person can read it*, said
+   * `DISPOSITION_HELP` — and a phone never shows a title. Mutations: the
+   * legend not drawn; drawn for every class, counted or not.
+   */
+  it('says what each class it counted means, and only those', async () => {
+    vi.spyOn(api, 'importSweep').mockResolvedValue({
+      suggestions: [],
+      report: {
+        jobId: 'job-1',
+        source: 'marinara',
+        counts: { converted: 12, credential: 1 },
+        items: [],
+      },
+    });
+
+    render(mount());
+    await userEvent.type(screen.getByPlaceholderText(/full path/i), '/somewhere/data');
+    await userEvent.click(screen.getByRole('button', { name: /import folder/i }));
+
+    expect(await screen.findByText('Now in your library.')).toBeTruthy();
+    expect(screen.getByText('A connection or password. Removed and never stored.')).toBeTruthy();
+    expect(screen.getByText('Credential removed', { selector: 'dt' })).toBeTruthy();
+    expect(screen.queryByText('Deliberately not taken.')).toBeNull();
+    // And no count keeps it in a title.
+    expect(screen.getByText('Imported', { selector: 'li' }).getAttribute('title')).toBeNull();
   });
 
   it('renders a class it has never heard of as the word itself', async () => {
@@ -208,7 +240,7 @@ describe('what an import leaves on screen', () => {
     await userEvent.type(screen.getByPlaceholderText(/full path/i), '/somewhere/data');
     await userEvent.click(screen.getByRole('button', { name: /import folder/i }));
     await waitFor(() => {
-      expect(screen.getByText('Imported')).toBeTruthy();
+      expect(screen.getByText('Imported', { selector: 'li' })).toBeTruthy();
     });
 
     // The refetch was asked for, and the shelf kept what it had while it runs.

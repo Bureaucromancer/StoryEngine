@@ -36,17 +36,27 @@ export const PICTURE_WORDS: Readonly<Record<string, string>> = labels('workbench
   budget: 'the budget left it out, so neither the picture nor its words went',
 });
 
-/** The badge's words and its explanation, from the block's disclosure. */
+/**
+ * The badge's words and its explanation, from the block's disclosure.
+ *
+ * ***The explanation is drawn, not a title*** (2026-10-13,
+ * [P12A](../../../../../docs/design/workplan/35-p12a-the-look.md) P12A.8).
+ * It was the badge's `title`, so the half of the badge that answers *why* —
+ * the send rule's own reason, which is what somebody opens the workbench to
+ * ask — was a pointer's alone: a phone never shows a title and a keyboard
+ * never reaches one. It is a line of the row now, under the source and its
+ * badges, and `why` rather than `title` so that nothing reads it as one.
+ */
 export function pictureBadge(image: NonNullable<AssembledBlock['image']>): {
   label: string;
-  title: string;
+  why: string;
 } {
   if (image.sent)
-    return { label: PICTURE_WORDS['sent'] ?? '', title: PICTURE_WORDS['sent-cost'] ?? '' };
+    return { label: PICTURE_WORDS['sent'] ?? '', why: PICTURE_WORDS['sent-cost'] ?? '' };
   const reason = image.withheld ?? 'missing-bytes';
   return {
     label: (reason === 'budget' ? PICTURE_WORDS['dropped'] : PICTURE_WORDS['held']) ?? '',
-    title: PICTURE_WORDS[reason] ?? reason,
+    why: PICTURE_WORDS[reason] ?? reason,
   };
 }
 
@@ -163,11 +173,12 @@ function BlockRow({
           )}
           {block.advisory === true ? <Badge tone="provenance">Advisory</Badge> : null}
           {block.image === undefined ? null : (
-            <Badge tone="provenance" title={pictureBadge(block.image).title}>
-              {pictureBadge(block.image).label}
-            </Badge>
+            <Badge tone="provenance">{pictureBadge(block.image).label}</Badge>
           )}
         </span>
+        {block.image === undefined ? null : (
+          <span className="block text-xs text-ink-subtle">{pictureBadge(block.image).why}</span>
+        )}
       </td>
       <td className={table.cellCompact}>{block.reason}</td>
       <td className={table.cellNumeric}>{formatCount(block.tokens, locale)}</td>

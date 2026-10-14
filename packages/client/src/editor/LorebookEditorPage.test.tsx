@@ -1478,6 +1478,29 @@ describe('the book’s scope', () => {
     await save(client);
     expect(server.stored().scope).toEqual({ kind: 'world', worldIds: ['gone-world'] });
   });
+
+  /**
+   * ***And why it is Missing, in words under the field*** (2026-10-13,
+   * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.8): the
+   * badge's reason was its title alone, which a phone never shows —
+   * `HookFields`' move, here. The box is described by it, and it goes with
+   * the last Missing world. Mutations: the hint never given; given whatever
+   * resolves.
+   */
+  it('says why a world is Missing under the field, and only while one is', async () => {
+    shelves = { worlds: [shelfRow(RAIN_CITY, 'storyengine.world/1', 'Rain City')] };
+    scoped({ kind: 'world', worldIds: [RAIN_CITY, 'gone-world'] });
+    renderApp();
+    await openEditor();
+
+    const said = await screen.findByText(/A world marked Missing is not among your worlds/);
+    expect(document.querySelector(`[aria-describedby="${said.id}"]`)).not.toBeNull();
+
+    // Rain City resolves, so with the missing one gone there is nothing to say.
+    await userEvent.click(screen.getByRole('button', { name: 'Remove gone-world' }));
+    expect(screen.getByText('Rain City')).toBeTruthy();
+    expect(screen.queryByText(/A world marked Missing/)).toBeNull();
+  });
 });
 
 /**

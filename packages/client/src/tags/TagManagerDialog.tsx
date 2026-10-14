@@ -63,6 +63,33 @@ const FOLDER_LABEL: Record<TagFolder, string> = labels('tags.folder', {
 
 const FOLDER_GLYPH: Record<TagFolder, string> = { none: '–', open: '▾', closed: '▸' };
 
+/**
+ * ***The folder mode in a word, drawn beside its glyph*** (2026-10-13,
+ * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.8).
+ *
+ * The cycling control showed a glyph — a dash, a triangle down, a triangle
+ * right — and what the glyph meant was its `title`, `FOLDER_LABEL`'s sentence,
+ * which a phone never shows and a keyboard never reaches. A screen reader had
+ * the sentence in the button's name; a person looking at a phone had a
+ * triangle, pressed it, and had another triangle. So the mode is a word
+ * inside the button, each one a word of the name a screen reader hears (WCAG
+ * 2.5.3, *label in name*), and what open and closed *do* — whether a folder's
+ * members also stay in the list — is a sentence over the table, said once
+ * rather than per row (`folderNote`). The title went: nothing is said there
+ * now that is not said on the page.
+ */
+const FOLDER_WORD: Record<TagFolder, string> = labels('tags.folder-word', {
+  none: 'Not a folder',
+  open: 'Open',
+  closed: 'Closed',
+});
+
+/** What the two folder modes do, said once over the table — `FOLDER_WORD` says why. */
+const FOLDER_NOTE = labels('tags.folder-note', {
+  folders:
+    'A folder gathers what carries its tag into one row on the shelf. Open, what it holds also stays in the list; closed, it is hidden there until the folder is opened.',
+});
+
 export interface TagManagerDialogProps {
   onDismiss: () => void;
   /** How many objects carry each tag name, from the shelf the caller is holding. */
@@ -182,6 +209,7 @@ export function TagManagerDialog(props: TagManagerDialogProps): JSX.Element {
         A tag works whether or not it is listed here. This is where it gets a colour, a place in the
         order, and the two behaviours below — nothing here decides which tags you may use.
       </Note>
+      <Note>{FOLDER_NOTE.folders}</Note>
 
       {write.isError ? (
         <Alert tone="error" role="alert">
@@ -577,14 +605,14 @@ function TagRow(props: TagRowProps): JSX.Element {
       <td className={table.cell}>
         <button
           type="button"
-          className={nudge}
-          title={FOLDER_LABEL[folder]}
+          className={`${nudge} flex items-center gap-1 whitespace-nowrap`}
           aria-label={folderLabel(props.tag.name, FOLDER_LABEL[folder])}
           onClick={() => {
             props.onPatch({ folder: FOLDER_NEXT[folder] });
           }}
         >
-          {FOLDER_GLYPH[folder]}
+          <span aria-hidden="true">{FOLDER_GLYPH[folder]}</span>
+          {FOLDER_WORD[folder]}
         </button>
       </td>
 

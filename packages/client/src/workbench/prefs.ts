@@ -42,7 +42,17 @@ export const SIZE_KEY = 'ui.workbench-size';
  * the number can be anything at all. Clamping on read is the one-line
  * defusal: whatever is stored, what renders is a dock that fits. The floor
  * keeps the JSON readable; the ceiling keeps main usable beside it on the
- * narrowest desktop the phase supports (the phone sheet is P3.8's problem).
+ * narrowest desktop the phase supports ~~(the phone sheet is P3.8's problem)~~.
+ *
+ * *(2026-10-13, [P12A](../../../../docs/design/workplan/35-p12a-the-look.md)
+ * P12A.8: the phone's answer, which is that none of this is read there. P3.8
+ * never landed; [polish §15](../../../../docs/design/workplan/06-polish.md)
+ * made the dock the view below `sm` — the screen's width, the page hidden
+ * beneath it — and P12A.8 put the assistant under the same rule, the two a
+ * stack with the assistant on top. On a phone `max-sm:w-full` outranks the
+ * stored width, and the splitter that writes it is not drawn, since a drag
+ * there would change nothing on the phone and set the width the desk opens at
+ * next. These bounds are a desk's, which is all they ever needed to be.)*
  */
 export const MIN_SIZE = 280;
 export const MAX_SIZE = 640;

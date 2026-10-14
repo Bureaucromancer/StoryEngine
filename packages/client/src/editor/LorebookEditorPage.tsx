@@ -1090,11 +1090,11 @@ function EntryList(props: {
                  * cannot be reordered by a keyboard at all, which is the whole
                  * of [work plan §2.1]'s day-one habit failing in one control. Shown on
                  * hover and on focus, so a pointer sees them where it is looking
-                 * and a tab reaches them where it is.
+                 * and a tab reaches them where it is. *(2026-10-13, P12A.8:
+                 * both arms are `reveal.entry`'s now, and the hidden arrows take
+                 * no tap — `reveal` says why.)*
                  */}
-                <span
-                  className={`flex gap-1 ${reveal} group-focus-within/entry:opacity-100 group-hover/entry:opacity-100`}
-                >
+                <span className={`flex gap-1 ${reveal.entry}`}>
                   <button
                     type="button"
                     aria-label={`Move ${nameOfEntry(entry)} up`}

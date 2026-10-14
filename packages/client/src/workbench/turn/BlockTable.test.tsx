@@ -74,7 +74,8 @@ describe('the picture badge', () => {
    * (a sent picture announced as words, which is the lie that sends somebody
    * off to change a model that was already seeing it); the `budget` arm
    * collapsed into `held` (a dropped picture claimed to have gone as its
-   * caption, when neither went); and the title reading a fixed sentence
+   * caption, when neither went); and the ~~title~~ *reason line (2026-10-13,
+   * P12A.8)* reading a fixed sentence
    * rather than the block's own `withheld`, which the middle row's reason is
    * there to catch.
    */
@@ -96,18 +97,27 @@ describe('the picture badge', () => {
       />,
     );
 
-    const sent = within(rowFor('se.input.sent')).getByText('Picture sent');
-    expect(sent.getAttribute('title')).toBe(
-      'Counted as its words: what the picture itself costs the model is not estimated yet',
-    );
+    // ***The why is a line of the row, not the badge's title*** (2026-10-13,
+    // [P12A](../../../../../docs/design/workplan/35-p12a-the-look.md) P12A.8):
+    // a title is never shown on a phone, and the why is what the badge is for.
+    // It asserted the titles until then.
+    const sent = within(rowFor('se.input.sent'));
+    expect(sent.getByText('Picture sent').getAttribute('title')).toBeNull();
+    expect(
+      sent.getByText(
+        'Counted as its words: what the picture itself costs the model is not estimated yet',
+      ),
+    ).toBeTruthy();
 
-    const words = within(rowFor('se.input.words')).getByText('Picture as words');
-    expect(words.getAttribute('title')).toBe('this model is not marked as seeing pictures');
+    const words = within(rowFor('se.input.words'));
+    expect(words.getByText('Picture as words').getAttribute('title')).toBeNull();
+    expect(words.getByText('this model is not marked as seeing pictures')).toBeTruthy();
 
-    const dropped = within(rowFor('se.input.dropped')).getByText('Picture dropped');
-    expect(dropped.getAttribute('title')).toBe(
-      'the budget left it out, so neither the picture nor its words went',
-    );
+    const dropped = within(rowFor('se.input.dropped'));
+    expect(dropped.getByText('Picture dropped').getAttribute('title')).toBeNull();
+    expect(
+      dropped.getByText('the budget left it out, so neither the picture nor its words went'),
+    ).toBeTruthy();
   });
 
   /**
@@ -119,5 +129,6 @@ describe('the picture badge', () => {
     render(<BlockTable blocks={[block('se.input')]} rules={new Map()} locale={undefined} />);
 
     expect(within(rowFor('se.input')).queryByText(/^Picture /)).toBeNull();
+    expect(within(rowFor('se.input')).queryByText(/pictures?\b/)).toBeNull();
   });
 });

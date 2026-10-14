@@ -13,10 +13,11 @@ import {
   type BackupRecord,
 } from '../api.js';
 import { formatTimestamp } from '../format.js';
-import { DISPOSITION_HELP, DISPOSITION_LABELS } from '../library/ImportPanel.js';
+import { DISPOSITION_LABELS, importLegend } from '../library/ImportPanel.js';
 import { sentence } from '../library/note-labels.js';
 import { Button } from '../ui/Button.js';
 import { CheckboxField, SelectField } from '../ui/Field.js';
+import { Legend } from '../ui/Legend.js';
 import { Panel } from '../ui/Panel.js';
 import { Fine, Note, SubsectionTitle } from '../ui/Text.js';
 
@@ -400,12 +401,16 @@ function Review(props: { result: BackupImportResult }): JSX.Element {
       <Fine>{resultLine(props.result)}</Fine>
       <ul className="flex flex-wrap gap-x-3 gap-y-1 text-sm text-ink-subtle">
         {counts.map(([disposition, count]) => (
-          <li key={disposition} title={DISPOSITION_HELP[disposition] ?? ''}>
+          <li key={disposition}>
             <strong className="text-ink">{count}</strong>{' '}
             {DISPOSITION_LABELS[disposition] ?? disposition}
           </li>
         ))}
       </ul>
+      {/* What each counted class means, under the counts rather than in each
+          count's title (2026-10-13, [P12A] P12A.8) — `DISPOSITION_HELP`'s note
+          in `ImportPanel.tsx` says why. */}
+      <Legend entries={importLegend(counts.map(([disposition]) => disposition))} />
       <ul className="flex flex-col gap-1 text-sm text-ink-muted">
         {props.result.notes.map((note, index) => (
           <li key={`${note.key}:${String(index)}`}>{sentence(note)}</li>

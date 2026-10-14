@@ -1412,4 +1412,30 @@ describe('a World’s members on its page', () => {
     expect(screen.queryByText('Missing')).toBeNull();
     expect(screen.getByRole('link', { name: 'Bob the Traitor' })).toBeTruthy();
   });
+
+  /**
+   * ***A member of a kind this build does not know, said in words*** (2026-10-13,
+   * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.8): its
+   * badge's reason was a title, which a phone never shows, so it is a note
+   * under the list as *Missing*'s is. Mutation: the note dropped from the
+   * World's page.
+   */
+  it('says under the list what a member of an unknown kind is', async () => {
+    params = { kind: 'worlds', id: ACTOR_ID };
+    const known = world();
+    readObject.mockResolvedValue({
+      ...known,
+      object: {
+        ...known.object,
+        contents: [{ schema: 'storyengine.gadget/1', id: 'gadget-1', name: 'A gadget' }],
+      },
+    });
+    listLibrary.mockResolvedValue({ objects: [] });
+    listSessions.mockResolvedValue({ sessions: [] });
+    renderPage();
+
+    expect(await screen.findByText('Unknown kind')).toBeTruthy();
+    expect(within(row('A gadget')).getByText('Unknown kind')).toBeTruthy();
+    expect(screen.getByText(/A member marked Unknown kind is of a kind this version/)).toBeTruthy();
+  });
 });

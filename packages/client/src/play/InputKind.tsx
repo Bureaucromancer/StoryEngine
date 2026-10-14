@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { useRef, type JSX, type KeyboardEvent } from 'react';
+import { useId, useRef, type JSX, type KeyboardEvent } from 'react';
 
 import { labels } from '../i18n/catalogue.js';
 
@@ -113,6 +113,24 @@ const NEXT: Readonly<Record<string, 1 | -1>> = {
   ArrowUp: -1,
 };
 
+/**
+ * ***What the chosen kind means, said where a phone can read it*** (2026-10-13,
+ * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.8).
+ *
+ * Each kind's hint was its button's `title` and nothing else, and a title is
+ * a pointer's: a phone never shows one, and neither does a keyboard. That is
+ * decoration for *Do* — *Act* adds little to it — and it is not for *Think*,
+ * whose hint, *Nobody hears this*, is the whole of what the kind is, and the
+ * one a player gets wrong by taking it for *Say* (the table's own comment).
+ * So the chosen kind's hint is drawn beside the row, and the chosen button is
+ * described by it: choosing on a phone is a tap, and the tap is what shows
+ * it. *Only the chosen kind's*, because the row is above the box a player is
+ * about to type in and four sentences there would be a paragraph to read past
+ * on every turn; and nothing before a kind is chosen, since a hint under no
+ * choice would read as the choice. The titles stay, as a pointer's preview of
+ * the kinds not chosen — each button's own word is its name, so nothing is
+ * said only there.
+ */
 export function InputKind(props: {
   kinds: readonly string[];
   value: string | undefined;
@@ -120,9 +138,11 @@ export function InputKind(props: {
   onChange: (kind: string) => void;
 }): JSX.Element | null {
   const group = useRef<HTMLDivElement>(null);
+  const hintId = useId();
   if (props.kinds.length < 2) return null;
 
   const chosen = props.kinds.indexOf(props.value ?? '');
+  const chosenHint = chosen === -1 ? undefined : WORDS[`${props.kinds[chosen] ?? ''}.hint`];
   /** The group's one Tab stop: the chosen kind, or the first before one is. */
   const stop = chosen === -1 ? 0 : chosen;
 
@@ -147,38 +167,46 @@ export function InputKind(props: {
   };
 
   return (
-    <div
-      ref={group}
-      className="flex flex-wrap gap-1"
-      role="radiogroup"
-      aria-label="What kind of turn"
-      onKeyDown={onKeyDown}
-    >
-      {props.kinds.map((kind, index) => {
-        const hint = WORDS[`${kind}.hint`];
-        const label = WORDS[`${kind}.label`];
-        const selected = kind === props.value;
-        return (
-          <button
-            key={kind}
-            type="button"
-            role="radio"
-            aria-checked={selected}
-            tabIndex={index === stop ? 0 : -1}
-            disabled={props.disabled ?? false}
-            title={hint ?? kind}
-            className={[
-              'rounded-control border px-2 py-1 text-sm',
-              selected ? 'border-line bg-accent text-on-accent' : 'border-line text-ink-muted',
-            ].join(' ')}
-            onClick={() => {
-              props.onChange(kind);
-            }}
-          >
-            {label ?? kind}
-          </button>
-        );
-      })}
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+      <div
+        ref={group}
+        className="flex flex-wrap gap-1"
+        role="radiogroup"
+        aria-label="What kind of turn"
+        onKeyDown={onKeyDown}
+      >
+        {props.kinds.map((kind, index) => {
+          const hint = WORDS[`${kind}.hint`];
+          const label = WORDS[`${kind}.label`];
+          const selected = kind === props.value;
+          return (
+            <button
+              key={kind}
+              type="button"
+              role="radio"
+              aria-checked={selected}
+              tabIndex={index === stop ? 0 : -1}
+              disabled={props.disabled ?? false}
+              title={hint ?? kind}
+              aria-describedby={selected && chosenHint !== undefined ? hintId : undefined}
+              className={[
+                'rounded-control border px-2 py-1 text-sm',
+                selected ? 'border-line bg-accent text-on-accent' : 'border-line text-ink-muted',
+              ].join(' ')}
+              onClick={() => {
+                props.onChange(kind);
+              }}
+            >
+              {label ?? kind}
+            </button>
+          );
+        })}
+      </div>
+      {chosenHint === undefined ? null : (
+        <span id={hintId} className="text-xs text-ink-subtle">
+          {chosenHint}
+        </span>
+      )}
     </div>
   );
 }

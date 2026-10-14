@@ -686,6 +686,23 @@ describe('the splitter', () => {
     expect(dock.style.getPropertyValue('--workbench-size')).toBe('484px');
   });
 
+  /**
+   * ***Not drawn on a phone*** (2026-10-13,
+   * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.8):
+   * there the dock is the screen's width whatever is stored, so a drag would
+   * change nothing a phone shows and write the width a desk opens at. Read
+   * off the classes, since jsdom answers no media query; and the dock's own
+   * phone arm beside it, which is why the handle has nothing to do there.
+   * Mutation: the phone arm dropped from the handle.
+   */
+  it('is not drawn on a phone, where the dock is the screen’s width', async () => {
+    const handle = await openOverPlay();
+
+    expect((handle.getAttribute('class') ?? '').split(/\s+/)).toContain('max-sm:hidden');
+    const dock = screen.getByRole('complementary');
+    expect((dock.getAttribute('class') ?? '').split(/\s+/)).toContain('max-sm:w-full');
+  });
+
   it('reads its stored width back, clamped', async () => {
     prefsStore = { 'ui.workbench-open': true, 'ui.workbench-size': 512 };
     renderApp();

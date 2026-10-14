@@ -156,6 +156,31 @@ describe('the member list', () => {
     expect(written).toEqual([]);
   });
 
+  /**
+   * ***Each badge's reason in words, not only in its title*** (2026-10-13,
+   * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.8): a
+   * title is never shown on a phone, and *Missing* had its sentence under the
+   * list already — *Unknown kind* had none, so a member the world carries
+   * intact for a newer build read as one to tidy away. Mutation: the note
+   * dropped.
+   */
+  it('says under the list what a member of an unknown kind is, only when there is one', async () => {
+    const NEWER: Member = { schema: 'storyengine.gadget/1', id: 'gadget-1', name: 'A gadget' };
+    renderField([BOOK, NEWER]);
+    await screen.findByText('Rain City, revised');
+
+    expect(within(row(1)).getByText('Unknown kind')).toBeTruthy();
+    expect(screen.getByText(/A member marked Unknown kind is of a kind this version/)).toBeTruthy();
+    expect(screen.queryByText(/A member marked Missing/)).toBeNull();
+  });
+
+  it('says nothing about unknown kinds when every member is known', async () => {
+    renderField([BOOK]);
+    await screen.findByText('Rain City, revised');
+
+    expect(screen.queryByText(/A member marked Unknown kind/)).toBeNull();
+  });
+
   /** A slow list is not a deletion. */
   it('marks nothing missing while the library has not answered', async () => {
     listLibrary.mockReturnValue(new Promise(() => undefined));

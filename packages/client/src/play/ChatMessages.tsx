@@ -254,9 +254,7 @@ function InputLine(props: {
           <p className={`whitespace-pre-wrap ${story} text-ink-subtle`}>{text}</p>
         )}
         {props.hiddenWhole ? <Fine>{WORDS.hiddenTurn}</Fine> : null}
-        <div
-          className={`flex flex-wrap gap-2 ${reveal} group-focus-within/line:opacity-100 group-hover/line:opacity-100`}
-        >
+        <div className={`flex flex-wrap gap-2 ${reveal.line}`}>
           <Button
             type="button"
             size="compact"
@@ -401,9 +399,7 @@ function MessageLine(props: {
         {props.counters.map((ids, at) => (
           <Counter key={at} turnId={turn.id} ids={ids} busy={props.busy} onGo={gestures.onGo} />
         ))}
-        <div
-          className={`flex flex-wrap gap-2 ${reveal} group-focus-within/line:opacity-100 group-hover/line:opacity-100`}
-        >
+        <div className={`flex flex-wrap gap-2 ${reveal.line}`}>
           <Button
             type="button"
             size="compact"

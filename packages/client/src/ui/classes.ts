@@ -109,9 +109,39 @@ export const link = {
  * reduced-motion block reaches it by name rather than through the default it
  * used to ride. A row that comes up under the pointer answers something the
  * person just did, which is what `respond` is for.)*
+ *
+ * ***The whole reveal, and one per group*** (2026-10-13,
+ * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.8). It was
+ * the hidden state and the touch-screen arm, and each call site added the two
+ * arms that bring the row back — under the pointer and on the keyboard —
+ * naming its own group. So the paragraph above had half come true again: four
+ * call sites, three group names, and the arms that make the row reachable
+ * written at each. They are here now, a string per group, because Tailwind
+ * emits only a class it can read whole and a group's name is part of the
+ * class; theme.test.ts holds the strings to one recipe that differs in the
+ * name alone, and refuses an arm that reveals on hover anywhere but here.
+ *
+ * ***And a row nobody can see takes no tap*** — the hybrid device the second
+ * paragraph keeps the quiet version for. A laptop with a touchscreen answers
+ * *yes* to `(hover: hover)`, so the row is transparent there, and a finger
+ * that landed on it pressed a control the person could not see: Undo, from a
+ * tap meant for the line above it. So the hidden row ignores the pointer —
+ * `pointer-events` off at rest, on wherever the row is shown — and the tap
+ * goes through to the turn beneath, which a touch screen reports as hovered
+ * until the next tap lands elsewhere: the first tap shows the row and the
+ * second presses what it shows. A mouse is never told the difference, since
+ * the turn is hovered before the pointer reaches the row; and the keyboard is
+ * not touched by `pointer-events` at all.
  */
-export const reveal =
-  'opacity-0 transition-opacity duration-respond ease-swap [@media(hover:none)]:opacity-100';
+export const reveal = {
+  /** The per-turn gestures under a turn of the transcript. */
+  turn: 'pointer-events-none opacity-0 transition-opacity duration-respond ease-swap group-hover/turn:pointer-events-auto group-hover/turn:opacity-100 group-focus-within/turn:pointer-events-auto group-focus-within/turn:opacity-100 [@media(hover:none)]:pointer-events-auto [@media(hover:none)]:opacity-100',
+  /** A chat line's gestures — the player's line and each message. */
+  line: 'pointer-events-none opacity-0 transition-opacity duration-respond ease-swap group-hover/line:pointer-events-auto group-hover/line:opacity-100 group-focus-within/line:pointer-events-auto group-focus-within/line:opacity-100 [@media(hover:none)]:pointer-events-auto [@media(hover:none)]:opacity-100',
+  /** A lorebook entry's reorder arrows. */
+  entry:
+    'pointer-events-none opacity-0 transition-opacity duration-respond ease-swap group-hover/entry:pointer-events-auto group-hover/entry:opacity-100 group-focus-within/entry:pointer-events-auto group-focus-within/entry:opacity-100 [@media(hover:none)]:pointer-events-auto [@media(hover:none)]:opacity-100',
+} as const;
 
 /**
  * ***A room change is a fade*** — the backdrop's crossfade (2026-10-13),
@@ -229,6 +259,44 @@ export const busy = 'inline-block size-2 shrink-0 rounded-full bg-current animat
  * fades in on every opening, as the rest do on every mount.
  */
 export const enter = 'transition-opacity duration-arrive ease-arrive starting:opacity-0';
+
+/**
+ * ***On a phone, a panel is a sheet*** (2026-10-13) —
+ * [10 §1.3](../../../../docs/design/10-ui-surfaces.md)'s first phone rule,
+ * *sheets rather than shrunken panels*, built at
+ * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.8 for
+ * `ui/Popover` in both its places.
+ *
+ * A panel anchored where it was opened is the right shape on a desk and the
+ * wrong one at a phone's width: a mention's card is a fixed width from the
+ * mark, so a mark near the end of a line pushed it past the screen's edge
+ * (P12A.3 left that for this stage), and a strip item's panel opened at the
+ * top of the column, a stretch of thumb away from where a phone is held.
+ * **Below the `sm` breakpoint** — `max-sm:`, the codebase's one spelling of
+ * *a phone*, beside the backdrop's and the dock's — the panel leaves its
+ * anchor for the bottom edge of the screen, the screen's full width, as tall
+ * as it needs up to seven-tenths of the screen and scrolling inside itself,
+ * its scroll kept from running on into the page behind it, square at the
+ * bottom where the screen's edge is and ruled only along its top.
+ *
+ * **The stylesheet's, not a script's.** Nothing about the panel changes but
+ * where it is drawn: the same element in the same place in the document, so
+ * Tab still leaves it in reading order and the four ways it closes are the
+ * four they were. A script asking the width would have to keep asking as a
+ * phone turns, and would carry a second copy of the breakpoint; a media query
+ * is asked by the browser on every frame, and is Tailwind's own. *Fixed*
+ * positioning is what takes it out of the transcript's scroller, which clipped
+ * a mention's card on any width — so long as nothing between it and the page
+ * transforms or filters, which would trap it; the transcript's arrival is the
+ * one transform, and it holds for the length of a fade.
+ *
+ * *No scrim*, because the popover is not modal: the page above the sheet is
+ * still the page, a press there still closes it, and dimming it would say
+ * otherwise. *No slide*: `enter`'s paragraph says why a panel fades where it
+ * is drawn, and the bottom of the screen is where this one is drawn.
+ */
+export const sheet =
+  'max-sm:fixed max-sm:inset-x-0 max-sm:top-auto max-sm:bottom-0 max-sm:mt-0 max-sm:w-auto max-sm:max-h-[70dvh] max-sm:overflow-y-auto max-sm:overscroll-contain max-sm:rounded-b-none max-sm:border-x-0 max-sm:border-b-0';
 
 /**
  * ***A press acknowledged*** (2026-10-13) — P12A.6, the fifth motion, and

@@ -166,6 +166,26 @@ describe('a row', () => {
   });
 
   /**
+   * ***The mode in a word, and what the modes do over the table*** (2026-10-13,
+   * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.8). The
+   * control showed a triangle, and what it meant was its `title` — which a
+   * phone never shows — so on a phone a closed folder was a triangle pointing
+   * right. Each word is a word of the name a screen reader hears. Mutations:
+   * the word not drawn; the sentence over the table dropped; the title put
+   * back as the word's only home.
+   */
+  it('says the folder mode in a word, and what open and closed do, on the page', async () => {
+    open([entry({ id: 'tag-1', name: 'noir', folder: 'closed' })]);
+    const row = await rowFor('noir');
+
+    const control = within(row).getByRole('button', { name: /Folder mode for noir/ });
+    expect(control.textContent).toContain('Closed');
+    expect(control.getAttribute('aria-label')).toContain('Closed');
+    expect(control.getAttribute('title')).toBeNull();
+    expect(screen.getByText(/Open, what it holds also stays in the list; closed/)).toBeTruthy();
+  });
+
+  /**
    * **Hidden means: not drawn on an object's chip strip, and nothing else.**
    * The checkbox is phrased as *show on cards* rather than *hidden* so the
    * stronger reading — hidden from filtering, hidden from search — has nowhere

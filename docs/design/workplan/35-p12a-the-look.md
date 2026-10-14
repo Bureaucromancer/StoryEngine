@@ -1523,7 +1523,8 @@ the server.
   the avatar and media routes take no address; and the card's panel is
   `w-64` from its trigger's start, so a mark near the end of a line on a
   narrow phone can push past the column — [P12A.8](#p12a8--the-phone-rules)'s
-  to look at.
+  to look at. *(2026-10-13, P12A.8: looked at — on a phone the card is a sheet
+  along the bottom of the screen, its full width, and anchored nowhere.)*
 - *Tests that held the old answer*: `routes/history.test.ts`'s *serves the
   avatar with the card's bytes* made an actor through the API — a blank card —
   and asserted `200`, which is the answer that drew the empty circle; it is
@@ -2643,7 +2644,11 @@ are struck with dated notes, and `moved` carries the reason in its own.
 phone `<main>` is `max-sm:hidden` while a dock is open, and `@starting-style`
 applies when an element goes from undrawn to drawn — so closing the workbench
 before the next job or move very likely draws the arrived turn arriving again.
-Likely, not run: no browser is installed where this was built.
+Likely, not run: no browser is installed where this was built. *(2026-10-13,
+[P12A.8](#p12a8--the-phone-rules): left again, with the reason — the repairs are
+the page knowing the shell hid it, or `<main>` hidden by something other than
+`display: none` — in that stage's record, and T4's note asks the walker to
+look.)*
 
 **Four sentences said every button presses, and only `ui/Button`'s do.** T5's
 walker note told a walker to hold *any* button down; [polish §11](06-polish.md)'s
@@ -2968,6 +2973,213 @@ client has five breakpoint usages in total, so this stage is mostly an audit
 producing a small number of fixes plus the lint or test that keeps them fixed.
 `reveal` is the good case to generalise from — it carries an
 `[@media(hover:none)]` arm because someone thought about it once.
+
+***Built 2026-10-13***, under [§0.4](#04-what-the-audit-of-2026-10-13-found-and-what-each-finding-decides)'s
+decisions for this stage, which were binding on it: the audit's list is the
+stage's work list, and its test refuses a reveal on hover outside the recipe and
+a control whose only explanation is a `title`. *The phone*, throughout, is
+`max-sm:` — below Tailwind's `sm` breakpoint, 40rem, the client's one spelling of
+a phone. Six things.
+
+- **The popover is a sheet on a phone.** `sheet` in `ui/classes.ts`, spent by
+  `ui/Popover` in both its placements: below `sm` the panel leaves its anchor for
+  the bottom edge of the screen, the screen's full width, up to seven-tenths of
+  its height and scrolling inside itself with its scroll kept from running into
+  the page, square at the bottom and ruled along its top. **The stylesheet's, not
+  a script's**: the same element in the same place in the document, so Tab
+  leaves it in reading order and the four ways it closes, Escape's hand-back and
+  the stranded keyboard's are the desk's. *Fixed* positioning is what also takes
+  a mention's card out of the transcript's scroller, which clipped it. **No
+  scrim** — the popover is not modal, and a press above the sheet closes it as a
+  press outside always has. A mention's card near the end of a line no longer
+  runs past the screen's edge, which [P12A.3](#p12a3--faces) left here.
+- **The assistant has a phone arm, and the two panels are a stack.** It is the
+  screen's width below `sm`, as the workbench has been since
+  [polish §15](06-polish.md). With both open they cannot share 375px — the dock
+  is `shrink-0` at the screen's width, so the assistant beside it was crushed to
+  its border — and **the assistant covers the dock** (`Workbench`'s `covered`),
+  which is hidden beneath it and not closed: whether the dock is open is the
+  account's preference and a desk may be showing it, and what is typed in it is
+  still there when the assistant goes, since nothing in it is unmounted. *The assistant on top*, by
+  the shell's own rule for the pair — summoned last, dismissed first — and
+  because a panel summoned for a question should not open under the thing it
+  was summoned over. **Workbench uncovers the dock**: on a phone with the
+  assistant open, the press, or the chord, dismisses the assistant and opens the
+  dock if it was shut, where a toggle would have closed a dock nobody could see.
+  *On a phone* is asked at the press (`ui/phone.ts`), in the stylesheet's own
+  query; on a desk nothing changes. **The dock's splitter is not drawn on a
+  phone**, where the stored width is never read and a drag would write the width
+  a desk opens at.
+- **The dialog stays a centred modal**, decided and said in its docstring: it is
+  the screen's width less the page's 1rem gutter and scrolls inside its own
+  height, which is not a shrunken panel, and a question that must be answered
+  before anything else, under a scrim, with the keyboard held, is what a phone
+  wants a modal for — the model [P3](15-p3-implementation.md)'s P3.8 named. The
+  popover was the shrunken panel, and it is the one that became a sheet.
+- **`reveal` is the whole reveal, one string per group, and a hidden row takes no
+  tap.** Its four call sites wrote the arms that bring the row back — under the
+  pointer and on the keyboard — themselves, naming their group; the arms are the
+  recipe's now (`reveal.turn`, `.line`, `.entry`), since Tailwind emits a class
+  it can read whole and a group's name is part of the class, and the test holds
+  the three to one recipe. **The hybrid device**: a laptop with a touchscreen
+  answers *yes* to `(hover: hover)`, so the row was transparent there and a
+  finger landing on it pressed a control nobody could see. The row now ignores
+  the pointer while hidden and takes it wherever it is shown, so the tap goes
+  through to the turn, which a touch screen reports as hovered: the first tap
+  shows the row and the second presses what it shows. The quiet version the
+  recipe kept for that laptop is kept.
+- **Every `title` the audit listed was judged**, and the essential ones are said
+  on the page. *Essential* is what a phone user needs in order not to act wrongly
+  or to know what a control did:
+
+  | Site | Judged | Now |
+  |---|---|---|
+  | Turn kinds (`InputKind`) | Essential for *Think* — *Nobody hears this* is the kind, and the one taken for *Say* | The chosen kind's hint beside the row, describing the chosen button; the titles stay as a pointer's preview of the others |
+  | Auto-mode (`ChatComposer`) | Essential — it sends on its own, and how it stops was only the label's title | A line under the controls while it is on, describing the switch; the title gone |
+  | A scoped character or world *Missing* (`BookScope`) | Essential — no sentence anywhere said why | The field's hint while any value is Missing, as `HookFields` did on 2026-10-10; the per-chip title kept |
+  | *Unknown kind* on a World's member (`MembersField`) | Essential — a word nobody explained invites tidying away a member the world carries intact | A note under the list, `missingNote`'s sibling, on the editor and the World's page |
+  | *Missing* on a World's member, and on a hook's character or hook (`MembersField`, `HookFields` ×3) | Decoration — the note or the field's hint already says it | Unchanged |
+  | A picture's badge in the block table | Essential — *why* it went as words is what the badge is for | A line of the row; `pictureBadge`'s `title` renamed `why` |
+  | *Linked*, *World*, *Memories* on a lorebook shelf | Essential — *Linked*'s is the sentence that stops a reader believing a book is in play | A legend under the shelf (`ui/Legend`), one line for each badge it is wearing; the titles gone |
+  | *Off* on a lorebook shelf | Decoration — the title is the word in a sentence | Unchanged |
+  | An import's counts (`ImportPanel`, `ImportBackup`) | Essential — `DISPOSITION_HELP` called itself *the one place a person can read it* | A legend under the counts, a line for each class counted; the titles gone |
+  | The header's **Workbench** and **Assistant** | Decoration — each shows its name, and the chord needs a keyboard | Unchanged |
+  | The account's name in the header | Decoration — a truncation's tooltip, on your own name | Unchanged |
+  | The selector bar's **Select several** | Decoration — Ctrl-click is a pointer's path; the toggle the title sits on is the phone's | Unchanged |
+
+  *Found by the scan, and in no audit*: **the tag manager's folder mode** was a
+  glyph whose meaning was its title — essential, since a closed folder hides its
+  members from the list — and is a word inside the button now, each a word of
+  the name a screen reader hears, with a sentence over the table saying what
+  open and closed do; **the handle field** on the first-run form kept its whole
+  rule — the first character and the last — in its title, the browser's message
+  for a pattern, and the sentence under the box says all of it now and describes
+  the box; **a colour swatch** and **the context meter** are titled controls
+  named by `aria-label`, judged decoration — the swatch's colour is its content,
+  the meter's figure is drawn and its press opens what the sentence describes —
+  and are the test's two recorded exemptions, each with its reason.
+- **The test that keeps them fixed**, a new describe in `theme.test.ts`, *the
+  phone rules*, beside the scans that already read the client's class lists.
+  **A reveal on hover is a recipe's**: a class under a hover variant (`hover`, a
+  group's or a peer's, an arbitrary variant naming one) that decides whether a
+  thing is seen or takes a press — opacity, visibility, display, `sr-only`,
+  `pointer-events` — and a hidden state at rest that only a reveal needs, are
+  refused anywhere but `ui/classes.ts`; `reveal` is held to the same three ways
+  back in every group, with the press following the sight, and to nothing at
+  rest. **A control's explanation is not its title alone**: a `title` on an
+  interactive element — a native control or link, a summary, a label, `Button`,
+  `Link`, or anything with a click handler, an `href`, a tab stop or an
+  interactive role — is refused unless the element carries `aria-describedby`,
+  or shows its own name as text: children, and no `aria-label` standing in for
+  them. The JSX is read by a small tag reader over comment-stripped source, which
+  skips a type's arguments and a comparison and reads past an arrow or a brace in
+  a string inside an attribute; `sheet` is held to the phone alone, and the
+  press's phone query to Tailwind's own breakpoint, with `index.css` refused one
+  of its own.
+
+**What the stage text said and what turned out different:**
+
+- *"The client has five breakpoint usages in total"* — §0.4's count at
+  `e460b637`; this stage opened on twelve classes under a breakpoint, in seven
+  files, P12A.2's backdrop and veil among them, and closes on twenty-seven in
+  nine, the sheet's twelve the most of them — counted in code, not comments.
+- *"Mostly an audit producing a small number of fixes"* — the audit was §0.4's,
+  and the fixes were the explanations: no essential action was hover-only, as
+  §0.4 found, and the sheet, the assistant's arm and the stack were the
+  structural work.
+- *"`reveal` is the good case to generalise from"* — generalised in place rather
+  than copied: its arms moved into it, and the scan refuses the next one written
+  anywhere else.
+- *"The lint or test"* — a source scan, as the brief asked, beside the scans that
+  read class lists already, so the hover half shares their lexer. An ESLint rule
+  over the JSX tree would read a tag's attributes exactly where the scan's
+  reader reads text; it is the obvious next home if the reader's blind spots
+  start to matter.
+- *A jsdom check under a phone's viewport*: the sheet is the stylesheet's, so a
+  `matchMedia` stub has no branch to test. What jsdom can hold is held instead —
+  both placements carry the arm, and a viewport answering *phone* draws the same
+  element in the same place as one answering *desk*, which is the half of the
+  decision a script would break.
+
+**Not done, and said:**
+
+- **The turn that last arrived fades in again when the dock closes on a phone**,
+  very likely — [P12A.6](#p12a6--motion-five-of-them)'s after-review left it
+  here or to T5. `<main>` is `display: none` under an open panel, and
+  `@starting-style` applies again when it is drawn. The repairs are the page
+  knowing the shell hid it, or `<main>` hidden by something other than
+  `display: none`, which would lay the whole transcript out at no width at all;
+  neither is a phone rule, and T4's note asks the walker to look.
+- **A touch that starts a scroll outside an open sheet closes it**, as any press
+  outside has always closed the popover — so a correction half typed in a strip
+  entry is written when the reader scrolls the story to check a word. The same
+  is true of a desk's press; T4's note asks whether a phone makes it a trap.
+- **A sheet holding a text box, under a phone's keyboard**, and where a sheet
+  lands at all, are T4's: jsdom draws nothing.
+- **A colour swatch's name** reaches a screen reader and a pointer, not a
+  colour-blind reader on a phone — the exemption's reason says so.
+- **Three hand-drawn overlays do not spend `sheet`**: `editor/FieldAssist.tsx`'s
+  assist panel is a fixed 18rem from its field's end, which fits a phone; the
+  `TokenField` suggestion list must stay under its box, as a combobox's list
+  does; and the notification toast spans the screen less one gutter.
+- **Workbench's `aria-expanded` says open while the assistant covers the dock on
+  a phone** — it is open, beneath — and a press uncovers it.
+- *Not looked at in a browser* — none is installed where this was built.
+
+**Tests, each checked against a mutation and restored.** In `theme.test.ts`'s
+new *the phone rules*: *reveals nothing on hover but through a recipe* fails
+with a group's hover arm written back at `PlayPage`'s call site, with a hidden
+span shown by group hover in `InputKind`, and with `invisible` at rest in a
+class list; *reads the hover arms it is meant to* fails with the detector made
+blind to group and peer hover; *brings the row back the same three ways in every
+group, and lets it take a press only then* fails with one group's at-rest
+pointer arm dropped, with every group's, and with the touch arm for presses
+dropped from all three; *makes a panel a sheet on a phone, and nowhere else*
+fails with the bottom edge unprefixed and with it dropped; *asks the
+stylesheet's question* fails with the query at 48rem; *leaves no control
+explained by its title alone* fails with the folder button's title put back,
+with the handle field's description removed, and with the swatch's exemption
+removed; *reads the controls it is meant to* fails with the tag reader made
+blind, with its `return` guard and its type-argument guard each removed, with
+the brace matcher reading strings as code, and with `aria-label` not consulted;
+*keeps no reason for a control that has gone* fails with the meter's title
+removed. In `ui/Popover.test.tsx`: *is a sheet in both its places* fails with
+the arm dropped from either placement; *draws the same panel in the same place,
+whatever the viewport says* fails with a class chosen by `matchMedia`. In
+`Shell.test.tsx`'s new *the two panels on a phone*: the cover test fails with
+`covered` not passed; the uncover test with the press's phone branch removed;
+the shut-dock test with that branch removed and with it not opening a shut
+dock; the desk test with the branch taken on a desk. `AssistantPanel.test.tsx`'s
+width test fails with the arm dropped; `dock.test.tsx`'s splitter test with the
+handle's arm dropped. `InputKind.test.tsx`'s hint tests fail with the hint not
+drawn, with it describing nothing, and with the first kind's hint drawn before a
+choice; the new `play/ChatComposer.test.tsx` fails with the sentence always
+drawn, never drawn, and describing nothing. The unknown-kind note fails in
+`MembersField.test.tsx` and `ObjectDetailPage.test.tsx` with it dropped from
+each list; `LorebookEditorPage.test.tsx`'s Missing hint with the hint never
+given and with it given whenever a world is held; `BlockTable.test.tsx`'s
+reason with the line removed and with a fixed reason; `LibraryPage.test.tsx`'s
+two legend tests with the legend not drawn, drawn for every badge whatever the
+shelf wears, with *Off* given a line, and with the *Memories* line dropped;
+`ImportPanel.test.tsx`'s with the legend not drawn and drawn for every class,
+and `ImportBackup.test.tsx`'s with it not drawn there; `TagManagerDialog.test.tsx`'s
+with the word not drawn, the sentence dropped and the title put back; and
+`auth/forms.test.tsx`'s with the box undescribed and with the rule's second half
+cut. *Tests that held the old answer*: `BlockTable.test.tsx` read the reasons
+from titles, and `LibraryPage.test.tsx` the *World* badge's; both read the page
+now. `ImportPanel.test.tsx`'s two tests found each class's word once, and the
+word is in the legend too, so they read the counts' items. `i18n/catalogue.test.ts`
+exempts `reveal`, a table of classes. The client's 166 test files pass after the
+build, `tailwind-utilities.test.ts` among them, and the release project with
+them. *Not looked at in a browser.*
+
+**Entry after: 321.12 kB, CSS 8.98** — **320.18 and 8.66 before**, at
+`423da949`, gzip level 9 over the files `index.html` pulls, the budget test's
+method. **+0.94 kB**: the sentences made visible — the badge and folder tables,
+the new notes and hints — with `ui/Legend`, the phone's press and its query, the
+cover, and the three reveal strings; **CSS +0.32**, the sheet's phone block,
+the reveal's pointer arms in three groups, and the legend's grid. **3.88 kB is
+left** under the 325 ceiling, so no raise.
 
 ---
 

@@ -62,9 +62,9 @@ stops at once.
 - **Push the story** — **Naturally** or **With a surprise** — nudges the next reply to
   move things on. It costs one small model call before the reply.
 - **Let them keep talking on their own**, with **Seconds of quiet** (5 by default),
-  sends **Let them talk** whenever the chat has been quiet that long. Typing, **Stop**,
-  opening an edit box, a failed turn or nobody being able to reply turns it off, and it
-  is forgotten when the page reloads.
+  sends **Let them talk** whenever the chat has been quiet that long — while it is on,
+  a line under it says so. Typing, **Stop**, opening an edit box, a failed turn or
+  nobody being able to reply turns it off, and it is forgotten when the page reloads.
 
 ### Who replies
 

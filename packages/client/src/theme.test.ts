@@ -2,13 +2,15 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { readdirSync, readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
 import * as recipes from './ui/classes.js';
-import { page, story, strip as stripItem } from './ui/classes.js';
+import { page, reveal, sheet, story, strip as stripItem } from './ui/classes.js';
+import { PHONE } from './ui/phone.js';
 
 /**
  * The palette, checked as a thing with rules rather than read as decoration.
@@ -420,6 +422,17 @@ function utilityOf(token: string): string {
 }
 
 /**
+ * A literal that reads as a class list rather than as a sentence.
+ *
+ * *Hoisted out of the radius scan* (2026-10-13, [P12A.8]), because the phone
+ * rules' scan asks the same question of a bare word: *invisible* is a class
+ * in a class list and an adjective in a sentence, and a labels table has
+ * sentences.
+ */
+const classList = (text: string): boolean =>
+  !/[A-Z]/.test(text) && text.split(/\s+/).some((token) => /^[!-]?[a-z[@][^\s]*[-:]/.test(token));
+
+/**
  * ***Radius, elevation and motion are spent by name*** (2026-10-13) — [P12A.0].
  *
  * The palette rule's other half. ESLint refuses a palette scale because a
@@ -509,10 +522,6 @@ describe('radius, elevation and motion are spent by name', () => {
     }
     return null;
   }
-
-  /** A literal that reads as a class list rather than as a sentence. */
-  const classList = (text: string): boolean =>
-    !/[A-Z]/.test(text) && text.split(/\s+/).some((token) => /^[!-]?[a-z[@][^\s]*[-:]/.test(token));
 
   const scanned = sources(ROOT).flatMap((path) => {
     const inRecipes = path.endsWith(RECIPES);
@@ -963,5 +972,413 @@ describe('the HUD strip', () => {
       expect(spent, file).toContain('flex');
       expect(spent, file).not.toContain(FAINT);
     }
+  });
+});
+
+/**
+ * ***The phone rules*** (2026-10-13) — [P12A.8], and
+ * [10 §1.3](../../../docs/design/10-ui-surfaces.md)'s two sentences: *sheets
+ * rather than shrunken panels*, and *no essential action that exists only on
+ * hover*. Both were written, and neither was enforced; the second had been
+ * met by hand, once, in the recipe above, and broken by a `title` in a dozen
+ * places nobody counted as hover.
+ *
+ * **What a scan can hold, and what it says it cannot.**
+ *
+ * - ***A reveal on hover is a recipe's.*** A class that shows something —
+ *   its opacity, its visibility, its display, whether it takes a press — under
+ *   a hover variant (`hover`, a group's or a peer's hover, an arbitrary
+ *   variant that names one), and a hidden state at rest that only a reveal
+ *   needs, are refused anywhere but `ui/classes.ts`, where `reveal` holds its
+ *   arms for every group by name and is held below to its touch arm and its
+ *   keyboard arm. *It cannot see* a reveal by size, clip, colour or transform,
+ *   a class assembled at run time, an inline `style`, a rule in `index.css`,
+ *   or a script that shows a thing on a pointer's arrival — `TokenField`'s one
+ *   pointer handler moves a highlight and reveals nothing, which was read.
+ * - ***A control's explanation is not its title alone.*** A `title` on an
+ *   interactive element — a native control or link, a summary, a label,
+ *   `Button` and `Link`, or anything given a click handler, an `href`, a tab
+ *   stop or an interactive role — is refused unless the element carries
+ *   `aria-describedby`, or shows its own name as text: it has children, and
+ *   no `aria-label` or `aria-labelledby` standing in for them. An element
+ *   named by an attribute is one whose content is not its name — a glyph, a
+ *   bar, a colour — and its title is then the only words a sighted reader is
+ *   given, which a phone never shows. *It cannot see* what a child expression
+ *   renders (a glyph in an expression with no `aria-label` passes as text), a
+ *   title passed through a spread or by a component this scan does not know
+ *   to forward one, an element made interactive by a script, or whether the
+ *   text it calls visible is hidden at a phone's width. ***And it does not
+ *   judge a title on what cannot be pressed*** — a badge, a span, a list
+ *   item: no phone and no keyboard ever reaches one, so whether it was
+ *   essential is a judgement per site, and P12A §2's record makes each.
+ *   `DECORATION` is the list of controls whose title was judged a
+ *   decoration a phone can lose, each with its reason, and a reason for a
+ *   control that has gone fails as stale.
+ *
+ * Calibrated, both: a reader that stopped finding hover arms or titled
+ * controls would pass, so each counts what it must find.
+ */
+describe('the phone rules', () => {
+  const ROOT = fileURLToPath(new URL('.', import.meta.url));
+  const RECIPES = join('ui', 'classes.ts');
+
+  function sources(dir: string, pattern: RegExp): string[] {
+    return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+      const path = join(dir, entry.name);
+      if (entry.isDirectory()) return sources(path, pattern);
+      if (!pattern.test(entry.name) || /\.test\.tsx?$/.test(entry.name)) return [];
+      return [path];
+    });
+  }
+
+  /** The variants a class is written under — `utilityOf`'s other half. */
+  function variantsOf(token: string): string[] {
+    const found: string[] = [];
+    let depth = 0;
+    let start = 0;
+    for (let i = 0; i < token.length; i += 1) {
+      const char = token[i];
+      if (char === '[' || char === '(') depth += 1;
+      else if (char === ']' || char === ')') depth -= 1;
+      else if (char === ':' && depth === 0) {
+        found.push(token.slice(start, i));
+        start = i + 1;
+      }
+    }
+    return found;
+  }
+
+  /** A variant that holds only while something is hovered. */
+  const onHover = (variant: string): boolean =>
+    /^(?:hover|(?:group|peer)-hover(?:\/.+)?|in-hover)$/.test(variant) ||
+    (variant.startsWith('[') && /:hover\b|\bhover:hover\b/.test(variant));
+  /** A utility that decides whether a thing is seen, or takes a press, at all. */
+  const SEEN =
+    /^(?:opacity-.+|visible|invisible|collapse|hidden|block|inline|inline-block|inline-flex|inline-grid|flex|grid|contents|flow-root|table|sr-only|not-sr-only|pointer-events-.+)$/;
+  /** A hidden state at rest, which nothing but a reveal needs. */
+  const UNSEEN = new Set(['invisible', 'opacity-0']);
+
+  /** Why a class is a reveal that belongs in a recipe, or `null`. */
+  function hoverRefusal(token: string, listed: boolean): string | null {
+    const variants = variantsOf(token);
+    const utility = utilityOf(token);
+    if (variants.some(onHover) && SEEN.test(utility)) return 'shown on hover';
+    if ((listed || variants.length > 0) && UNSEEN.has(utility)) return 'hidden until revealed';
+    return null;
+  }
+
+  function hoverRefusals(path: string): { path: string; token: string; why: string }[] {
+    return literals(strip(readFileSync(path, 'utf8'))).flatMap((text) => {
+      const listed = classList(text);
+      return text
+        .split(/\s+/)
+        .filter((token) => token !== '')
+        .flatMap((token) => {
+          const why = hoverRefusal(token, listed);
+          return why === null ? [] : [{ path: path.slice(ROOT.length), token, why }];
+        });
+    });
+  }
+
+  const scripts = sources(ROOT, /\.tsx?$/);
+
+  it('reveals nothing on hover but through a recipe', () => {
+    const offenders = scripts
+      .filter((path) => !path.endsWith(RECIPES))
+      .flatMap(hoverRefusals)
+      .map(({ path, token, why }) => `${path}: ${token} — ${why}, outside ui/classes.ts`);
+    expect(offenders).toEqual([]);
+  });
+
+  it('reads the hover arms it is meant to', () => {
+    // The client is full of hover arms that show nothing — a ground, an
+    // ink, an underline — so a reader that found none has gone blind.
+    const hovered = scripts.flatMap((path) =>
+      literals(strip(readFileSync(path, 'utf8')))
+        .flatMap((text) => text.split(/\s+/))
+        .filter((token) => variantsOf(token).some(onHover)),
+    );
+    expect(hovered.length).toBeGreaterThanOrEqual(30);
+    // And it would refuse the recipe's own arms, were they written anywhere
+    // else: each group's two hover arms and its hidden state, three groups.
+    const inRecipes = hoverRefusals(join(ROOT, RECIPES)).map(({ token }) => token);
+    for (const group of Object.keys(reveal)) {
+      expect(inRecipes).toEqual(
+        expect.arrayContaining([
+          `group-hover/${group}:opacity-100`,
+          `group-hover/${group}:pointer-events-auto`,
+        ]),
+      );
+    }
+    expect(inRecipes.filter((token) => token === 'opacity-0').length).toBeGreaterThanOrEqual(3);
+  });
+
+  /**
+   * `reveal` is one recipe per group because a group's name is part of the
+   * class. What makes it *one* recipe is held here: the strings differ in the
+   * name and nothing else, and each shows the row the same three ways — the
+   * group hovered, the keyboard inside it, a device that cannot hover — and
+   * lets it take a press under exactly those, and not at rest.
+   */
+  it('brings the row back the same three ways in every group, and lets it take a press only then', () => {
+    const groups = Object.entries(reveal);
+    expect(groups.length).toBeGreaterThanOrEqual(3);
+    const shapes = groups.map(([group, text]) =>
+      text.split(/\s+/).map((token) => token.replace(`/${group}:`, '/*:')),
+    );
+    for (const shape of shapes) expect(shape).toEqual(shapes[0]);
+
+    for (const [group, text] of groups) {
+      const tokens = text.split(/\s+/);
+      const at = (utility: string): string[] =>
+        tokens
+          .filter((token) => utilityOf(token) === utility && variantsOf(token).length > 0)
+          .map((token) => variantsOf(token).join(':'));
+      const ways = ['[@media(hover:none)]', `group-focus-within/${group}`, `group-hover/${group}`];
+      expect(at('opacity-100').sort(), `${group}: what shows the row`).toEqual([...ways].sort());
+      expect(at('pointer-events-auto').sort(), `${group}: what lets it be pressed`).toEqual(
+        [...ways].sort(),
+      );
+      const rest = tokens.filter((token) => variantsOf(token).length === 0).map(utilityOf);
+      expect(rest, `${group} at rest`).toEqual(
+        expect.arrayContaining(['opacity-0', 'pointer-events-none']),
+      );
+    }
+  });
+
+  it('makes a panel a sheet on a phone, and nowhere else', () => {
+    const tokens = sheet.split(/\s+/);
+    // Every class is the phone's: on a desk the panel is where it was opened.
+    expect(tokens.filter((token) => variantsOf(token).join(':') !== 'max-sm')).toEqual([]);
+    // Along the bottom edge, the screen's width, and scrolling in itself.
+    expect(tokens.map(utilityOf)).toEqual(
+      expect.arrayContaining(['fixed', 'inset-x-0', 'bottom-0', 'top-auto', 'overflow-y-auto']),
+    );
+    expect(tokens.map(utilityOf).some((utility) => utility.startsWith('max-h-'))).toBe(true);
+  });
+
+  it('asks the stylesheet’s question when a press asks whether this is a phone', () => {
+    const require = createRequire(import.meta.url);
+    const tailwind = readFileSync(require.resolve('tailwindcss/theme.css'), 'utf8');
+    const breakpoint = /--breakpoint-sm:\s*([^;]+);/.exec(tailwind)?.[1]?.trim();
+    expect(breakpoint).toBeDefined();
+    // `max-sm:` compiles to *not all and (width >= sm)*; this is that query in
+    // the older spelling every browser parses, and the client may not move
+    // the breakpoint out from under it.
+    expect(PHONE).toBe(`not all and (min-width: ${breakpoint ?? ''})`);
+    expect(CODE).not.toMatch(/--breakpoint-sm\s*:/);
+  });
+
+  // ——— A control's title ———
+
+  interface Tag {
+    name: string;
+    attrs: Map<string, string>;
+    selfClosing: boolean;
+    /** What follows the tag, so its first child can be seen. */
+    after: string;
+  }
+
+  /** From an opening `{`, the index after its partner — strings and templates skipped. */
+  function balanced(source: string, open: number): number | null {
+    let depth = 0;
+    let at = open;
+    while (at < source.length) {
+      const char = source[at];
+      if (char === '"' || char === "'") {
+        at += 1;
+        while (at < source.length && source[at] !== char && source[at] !== '\n') {
+          if (source[at] === '\\') at += 1;
+          at += 1;
+        }
+      } else if (char === '`') {
+        at += 1;
+        while (at < source.length && source[at] !== '`') {
+          if (source[at] === '\\') at += 1;
+          else if (source[at] === '$' && source[at + 1] === '{') {
+            const close = balanced(source, at + 1);
+            if (close === null) return null;
+            at = close;
+            continue;
+          }
+          at += 1;
+        }
+      } else if (char === '{') depth += 1;
+      else if (char === '}') {
+        depth -= 1;
+        if (depth === 0) return at + 1;
+      }
+      at += 1;
+    }
+    return null;
+  }
+
+  /** The attributes of the JSX tag whose name ends at `start`, or `null` if it is not one. */
+  function readTag(source: string, start: number): Omit<Tag, 'name'> | null {
+    const attrs = new Map<string, string>();
+    let at = start;
+    const space = (): void => {
+      while (at < source.length && /\s/.test(source[at] ?? '')) at += 1;
+    };
+    while (at < source.length) {
+      space();
+      if (source[at] === '>') return { attrs, selfClosing: false, after: source.slice(at + 1) };
+      if (source.startsWith('/>', at)) return { attrs, selfClosing: true, after: '' };
+      if (source[at] === '{') {
+        const close = balanced(source, at);
+        if (close === null) return null;
+        at = close;
+        continue;
+      }
+      const name = /^[A-Za-z_][\w:.-]*/.exec(source.slice(at, at + 64))?.[0];
+      if (name === undefined) return null;
+      at += name.length;
+      space();
+      if (source[at] !== '=') {
+        attrs.set(name, '');
+        continue;
+      }
+      at += 1;
+      space();
+      const quote = source[at];
+      if (quote === '"' || quote === "'") {
+        const close = source.indexOf(quote, at + 1);
+        if (close === -1) return null;
+        attrs.set(name, source.slice(at + 1, close));
+        at = close + 1;
+      } else if (quote === '{') {
+        const close = balanced(source, at);
+        if (close === null) return null;
+        attrs.set(name, source.slice(at + 1, close - 1).trim());
+        at = close;
+      } else return null;
+    }
+    return null;
+  }
+
+  /** Every JSX opening tag in a source, read past its comments. */
+  function tagsOf(text: string): Tag[] {
+    const source = strip(text);
+    return [...source.matchAll(/<([A-Za-z][\w.]*)/g)].flatMap((match) => {
+      // A type's arguments or a comparison, not a tag: `useState<`, `a<b`,
+      // `)<` — but `return <div` is a tag.
+      const before = /([\w$)\]]+)\s*$/.exec(
+        source.slice(Math.max(0, match.index - 16), match.index),
+      );
+      if (before !== null && before[1] !== 'return') return [];
+      const tag = readTag(source, match.index + match[0].length);
+      return tag === null ? [] : [{ name: match[1] ?? '', ...tag }];
+    });
+  }
+
+  const INTERACTIVE = new Set([
+    'a',
+    'button',
+    'input',
+    'select',
+    'textarea',
+    'summary',
+    'label',
+    'Button',
+    'Link',
+  ]);
+  const ROLES =
+    /^(?:button|link|checkbox|radio|switch|tab|menuitem|menuitemcheckbox|menuitemradio|option|slider|spinbutton|combobox|textbox)$/;
+  const interactive = (tag: Tag): boolean =>
+    INTERACTIVE.has(tag.name) ||
+    tag.attrs.has('onClick') ||
+    tag.attrs.has('href') ||
+    tag.attrs.has('tabIndex') ||
+    ROLES.test(tag.attrs.get('role') ?? '');
+
+  /** Why a titled control is explained by its title alone, or `null`. */
+  function titleOnly(tag: Tag): string | null {
+    if (!tag.attrs.has('title') || !interactive(tag)) return null;
+    if (tag.attrs.has('aria-describedby')) return null;
+    if (tag.selfClosing || /^\s*<\//.test(tag.after)) return 'it has no text of its own';
+    if (tag.attrs.has('aria-label') || tag.attrs.has('aria-labelledby')) {
+      return 'it is named by an attribute, so its title is the only words a sighted reader gets';
+    }
+    return null;
+  }
+
+  /**
+   * ***Controls whose title was judged a decoration a phone can lose*** —
+   * keyed by file, tag and the title's own expression, each with the reason
+   * it was judged so (P12A.8). A new one is a decision, made here in words.
+   */
+  const DECORATION: Record<string, string> = {
+    'tags/TagManagerDialog.tsx:button:props.label':
+      'A colour swatch. The colour is what is chosen, and the button shows it; its name is a second channel for a reader who cannot tell two colours apart — a screen reader has it from the name, a pointer from the title, and a phone, for now, from neither, which P12A §2 records as the limit.',
+    'play/ContextMeter.tsx:button:text':
+      'The context meter. Its figure is drawn beside its bar, its press opens the turn record the sentence describes, and its title repeats the name a screen reader is given.',
+  };
+
+  const titled = sources(ROOT, /\.tsx$/).flatMap((path) =>
+    tagsOf(readFileSync(path, 'utf8'))
+      .filter((tag) => tag.attrs.has('title') && interactive(tag))
+      .map((tag) => ({
+        tag,
+        key: `${path.slice(ROOT.length)}:${tag.name}:${tag.attrs.get('title') ?? ''}`,
+      })),
+  );
+
+  it('leaves no control explained by its title alone', () => {
+    const offenders = titled
+      .filter(({ key }) => DECORATION[key] === undefined)
+      .flatMap(({ tag, key }) => {
+        const why = titleOnly(tag);
+        return why === null ? [] : [`${key} — ${why}`];
+      });
+    expect(offenders).toEqual([]);
+  });
+
+  it('reads the controls it is meant to', () => {
+    // The header's two panel buttons, the selector bar's toggle, the turn
+    // kinds, a swatch, the meter and the handle's field are titled controls
+    // today; a reader that found fewer has stopped reading tags.
+    expect(titled.length).toBeGreaterThanOrEqual(7);
+    // And it reads what decides the rule, not only the title: the handle's
+    // field is described by its sentence, and a swatch is named by a label.
+    const at = (key: string): Tag | undefined => titled.find((one) => one.key === key)?.tag;
+    expect(
+      at(
+        'auth/forms.tsx:input:Lowercase letters, digits and hyphens, starting with a letter or a digit and not ending in a hyphen.',
+      )?.attrs.has('aria-describedby'),
+    ).toBe(true);
+    const swatch = at('tags/TagManagerDialog.tsx:button:props.label');
+    expect(swatch?.attrs.has('aria-label')).toBe(true);
+    expect(swatch === undefined ? null : titleOnly(swatch)).not.toBeNull();
+    // And the reader's edges, on a source written for them: a tag straight
+    // after `return` is a tag, a type's arguments and a comparison are not,
+    // an arrow inside an attribute does not end the tag, nor a brace inside a
+    // string inside one, and each of the rule's answers comes back.
+    const read = tagsOf(
+      [
+        'const x = useState<string>(a<b);',
+        'return <button title="Close" aria-label="Close the panel" onClick={() => a > b}>X</button>;',
+        '<a href="/x" title="Where it goes">Somewhere</a>',
+        '<input title="A rule" />',
+        '<span title="Only a span">Off</span>',
+        '<Button title="Says }" onClick={() => say("}")} aria-describedby="why">Go</Button>',
+      ].join('\n'),
+    );
+    expect(read.map((tag) => tag.name)).toEqual(['button', 'a', 'input', 'span', 'Button']);
+    expect(read.map(titleOnly)).toEqual([
+      expect.stringMatching(/named by an attribute/),
+      null,
+      expect.stringMatching(/no text of its own/),
+      null,
+      null,
+    ]);
+  });
+
+  it('keeps no reason for a control that has gone, or that no longer needs one', () => {
+    const live = new Map(titled.map(({ tag, key }) => [key, tag]));
+    const stale = Object.keys(DECORATION).filter((key) => {
+      const tag = live.get(key);
+      return tag === undefined || titleOnly(tag) === null;
+    });
+    expect(stale).toEqual([]);
   });
 });

@@ -55,7 +55,8 @@ Each row is the object's name, with **Yours** or **System**. On the **Lorebooks*
 a book can also say **Off** (switched off), **Linked** (written for particular
 characters — only when it names at least one), **World** (for sessions started in
 particular worlds — only when it names at least one) or **Memories** (written by
-play). **Shadowed** means another folder on disk holds the same object; see
+play); under the shelf, a line for each of the last three it is showing says what that
+badge means. **Shadowed** means another folder on disk holds the same object; see
 [Files on disk](#files-on-disk).
 
 **New actor**, **New lorebook** and the other **New** buttons are under the kind bar;
@@ -257,9 +258,9 @@ tags with their order, **Colour**, folder setting and how many objects use them:
   listed**, each with **Add**.
 - A colour — None, Rose, Amber, Lime, Teal, Sky, Violet, Fuchsia or Stone — shown on
   the shelf's tag chips and folder rows, in a character's **Tags** box and here.
-- **Folder** — a small button that cycles, one click at a time, through not a folder,
-  an open folder (*Open folder — members also stay in the list*) and a closed folder
-  (*Closed folder — members hidden until it is opened*).
+- **Folder** — a small button that cycles, one click at a time, through **Not a folder**,
+  **Open** and **Closed**. An open folder's members also stay in the list; a closed
+  folder's are hidden there until it is opened, which the line over the table says too.
 - **On cards** — whether the tag shows in the lorebook shelf's Tags column.
 - **Rename** — renames the tag everywhere it is linked. If lorebook entries gate on the
   old name and a linked character carries the tag, it asks whether to update them too:

@@ -74,8 +74,20 @@ const WORDS = labels('assistant.panel', {
  * `tailwind-utilities.test.ts` reads quoted literals only, so a utility
  * misspelt here would have passed the one test that exists to catch it.
  * Quoted, the test reads it again.
+ *
+ * ***The view, on a phone*** (2026-10-13,
+ * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.8). It
+ * had no phone arm: under the `sm` breakpoint the shell hides the page while
+ * a panel is open, and this one stayed 28rem wide at most beside the space
+ * the page had left — on a phone held sideways, a third of the screen bare.
+ * Below `sm` it is the screen's width, as the workbench is:
+ * [10 §7](../../../../docs/design/10-ui-surfaces.md) calls it *the same shape
+ * as the workbench (§3)*, and on a phone that shape is the view. With both
+ * open, the shell covers the workbench with this one rather than letting the
+ * two share the width; `Shell.tsx` says why that and not the other way round.
  */
-const ASIDE = 'flex w-full max-w-md min-w-0 flex-col border-s border-line bg-surface';
+const ASIDE =
+  'flex w-full max-w-md min-w-0 flex-col border-s border-line bg-surface max-sm:max-w-none';
 
 export function AssistantPanel(props: { onClose: () => void }): JSX.Element {
   const { sessionId, pending, failed, start, starting, startError } = useAssistantSession(true);

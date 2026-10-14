@@ -140,4 +140,20 @@ describe('the panel', () => {
     const classes = (panel.getAttribute('class') ?? '').split(' ');
     expect(enter.split(' ').filter((token) => !classes.includes(token))).toEqual([]);
   });
+
+  /**
+   * ***The screen's width on a phone, as the workbench is*** (2026-10-13,
+   * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.8): it
+   * had no phone arm, so it stayed 28rem at most beside the room the hidden
+   * page had left. Read off the classes, since jsdom answers no media query;
+   * the workbench's own arm is the shape it is held to. Mutation: the arm
+   * dropped from the aside.
+   */
+  it('is the screen’s width on a phone, as the workbench is', async () => {
+    renderPanel();
+
+    const panel = await screen.findByRole('complementary', { name: 'Assistant' });
+    const classes = (panel.getAttribute('class') ?? '').split(' ');
+    expect(classes).toEqual(expect.arrayContaining(['w-full', 'max-sm:max-w-none']));
+  });
 });

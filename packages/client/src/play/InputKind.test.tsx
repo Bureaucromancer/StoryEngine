@@ -83,3 +83,33 @@ describe('the turn-kind group', () => {
     expect(radio('Do').getAttribute('aria-checked')).toBe('true');
   });
 });
+
+/**
+ * ***What the chosen kind means, where a phone can read it*** (2026-10-13,
+ * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.8). The
+ * hint was each button's `title` and nothing else, which a phone never shows —
+ * and *Think*'s hint, *Nobody hears this*, is the whole of what the kind is.
+ * Mutations: the hint not drawn; drawn but describing nothing; drawn for a
+ * kind not chosen.
+ */
+describe('the chosen kind’s hint', () => {
+  it('is said beside the row, and describes the kind chosen', async () => {
+    render(<Harness initial="think" />);
+
+    const said = screen.getByText('Nobody hears this');
+    expect(radio('Think').getAttribute('aria-describedby')).toBe(said.id);
+    expect(radio('Say').getAttribute('aria-describedby')).toBeNull();
+
+    await userEvent.click(radio('Say'));
+    expect(screen.queryByText('Nobody hears this')).toBeNull();
+    expect(radio('Say').getAttribute('aria-describedby')).toBe(screen.getByText('Speak aloud').id);
+  });
+
+  it('says nothing before a kind is chosen', () => {
+    render(<Harness />);
+
+    for (const hint of ['Act', 'Speak aloud', 'Nobody hears this']) {
+      expect(screen.queryByText(hint)).toBeNull();
+    }
+  });
+});

@@ -84,6 +84,23 @@ describe('the setup form states this install’s rule', () => {
       expect(browser.test(taken), taken).toBe(true);
     }
   });
+
+  /**
+   * ***The rule is said under the box, whole, and describes it*** (2026-10-13,
+   * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.8). The
+   * whole of it — the first character and the last — was the field's
+   * `title`, which a phone shows only once the form has been refused, if then.
+   * Mutations: the box described by nothing; the sentence's second half cut.
+   */
+  it('says the whole handle rule under the box, and describes the box by it', () => {
+    renderForm(<SetupForm minPasswordLength={8} tokenRequired={false} />);
+
+    const box = screen.getByLabelText('Handle');
+    const rule = document.getElementById(box.getAttribute('aria-describedby') ?? '');
+    expect(rule?.textContent).toContain(
+      'starting with a letter or a digit and not ending in a hyphen',
+    );
+  });
 });
 
 /**

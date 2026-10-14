@@ -24,6 +24,7 @@ import { SelectionBar } from './SelectionBar.js';
 import { unselectable, useLibrarySelection, type LibrarySelection } from './selection.js';
 import {
   emptyMessage,
+  panelBadgeLegend,
   panelFor,
   panelNameBadges,
   searchText,
@@ -33,6 +34,7 @@ import {
 import { matches } from './search.js';
 import { folderRows, insideClosedFolder } from '../tags/folders.js';
 import { passesTagFilters, TagFilterBar, type TagFilters } from '../tags/TagFilterBar.js';
+import { Legend } from '../ui/Legend.js';
 import { Note } from '../ui/Text.js';
 import { useFocusOnReveal } from '../ui/useFocusOnReveal.js';
 import { labels } from '../i18n/catalogue.js';
@@ -604,6 +606,11 @@ function ObjectTable(props: {
           </table>
         </div>
       )}
+      {/* ***What the badges on these rows mean*** (2026-10-13, [P12A]
+          P12A.8): their meanings were titles, which a phone never shows, so
+          they are said once under the rows that wear them — `panels.tsx`'s
+          `BADGE_WORDS` says which, and why the shelf and not each row. */}
+      <Legend entries={panelBadgeLegend(props.kind, shown)} />
     </>
   );
 }

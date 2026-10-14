@@ -13,7 +13,7 @@ import {
   type ReactNode,
 } from 'react';
 
-import { enter } from './classes.js';
+import { enter, sheet } from './classes.js';
 
 /**
  * ***The non-modal popover*** — built at
@@ -116,6 +116,17 @@ import { enter } from './classes.js';
  * trigger, as Escape always did. **A press outside and focus leaving are not
  * this**: each put the keyboard somewhere already, which is the paragraph
  * above's rule, and pulling it back would undo what the person did.
+ *
+ * ***On a phone, both placements are a sheet*** (2026-10-13,
+ * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.8).
+ * Under the `sm` breakpoint the panel is drawn along the bottom of the screen
+ * at its full width — `sheet` in `classes.ts`, which says why there, why in
+ * the stylesheet, and why with no scrim — and nothing else above changes: the
+ * same element in the same place in the document, so the keyboard, Escape,
+ * the four ways it closes and the hand-back of a stranded keyboard are the
+ * desk's. The paragraph on `under` said a card anchored at a trigger near the
+ * end of a line *would run off the column on a phone*; on a phone neither
+ * placement is anchored at all.
  */
 export type PopoverChange = 'trigger' | 'escape' | 'outside' | 'focus';
 
@@ -278,7 +289,7 @@ export function Popover(props: {
           // Fading in on every opening, though it is never unmade
           // (2026-10-13, P12A.6): `@starting-style` applies on the way from
           // hidden to drawn as well — `enter` in `classes.ts` says the rest.
-          className={`${enter} ${PANEL_BELOW}`}
+          className={`${enter} ${sheet} ${PANEL_BELOW}`}
         >
           {props.children}
         </div>
@@ -289,7 +300,7 @@ export function Popover(props: {
     <span className="relative" {...wrapper}>
       {button}
       {open ? (
-        <span {...dialog} className={`${enter} ${PANEL_INLINE}`}>
+        <span {...dialog} className={`${enter} ${sheet} ${PANEL_INLINE}`}>
           {props.children}
         </span>
       ) : null}

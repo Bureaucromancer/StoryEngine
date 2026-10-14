@@ -27,6 +27,22 @@ import { enter } from './classes.js';
  * value now, and a token rather than an opacity modifier: a modifier bakes its
  * sRGB fallback at build time, which would strand the scrim on the light
  * theme's value once a second theme exists.
+ *
+ * ***On a phone it stays a centred modal, and that is a decision*** (2026-10-13,
+ * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.8, checked
+ * against [10 §1.3](../../../../docs/design/10-ui-surfaces.md)'s *sheets
+ * rather than shrunken panels*). It is not shrunken: the card is `w-full`
+ * under its `max-w-*`, so below 28rem it is the screen's width less the
+ * scrim's padding, 1rem each side — the page's gutter — and since
+ * [polish §15](../../../../docs/design/workplan/06-polish.md) its height is
+ * capped by the scrim and scrolls inside, so a long confirmation keeps its
+ * buttons reachable. What a sheet would add is a second shape for the one
+ * thing a phone already does well with a modal: a question that has to be
+ * answered before anything else, under a scrim that says so, with the
+ * keyboard trapped in it — the model
+ * [P3](../../../../docs/design/workplan/15-p3-implementation.md)'s P3.8 called
+ * *the correct model on a phone*. The non-modal popover is the panel that was shrunken, and it is
+ * the one that became a sheet (`sheet` in `classes.ts`).
  */
 
 export interface DialogProps {

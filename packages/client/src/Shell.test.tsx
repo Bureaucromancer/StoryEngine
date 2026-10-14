@@ -4,7 +4,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { markSessionEnded } from './auth/session-ended.js';
 
@@ -29,6 +29,9 @@ const patchPrefs = vi.fn();
 
 vi.mock('./api.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./api.js')>()),
+  // The assistant, opened by the phone's tests below, looks for its session
+  // first; with none it offers to start one, and nothing goes over the wire.
+  listSessions: () => Promise.resolve({ sessions: [] }),
   api: {
     authState: (...a: unknown[]) => authState(...a) as unknown,
     logout: vi.fn(),
@@ -373,6 +376,99 @@ describe('the workbench opener', () => {
 
     await userEvent.click(opener);
     expect(patchPrefs).toHaveBeenCalledWith({ 'ui.workbench-open': null });
+  });
+});
+
+/**
+ * ***The two panels on a phone*** (2026-10-13,
+ * [P12A](../../../docs/design/workplan/35-p12a-the-look.md) P12A.8). Below
+ * `sm` one panel fits, so the assistant covers the workbench rather than
+ * sharing the width — hidden beneath it, not closed — and **Workbench**
+ * uncovers it. *Covered* is a class the stylesheet answers under `max-sm:`,
+ * read here since jsdom answers no media query; *on a phone* is the press's
+ * own question (`ui/phone.ts`), which a stubbed `matchMedia` answers. On a
+ * desk nothing changes, and the last test holds that.
+ */
+describe('the two panels on a phone', () => {
+  function viewport(phone: boolean): void {
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      value: (query: string) => ({
+        matches: phone,
+        media: query,
+        onchange: null,
+        addEventListener: () => undefined,
+        removeEventListener: () => undefined,
+        addListener: () => undefined,
+        removeListener: () => undefined,
+        dispatchEvent: () => false,
+      }),
+    });
+  }
+
+  afterEach(() => {
+    Reflect.deleteProperty(window, 'matchMedia');
+  });
+
+  const dockClasses = (): string[] =>
+    (document.getElementById('workbench')?.getAttribute('class') ?? '').split(/\s+/);
+
+  it('covers an open workbench with the assistant, and closes nothing', async () => {
+    viewport(true);
+    renderShell('user');
+    await userEvent.click(await screen.findByRole('button', { name: 'Workbench' }));
+    expect(dockClasses()).not.toContain('max-sm:hidden');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Assistant' }));
+
+    expect(await screen.findByRole('complementary', { name: 'Assistant' })).toBeTruthy();
+    expect(dockClasses()).toContain('max-sm:hidden');
+    // Its preference is the account's, and a desk may be showing it.
+    expect(patchPrefs).not.toHaveBeenCalledWith({ 'ui.workbench-open': null });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Assistant' }));
+    expect(screen.queryByRole('complementary', { name: 'Assistant' })).toBeNull();
+    expect(dockClasses()).not.toContain('max-sm:hidden');
+  });
+
+  it('uncovers the workbench from Workbench, dismissing the assistant', async () => {
+    viewport(true);
+    renderShell('user');
+    await userEvent.click(await screen.findByRole('button', { name: 'Workbench' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Assistant' }));
+    await screen.findByRole('complementary', { name: 'Assistant' });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Workbench' }));
+
+    expect(screen.queryByRole('complementary', { name: 'Assistant' })).toBeNull();
+    expect(dockClasses()).not.toContain('max-sm:hidden');
+    expect(patchPrefs).not.toHaveBeenCalledWith({ 'ui.workbench-open': null });
+  });
+
+  it('opens a shut workbench from under the assistant, dismissing it', async () => {
+    viewport(true);
+    renderShell('user');
+    await userEvent.click(await screen.findByRole('button', { name: 'Assistant' }));
+    await screen.findByRole('complementary', { name: 'Assistant' });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Workbench' }));
+
+    expect(screen.queryByRole('complementary', { name: 'Assistant' })).toBeNull();
+    expect(patchPrefs).toHaveBeenCalledWith({ 'ui.workbench-open': true });
+    expect(await screen.findByRole('complementary', { name: 'Workbench' })).toBeTruthy();
+  });
+
+  it('keeps both on a desk, where Workbench toggles as it always has', async () => {
+    viewport(false);
+    renderShell('user');
+    await userEvent.click(await screen.findByRole('button', { name: 'Workbench' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Assistant' }));
+    await screen.findByRole('complementary', { name: 'Assistant' });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Workbench' }));
+
+    expect(patchPrefs).toHaveBeenCalledWith({ 'ui.workbench-open': null });
+    expect(screen.getByRole('complementary', { name: 'Assistant' })).toBeTruthy();
   });
 });
 
