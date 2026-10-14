@@ -17,6 +17,7 @@ import { Field, SelectField } from '../ui/Field.js';
 import { Panel } from '../ui/Panel.js';
 import { Fine, Note, SectionTitle, SubsectionTitle } from '../ui/Text.js';
 import { useFocusOnReveal } from '../ui/useFocusOnReveal.js';
+import { JumpSection } from './jumps.js';
 import {
   addMember,
   candidateLabel,
@@ -120,16 +121,17 @@ export function MembersField(props: {
   const picker = useFocusOnReveal<HTMLDivElement>(picking);
 
   return (
-    <section className="flex flex-col gap-4" aria-label="Members">
-      <div>
-        <SectionTitle as="h2">Members</SectionTitle>
+    <JumpSection
+      title="Members"
+      className="flex flex-col gap-4"
+      note={
         <Note>
           What this world holds: references to objects in your library and to your sessions, not
           copies. An edit to a member shows here; a member that is deleted stays named here, marked
           missing.
         </Note>
-      </div>
-
+      }
+    >
       {rows.length === 0 ? (
         <Fine>Nothing here yet.</Fine>
       ) : (
@@ -197,7 +199,7 @@ export function MembersField(props: {
           />
         </div>
       ) : null}
-    </section>
+    </JumpSection>
   );
 }
 

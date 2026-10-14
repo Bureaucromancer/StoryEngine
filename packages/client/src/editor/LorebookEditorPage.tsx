@@ -33,7 +33,7 @@ import { Button } from '../ui/Button.js';
 import { TwoStep } from '../ui/TwoStep.js';
 import { disclosure, page, reveal, table } from '../ui/classes.js';
 import { CheckboxField, Field, NumberField } from '../ui/Field.js';
-import { Fine, Note, SectionTitle, SubsectionTitle } from '../ui/Text.js';
+import { Fine, Note } from '../ui/Text.js';
 import {
   bookChanges,
   entryList,
@@ -48,7 +48,8 @@ import {
 } from './book-form.js';
 import { BookScope } from './BookScope.js';
 import { EditorFrame } from './EditorFrame.js';
-import { useObjectEditor, type EditorKind } from './object-editor.js';
+import { JumpSection } from './jumps.js';
+import { pictureOf, useObjectEditor, type EditorKind } from './object-editor.js';
 import { EntryFields } from './EntryFields.js';
 import { EntryTravel } from './EntryTravel.js';
 import { hooksOf, withOptionalHooks } from './hook-form.js';
@@ -313,6 +314,16 @@ const LOREBOOKS: EditorKind<Draft> = {
   nameOf,
   untitled: { draft: 'New lorebook', saved: 'Untitled lorebook' },
   editorRoute: '/library/lorebooks/$id/edit',
+  /**
+   * ***The cover its gallery designates***, or none (2026-10-13, P12A.7) —
+   * `primaryMediaId`, which [10 §11.2b] made the library card's picture and
+   * the Pictures section below sets. **Not the first picture when there is no
+   * cover**: a book that has not chosen one has said it has none, and the
+   * header showing its first map anyway would be the header choosing for it.
+   * A cover that names a picture the book no longer carries is none as well —
+   * the schema allows that dangle, and `pictureOf` finds nothing for it.
+   */
+  imageOf: (saved) => pictureOf('lorebooks', saved, saved.object['primaryMediaId'] ?? null),
 };
 
 function Editor(props: EditorProps): JSX.Element {
@@ -390,13 +401,10 @@ function Editor(props: EditorProps): JSX.Element {
       listSearch={{ kind: 'lorebooks' }}
       formClassName="flex flex-col gap-8"
       storedCaption="The saved book, not the form's working state — what a reload would find."
-      header={
-        <header className="mb-6">
-          <h1 className="text-title text-ink">{editor.heading}</h1>
-          <Note>
-            {`${formatCount(entries.length, locale)} entries, edited together and saved as one book.`}
-          </Note>
-        </header>
+      note={
+        <Note>
+          {`${formatCount(entries.length, locale)} entries, edited together and saved as one book.`}
+        </Note>
       }
     >
       {/*
@@ -455,8 +463,7 @@ function Editor(props: EditorProps): JSX.Element {
        * for and a map is not square; the squaring that keeps a strip of
        * thumbnails tidy would cut the corners off one.
        */}
-      <section className="flex flex-col gap-3">
-        <SectionTitle as="h2">Pictures</SectionTitle>
+      <JumpSection title="Pictures">
         <MediaStrip
           kind="lorebooks"
           objectId={props.initial.id}
@@ -474,7 +481,7 @@ function Editor(props: EditorProps): JSX.Element {
             }));
           }}
         />
-      </section>
+      </JumpSection>
 
       <FolderGates
         book={book}
@@ -486,9 +493,9 @@ function Editor(props: EditorProps): JSX.Element {
         }}
       />
 
-      <section>
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <SectionTitle as="h2">Entries</SectionTitle>
+      <JumpSection
+        title="Entries"
+        aside={
           <Button
             type="button"
             onClick={() => {
@@ -508,8 +515,8 @@ function Editor(props: EditorProps): JSX.Element {
           >
             New entry
           </Button>
-        </div>
-
+        }
+      >
         {/*
          * ***Above the list rather than inside it*** — [10 §11.2c]'s controls
          * act on a selection of rows, so they belong where a selection is made
@@ -553,7 +560,7 @@ function Editor(props: EditorProps): JSX.Element {
             edit((current) => moveEntryBefore(current, id, beforeId));
           }}
         />
-      </section>
+      </JumpSection>
 
       {selected === undefined ? (
         <Note>
@@ -562,14 +569,18 @@ function Editor(props: EditorProps): JSX.Element {
             : 'That entry is not in this book. Choose one from the list.'}
         </Note>
       ) : (
-        <section className="flex flex-col gap-4">
-          <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <SubsectionTitle as="h3">
-              {selected.name === '' ? 'Untitled entry' : selected.name}
-            </SubsectionTitle>
-            <GateNote book={book} entry={selected} />
-          </div>
-
+        /*
+         * ***A section that is there only while an entry is selected***
+         * (P12A.7): it registers as it is drawn and is gone from the chips
+         * when the selection is, with the seven groups inside it — so the
+         * chips say which entry is open, by its name, and what it holds.
+         */
+        <JumpSection
+          title={selected.name === '' ? 'Untitled entry' : selected.name}
+          as="h3"
+          aside={<GateNote book={book} entry={selected} />}
+          className="flex flex-col gap-4"
+        >
           <EntryFields
             entry={selected}
             locale={locale}
@@ -631,7 +642,7 @@ function Editor(props: EditorProps): JSX.Element {
              */}
             <Fine>Nothing is written until you save, and history keeps the version before.</Fine>
           </div>
-        </section>
+        </JumpSection>
       )}
 
       {/*
@@ -1183,16 +1194,16 @@ function BookRetrieval(props: {
   const node = (key: string): SchemaNode | undefined => asSchemaNode(declared?.[key]);
 
   return (
-    <section>
-      <SectionTitle as="h2" className="mb-2">
-        Retrieval
-      </SectionTitle>
-      <Fine>
-        What this book costs a turn, and how hard it looks. Every one of these is read on every turn
-        that reaches this book.
-      </Fine>
-
-      <div className="mt-3 flex flex-col gap-4">
+    <JumpSection
+      title="Retrieval"
+      note={
+        <Fine>
+          What this book costs a turn, and how hard it looks. Every one of these is read on every
+          turn that reaches this book.
+        </Fine>
+      }
+    >
+      <div className="flex flex-col gap-4">
         {/*
          * ***The one label here written by hand, and the exception is narrow.***
          * `labelFor('enabled')` is *Enabled*, and this page already has an
@@ -1265,7 +1276,7 @@ function BookRetrieval(props: {
           hint="How many times that can chain. Ignored with recursive scanning off."
         />
       </div>
-    </section>
+    </JumpSection>
   );
 }
 
@@ -1342,10 +1353,7 @@ function FolderGates(props: {
   };
 
   return (
-    <section>
-      <SectionTitle as="h2" className="mb-2">
-        Folders
-      </SectionTitle>
+    <JumpSection title="Folders">
       <table className={table.root}>
         <thead>
           <tr className={table.head}>
@@ -1418,6 +1426,6 @@ function FolderGates(props: {
           </tr>
         </tbody>
       </table>
-    </section>
+    </JumpSection>
   );
 }

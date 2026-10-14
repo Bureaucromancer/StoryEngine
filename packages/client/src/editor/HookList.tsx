@@ -11,8 +11,9 @@ import { TwoStep } from '../ui/TwoStep.js';
 import { Field } from '../ui/Field.js';
 import { Panel } from '../ui/Panel.js';
 import { nudge } from '../ui/reorder.js';
-import { Fine, Note, SectionTitle } from '../ui/Text.js';
+import { Fine, Note } from '../ui/Text.js';
 import { HookFields, nameOfHook } from './HookFields.js';
+import { JumpSection } from './jumps.js';
 import { moveHook, newHook, patchHook, removeHook } from './hook-form.js';
 
 /**
@@ -118,12 +119,14 @@ export function HookList(props: {
   }
 
   return (
-    <section className="flex flex-col gap-4" aria-label="Plot hooks">
-      <div>
-        <SectionTitle as="h2">Plot hooks</SectionTitle>
-        {props.note === undefined ? null : <Note>{props.note}</Note>}
-      </div>
-
+    // A jump in every editor that draws it (P12A.7) — named by its heading
+    // now rather than by an `aria-label` beside it, which said the same words
+    // twice and would have drifted the day one of them changed.
+    <JumpSection
+      title="Plot hooks"
+      className="flex flex-col gap-4"
+      note={props.note === undefined ? null : <Note>{props.note}</Note>}
+    >
       {props.hooks.length === 0 ? <Fine>None here yet.</Fine> : null}
 
       {/*
@@ -258,7 +261,7 @@ export function HookList(props: {
       <span aria-live="polite" className="sr-only">
         {moved}
       </span>
-    </section>
+    </JumpSection>
   );
 }
 

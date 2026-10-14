@@ -300,6 +300,15 @@ async function settled(client: QueryClient): Promise<void> {
   });
 }
 
+/**
+ * The entry list's rows — read inside the *Entries* section since P12A.7
+ * (2026-10-13), when the page's section chips arrived above the form as a list
+ * of their own and every list item on the page stopped being an entry.
+ */
+function entryRows(): HTMLElement[] {
+  return within(screen.getByRole('region', { name: 'Entries' })).getAllByRole('listitem');
+}
+
 /** The disclosure whose summary starts with this group's name. */
 function sectionFor(title: string): HTMLDetailsElement {
   const heading = screen
@@ -546,14 +555,18 @@ describe('the closed-section invariant', () => {
     renderApp();
     await openEditor(HARBOUR);
 
-    const heading = screen.getByRole('heading', { name: 'Harbour', level: 3 }).parentElement;
+    // The heading's row — the heading and the gate note beside it, which
+    // `JumpSection` holds one level out from the heading since P12A.7.
+    const heading = screen.getByRole('heading', { name: 'Harbour', level: 3 }).parentElement
+      ?.parentElement;
     expect(heading?.textContent).not.toContain('off');
 
     await userEvent.click(screen.getByRole('checkbox', { name: 'Enabled' }));
 
     await waitFor(() => {
       expect(
-        screen.getByRole('heading', { name: 'Harbour', level: 3 }).parentElement?.textContent,
+        screen.getByRole('heading', { name: 'Harbour', level: 3 }).parentElement?.parentElement
+          ?.textContent,
       ).toContain('off');
     });
   });
@@ -738,8 +751,7 @@ describe('reordering entries', () => {
    * because the line, when it shows, is the row's first child.
    */
   function marked(): [string, string][] {
-    return screen
-      .getAllByRole('listitem')
+    return entryRows()
       .filter((row) => row.dataset['drop'] !== undefined)
       .map((row) => [
         within(row).getAllByRole('button')[0]?.querySelector('span')?.textContent ?? '',
@@ -749,7 +761,7 @@ describe('reordering entries', () => {
 
   /** The two rows in whatever order the previous test left them — never Harbour first by assumption. */
   function twoRows(): [HTMLElement, HTMLElement] {
-    const [top, bottom] = screen.getAllByRole('listitem');
+    const [top, bottom] = entryRows();
     if (top === undefined || bottom === undefined) throw new Error('expected two rows');
     return [top, bottom];
   }
@@ -811,7 +823,7 @@ describe('reordering entries', () => {
     renderApp();
     await openEditor();
 
-    const rows = screen.getAllByRole('listitem');
+    const rows = entryRows();
     const [top, bottom] = [rows[0], rows[1]];
     if (top === undefined || bottom === undefined) throw new Error('expected two rows');
     const order = shown();
@@ -1019,7 +1031,7 @@ describe('scrolling the list while a drag hovers near its edge', () => {
   }> {
     renderApp();
     await openEditor();
-    const [top, bottom] = screen.getAllByRole('listitem');
+    const [top, bottom] = entryRows();
     if (top === undefined || bottom === undefined) throw new Error('expected two rows');
     const list = top.closest('ul');
     if (list === null) throw new Error('expected the rows to be in a list');
@@ -1109,7 +1121,7 @@ describe('scrolling the list while a drag hovers near its edge', () => {
   it('does not scroll for a drag that is not one of its rows', async () => {
     renderApp();
     await openEditor();
-    const [, bottom] = screen.getAllByRole('listitem');
+    const [, bottom] = entryRows();
     if (bottom === undefined) throw new Error('expected two rows');
     const list = bottom.closest('ul');
     if (list === null) throw new Error('expected the rows to be in a list');
@@ -2120,9 +2132,8 @@ describe('image slots on a book and its entries', () => {
   function entryStrip(): HTMLElement {
     // The entry's own strip is the one below the entry heading, not the
     // gallery above — §11.2b's *inline with the entry*.
-    const strip = screen.getByRole('heading', { name: 'Harbour', level: 3 }).parentElement
-      ?.parentElement;
-    if (strip === undefined || strip === null) throw new Error('no entry section');
+    const strip = screen.getByRole('heading', { name: 'Harbour', level: 3 }).closest('section');
+    if (strip === null) throw new Error('no entry section');
     return strip;
   }
 
@@ -2131,7 +2142,7 @@ describe('image slots on a book and its entries', () => {
     const client = renderApp();
     await openEditor();
 
-    const gallery = screen.getByRole('heading', { name: 'Pictures' }).parentElement;
+    const gallery = screen.getByRole('heading', { name: 'Pictures' }).closest('section');
     if (gallery === null) throw new Error('no gallery section');
 
     await act(async () => {
@@ -2166,7 +2177,7 @@ describe('image slots on a book and its entries', () => {
     const refuse = vi.spyOn(api, 'uploadAsset');
     renderApp();
     await openEditor();
-    const gallery = screen.getByRole('heading', { name: 'Pictures' }).parentElement;
+    const gallery = screen.getByRole('heading', { name: 'Pictures' }).closest('section');
     if (gallery === null) throw new Error('no gallery section');
     const pick = async (): Promise<void> => {
       await act(async () => {
@@ -2195,9 +2206,8 @@ describe('image slots on a book and its entries', () => {
 
     // The entry's own strip is the one below the entry heading, not the
     // gallery above — §11.2b's *inline with the entry*.
-    const strip = screen.getByRole('heading', { name: 'Harbour', level: 3 }).parentElement
-      ?.parentElement;
-    if (strip === undefined || strip === null) throw new Error('no entry section');
+    const strip = screen.getByRole('heading', { name: 'Harbour', level: 3 }).closest('section');
+    if (strip === null) throw new Error('no entry section');
 
     await act(async () => {
       fireEvent.change(pickerIn(strip), {
@@ -2284,7 +2294,7 @@ describe('image slots on a book and its entries', () => {
     const client = renderApp();
     await openEditor(HARBOUR);
 
-    const gallery = screen.getByRole('heading', { name: 'Pictures' }).parentElement;
+    const gallery = screen.getByRole('heading', { name: 'Pictures' }).closest('section');
     if (gallery === null) throw new Error('no gallery section');
     await act(async () => {
       fireEvent.change(pickerIn(gallery), {
@@ -2407,7 +2417,7 @@ describe('image slots on a book and its entries', () => {
     renderApp();
     await openEditor();
 
-    const gallery = screen.getByRole('heading', { name: 'Pictures' }).parentElement;
+    const gallery = screen.getByRole('heading', { name: 'Pictures' }).closest('section');
     if (gallery === null) throw new Error('no gallery section');
     await act(async () => {
       fireEvent.change(pickerIn(gallery), {
@@ -2432,7 +2442,7 @@ describe('image slots on a book and its entries', () => {
     uploads();
     const client = renderApp();
     await openEditor();
-    const gallery = screen.getByRole('heading', { name: 'Pictures' }).parentElement;
+    const gallery = screen.getByRole('heading', { name: 'Pictures' }).closest('section');
     if (gallery === null) throw new Error('no gallery section');
     await act(async () => {
       fireEvent.change(pickerIn(gallery), {
@@ -2490,7 +2500,7 @@ describe('image slots on a book and its entries', () => {
     const client = renderApp();
     await openEditor();
 
-    const gallery = screen.getByRole('heading', { name: 'Pictures' }).parentElement;
+    const gallery = screen.getByRole('heading', { name: 'Pictures' }).closest('section');
     if (gallery === null) throw new Error('no gallery section');
     await userEvent.click(within(gallery).getByRole('button', { name: 'Remove picture 1' }));
     await userEvent.click(
@@ -2515,7 +2525,7 @@ describe('image slots on a book and its entries', () => {
     renderApp();
     await openEditor();
 
-    const gallery = screen.getByRole('heading', { name: 'Pictures' }).parentElement;
+    const gallery = screen.getByRole('heading', { name: 'Pictures' }).closest('section');
     if (gallery === null) throw new Error('no gallery section');
     for (const n of [1, 2]) {
       expect(
@@ -2548,7 +2558,7 @@ describe('image slots on a book and its entries', () => {
     const client = renderApp();
     await openEditor();
 
-    const gallery = screen.getByRole('heading', { name: 'Pictures' }).parentElement;
+    const gallery = screen.getByRole('heading', { name: 'Pictures' }).closest('section');
     if (gallery === null) throw new Error('no gallery section');
     await act(async () => {
       fireEvent.change(pickerIn(gallery), {
@@ -2603,9 +2613,8 @@ describe('image slots on a book and its entries', () => {
     const client = renderApp();
     await openEditor(HARBOUR);
 
-    const strip = screen.getByRole('heading', { name: 'Harbour', level: 3 }).parentElement
-      ?.parentElement;
-    if (strip === undefined || strip === null) throw new Error('no entry section');
+    const strip = screen.getByRole('heading', { name: 'Harbour', level: 3 }).closest('section');
+    if (strip === null) throw new Error('no entry section');
     await act(async () => {
       fireEvent.change(pickerIn(strip), {
         target: { files: [new File(['fake'], 'quay.png', { type: 'image/png' })] },
@@ -2616,9 +2625,8 @@ describe('image slots on a book and its entries', () => {
 
     await openEditor(BRIDGE);
     // Bridge has nothing on its way, and nor does anything else on the page.
-    const bridge = screen.getByRole('heading', { name: 'Bridge', level: 3 }).parentElement
-      ?.parentElement;
-    if (bridge === undefined || bridge === null) throw new Error('no entry section');
+    const bridge = screen.getByRole('heading', { name: 'Bridge', level: 3 }).closest('section');
+    if (bridge === null) throw new Error('no entry section');
     expect(within(bridge).getByRole('button', { name: 'Add a picture' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Adding…' })).toBeNull();
 

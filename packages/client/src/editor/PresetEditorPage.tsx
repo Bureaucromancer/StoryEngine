@@ -13,9 +13,10 @@ import { TwoStep } from '../ui/TwoStep.js';
 import { page } from '../ui/classes.js';
 import { Field } from '../ui/Field.js';
 import { nudge } from '../ui/reorder.js';
-import { Fine, Note, SectionTitle, SubsectionTitle } from '../ui/Text.js';
+import { Fine, Note, SubsectionTitle } from '../ui/Text.js';
 import type { Draft } from './book-form.js';
 import { EditorFrame } from './EditorFrame.js';
+import { JumpSection } from './jumps.js';
 import { useObjectEditor, type EditorKind } from './object-editor.js';
 import {
   blocksOf,
@@ -76,6 +77,13 @@ const PRESETS: EditorKind<Draft> = {
   nameOf: nameOfPreset,
   untitled: { draft: 'New preset', saved: 'Untitled preset' },
   editorRoute: '/library/presets/$id/edit',
+  /**
+   * ***None*** (2026-10-13, P12A.7) — a preset carries no `media`, so it has
+   * no picture to show, and §0.4's *none is an answer* is this one. The
+   * header is the kind and the name; a placeholder in the picture's place
+   * would be a frame around nothing on every preset there is.
+   */
+  imageOf: () => null,
 };
 
 export function PresetEditorPage(): JSX.Element {
@@ -204,11 +212,8 @@ function Editor(props: { initial: LibraryObject; unsaved?: boolean }): JSX.Eleme
       listSearch={{ kind: 'presets' }}
       formClassName="flex flex-col gap-8"
       storedCaption="The saved preset, not the form's working state — what a reload would find."
-      header={
-        <header className="mb-6">
-          <h1 className="text-title text-ink">{editor.heading}</h1>
-          <Note>The prompt pack a session is assembled from. A session copies it at creation.</Note>
-        </header>
+      note={
+        <Note>The prompt pack a session is assembled from. A session copies it at creation.</Note>
       }
     >
       <Field
@@ -222,13 +227,16 @@ function Editor(props: { initial: LibraryObject; unsaved?: boolean }): JSX.Eleme
         error={missing.includes('name') ? 'A preset needs a name.' : null}
       />
 
-      <section>
-        <SectionTitle as="h2">Blocks</SectionTitle>
-        <Note>
-          In order. A text block is prose you wrote; a slot positions something the engine supplies
-          and says where it goes, never what it says.
-        </Note>
-        <div className="mt-3 flex flex-col gap-3">
+      <JumpSection
+        title="Blocks"
+        note={
+          <Note>
+            In order. A text block is prose you wrote; a slot positions something the engine
+            supplies and says where it goes, never what it says.
+          </Note>
+        }
+      >
+        <div className="flex flex-col gap-3">
           {blocks.map((block, index) => (
             <BlockRow
               key={block.id}
@@ -265,7 +273,7 @@ function Editor(props: { initial: LibraryObject; unsaved?: boolean }): JSX.Eleme
             </Fine>
           ) : null}
         </div>
-      </section>
+      </JumpSection>
 
       {/*
        * Everything else the schema declares, in the schema's own order and
@@ -273,14 +281,22 @@ function Editor(props: { initial: LibraryObject; unsaved?: boolean }): JSX.Eleme
        * `name` at the top; nothing here is a list this file maintains, so a
        * field added to `Preset` arrives with no edit to this page.
        */}
-      <SchemaFields
-        schemaId={PRESET_SCHEMA}
-        value={draft}
-        handled={['name', 'blocks']}
-        onChange={(key, next) => {
-          editor.patch((current) => ({ ...current, [key]: next }));
-        }}
-      />
+      <JumpSection
+        // *Fields*, the word the treatment's, setup's and World's pages give
+        // the same list (P12A.7): what the schema declares beyond the name and
+        // the blocks, in its order.
+        title="Fields"
+        className="flex flex-col gap-4"
+      >
+        <SchemaFields
+          schemaId={PRESET_SCHEMA}
+          value={draft}
+          handled={['name', 'blocks']}
+          onChange={(key, next) => {
+            editor.patch((current) => ({ ...current, [key]: next }));
+          }}
+        />
+      </JumpSection>
     </EditorFrame>
   );
 }

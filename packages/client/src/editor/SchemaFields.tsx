@@ -16,6 +16,7 @@ import { CheckboxField, Field, NumberField } from '../ui/Field.js';
 import { LinesField } from './ListField.js';
 import { Fine, SubsectionTitle } from '../ui/Text.js';
 import { disclosure } from '../ui/classes.js';
+import { JumpHeading } from './jumps.js';
 
 /**
  * The object, field by field, **writable** — [P7B.1], and the write-side twin
@@ -207,8 +208,19 @@ function FieldGroupView(props: {
   return (
     <details className="rounded-control border border-line p-3">
       <summary className={`${disclosure.titled} text-sm font-medium`}>
-        {props.group.title}
-        {summary === null ? null : <span className="ms-2 text-ink-subtle">({summary})</span>}
+        {/*
+         * ***A banner is a jump*** (2026-10-13, P12A.7). None of the schemas
+         * this renders carries one today — `LoreEntry`'s are drawn by
+         * `EntryFields` — so this is the line that makes the stage's *a schema
+         * change cannot leave a jump pointing at nothing* true of the rest: a
+         * banner added to a treatment's schema is a group here, and the group
+         * is a chip, with no edit to any page. The heading takes the
+         * summary's look, and `index.css` keeps it on the marker's line.
+         */}
+        <JumpHeading as="h3" title={props.group.title ?? ''}>
+          {props.group.title}
+          {summary === null ? null : <span className="ms-2 text-ink-subtle">({summary})</span>}
+        </JumpHeading>
       </summary>
       {props.group.note === undefined ? null : <Fine className="mt-1">{props.group.note}</Fine>}
       <div className="mt-3">{body}</div>

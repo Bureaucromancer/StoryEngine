@@ -411,6 +411,26 @@ project already committed to:
   give orientation without hiding a field, which is the only version compatible
   with §1.1's rule against reflexive disclosure and with §11.2d, where the
   editor's shape is the schema's shape. Tabs would break both.
+  *(2026-10-13, [P12A](workplan/35-p12a-the-look.md) P12A.7: built in all four
+  editors, under its §0.4. A row of chips stands under the object's name, one
+  for each section the page is drawing, in the page's order; a chip scrolls its
+  section's heading to the top and gives it the keyboard, opening any fold the
+  heading is inside first, and moves the page smoothly only when motion is
+  wanted — §1.2's reduced-motion block is what it reads. **The chips are not a
+  list anybody keeps**: each section draws its heading through one component
+  that tells the editor it is there, so a section that is not drawn — a book
+  with no folders, an entry nobody has selected — has no chip, and one that is
+  drawn cannot lack one. An actor's chips are its card's sections; a lore
+  entry's are its schema's banners, in the schema's words (§11.2d's note).
+  There is no tab role anywhere in the client. **And the header above them is
+  the actor's, given to every kind** — the avatar first, which this section
+  takes from Marinara: the object's picture where it has one, its kind and its
+  name. The picture is a kind's own answer — an actor's card, falling back to
+  its drawn tile; a lorebook's cover; a treatment's, a setup's or a World's
+  first picture, since §11.3's treatment and World covers have no field that
+  designates one; and nothing for a preset, which carries none, and for a book
+  that has chosen no cover. None is an answer, and nothing is drawn in its
+  place.)*
 - **A gallery where a kind has images.** A card view beside the list for actors
   and anything else carrying a portrait — §11.2b already points here.
 - **Setup that explains itself as it goes.** §6 takes *every step but the first
@@ -2727,6 +2747,16 @@ is discoverable and one whose is not.
 **`media` stays inline** and does not become a disclosure — §11.2b already
 settled that, on the grounds that the point is seeing the place while writing
 about it.
+
+*(2026-10-13, [P12A](workplan/35-p12a-the-look.md) P12A.7: each of these
+disclosures is also a section jump — a chip over the editor in the banner's own
+words, *Timing*, while the summary goes on saying *Timing (sticky 4)* — and a
+jump to a shut one opens it. That is the whole of what the chips do to this
+section's decisions: which groups start open is unchanged, the closed-section
+invariant is unchanged, and no chip closes a fold. The stage that built them
+cited this section for **never tabs**, which is §1.3's rule and §3's; what this
+section gives that rule is its reason — a tab per banner would show one group
+of the schema at a time, and the editor's shape would stop being the schema's.)*
 
 **And a minimum is not the full treatment.** The first editor owes create,
 rename, delete, and the durable core plus the folder gates, with everything else

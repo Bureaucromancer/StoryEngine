@@ -2738,6 +2738,168 @@ from the fieldsets that already exist rather than hand-listed, so a schema
 change cannot leave a jump pointing at nothing. And `EditorFrame` grows the
 header `ActorEditorPage` already has: the object's image, its name, its kind.
 
+***Built 2026-10-13***, under [§0.4](#04-what-the-audit-of-2026-10-13-found-and-what-each-finding-decides)'s
+decisions for this stage, which were binding on it: a `JumpSection` that
+registers with the frame replaces the `<section>`/`h2` pairs, so a chip cannot
+point at nothing; a jump into a closed `<details>` opens it; and the header's
+image is an answer every kind can give, with *none* an answer.
+
+**The jumps** are `editor/jumps.tsx`. A `JumpSection` draws a `<section>` and
+its heading together — the heading's words are the chip's, one string — and is
+labelled by that heading, with a `note` held under it and an `aside` beside it;
+a `JumpHeading` is the same heading alone, for the two places a section's
+heading stands inside something that is not a section, an actor's `<legend>`
+and a lore entry's `<summary>`. As each heading is drawn it tells the frame it
+is there, holding the element itself rather than an id to look up, and it takes
+itself away as it goes. `EditorFrame` owns the list, sorted by where each
+heading stands in the document rather than by when it arrived, and draws a chip
+for each under the object's name — a `ui/Button` that scrolls its heading to the
+top and gives it the keyboard (`tabIndex={-1}`, `SettingsAnchor`'s ring),
+opening every `<details>` around it first. Every section the four editors drew
+as a `<section>` and a `SectionTitle` is one now, fifteen places:
+
+| Editor | Its chips, in the page's order |
+|---|---|
+| Actor | each of the card's sections, by its title — *Summary*, *Appearance*, *Voice* and *Background* on a new card — and *Writing samples* |
+| Treatment, setup | *Fields*, *Plot hooks* |
+| World | *Fields*, *Members* |
+| Preset | *Blocks*, *Fields* |
+| Lorebook | *Scope*, *Retrieval*, *Pictures*, *Folders* (for a book that has folders), *Entries*; while an entry is selected, its name and its seven groups, *Matching* to *The entry itself*; *Plot hooks* |
+
+**The header** is the frame's: the object's picture, its kind (`KIND_WORDS`,
+above the name) and its name, for every kind, with the line each page still
+says for itself under them — the frame's `header` prop is `note` now. The
+picture is the kind's own `imageOf` on `EditorKind`: an actor's card, drawn by
+`ui/Face` and falling back to its tile; a lorebook's cover, `primaryMediaId`; a
+treatment's, a setup's or a World's first picture; and a preset's nothing. It is
+read from the saved object, since the media route reads what is on disk, so a
+draft is a tile for an actor and nothing for the rest. `ActorEditorPage`'s own
+header is gone, and its note that the card travels with the file stays as the
+actor's line.
+
+**What the stage text said and what turned out different:**
+
+- *"Generated from the fieldsets that already exist rather than hand-listed"*
+  — there was nothing to generate them from, which was §0.4's finding: no
+  section carried an id, and only `LoreEntry`'s schema has banners. **The
+  heading is the list** instead: a section exists as a chip exactly as long as
+  its heading is drawn, which is what *cannot point at nothing* needs and what a
+  list beside the page — Settings' `SECTIONS`, held in step by a test — can only
+  promise. An actor's chips do come from its fieldsets, the card's own sections,
+  and a lore entry's from its schema's banners in the schema's words.
+  `SchemaFields`' banner groups register too, though no schema it draws has one
+  today, so a banner added to a treatment's schema is a chip with no edit to a
+  page.
+- *"Never tabs ([10 §1.3], [10 §11.2d])"* — the rule is 10 §1.3's and 10 §3's,
+  as §0.4's smaller slips say; what §11.2d contributes is why a tab would break
+  it, and its dated note says so. There is no tab role anywhere in the client,
+  and a test reads the source for one.
+- *"The header `ActorEditorPage` already has: the object's image, its name, its
+  kind"* — it had the image and the name, and **no kind**; the kind is new to
+  every header, the actor's with it. And of the five other kinds only the
+  lorebook names its picture: [10 §11.3](../10-ui-surfaces.md) lists a
+  *treatment cover* and a *World cover* among the image slots, and neither
+  schema has a field that designates one. **The first picture stands in for
+  both**, and the setup's with them; a field to choose a cover is a schema
+  decision this stage did not take, and the design note and the schema disagree
+  about it until one is taken.
+- *Two sections the stage did not name.* **The schema's own fields are a
+  section, *Fields***, on the treatment, setup, World and preset pages, so the
+  first section of each has a chip like those after it — the one word true of
+  all four lists, which are whatever the schema declares that the page does not
+  draw itself. And **the lorebook's hook fold has a chip**, because `HookList`
+  is a section in every editor that draws it; [03 §4.1](../03-data-model.md)'s
+  *secondary* is kept by what kept it before — last on the page, shut, under its
+  sentence — and its chip is last, where the fold stands. A chip into it opens
+  it.
+- *Decided here: buttons, not addresses.* Settings' rows are links because the
+  address is the jump there, with a fixed anchor per section. An editor's
+  sections come and go with what is selected and their ids are `useId`'s, so a
+  pasted `#…` would land nowhere after a reload; the dock's jumps are the
+  precedent, an element and not a route. The editor's address keeps what it
+  says already, `?entry=` and `#aliases`.
+- *Decided here: not pinned.* The chips stand where the page starts and scroll
+  away with it. Held over the form, a dozen of them on a phone would be two or
+  three lines less form on every screen — a shrunken panel by another name,
+  which [P12A.8](#p12a8--the-phone-rules)'s rules refuse — and the critical
+  controls already hold the bottom edge.
+- *A motion the vocabulary did not name.* A jump scrolls smoothly when
+  `--transition-duration-arrive` has a length and is simply there when the
+  reduced-motion block has zeroed it, or when no stylesheet can be read — the
+  token rather than a second media query, so that block stays the one switch.
+  The scroll's length is the browser's, and no token reaches it. 05's note for
+  T5 says where it is seen.
+- *One shape for a heading row, where the sections had grown five.* The heading
+  with its note held under it, and anything beside it pushed to the far edge.
+  The Scope and Retrieval notes sit closer to their headings than before, and
+  the Folders table and the entry list's controls a little further from what
+  is above them. *Writing samples* keeps the subsection step it had, below the
+  section step its level would give it, since the card's sections beside it are
+  smaller still.
+- *An actor's sections are headings now*, a level-two heading inside each
+  legend, so heading navigation finds the card's sections; the legend still
+  names the group for a form's reading, and the heading carries the legend's
+  look.
+- *Found by building it: tests that read the page's structure.*
+  `LorebookEditorPage.test.tsx` took every list item on the page for an entry
+  row, and the heading's parent for its section; the chips are a list, and a
+  heading sits a level deeper in its row. Those readings go through the
+  *Entries* region and `closest('section')` now, and no assertion changed.
+
+**Tests, each checked against a mutation and restored**, all in the new
+`editor/jumps.test.tsx`. *A chip for every section, and a section for every
+chip*: on a bare registry, *draws one chip per section, in the order the page
+has them* fails with the sort removed, since a section drawn late then lands
+last, and with the first chip dropped from the row; *takes the chip away with
+its section, and renames it with its heading* fails with the cleanup keeping
+the chip, and with a heading that does not follow its title; and over all six
+editors, *holds in the … editor* — every region in the form has exactly one
+chip, every chip lands on a heading in the form that says its words, no two on
+one, and every level-two heading in the form is one a chip reaches — fails with
+a heading that never registers, with the focus dropped, with the first chip
+dropped, with the lorebook's *Pictures* drawn as a plain `<section>` and
+heading, and with an actor's section heading drawn plainly. *Registers the
+selected entry and its groups, and lets them go with the selection* — Harbour,
+then Bridge, then none — fails with the cleanup keeping the chip and with the
+title not followed; *follows an entry renamed in the form* with the title not
+followed. *A jump into a shut fold* — the entry's *Timing*, the book's hook
+fold, and a heading two folds deep — fails, each test, with the folds left shut
+and with the focus dropped. *How a jump moves the page* — smooth at `300ms`,
+`auto` at `0s` and with no token — fails with the behaviour always smooth and
+always `auto`. *The identity header, for every kind*: the six kinds' *kind,
+name and picture* fail with the kind word dropped; the lorebook's with the
+first picture taken over the cover, and *shows no picture for a book that has
+chosen no cover* with that and with an absent cover read as *the first*; the
+treatment's and the World's with the simple kinds answering *none*; the
+setup's and the preset's with a placeholder drawn for *none*; *passes over
+media that is not a picture* with the `image/` check removed; *draws an actor's
+tile when the card will not load* with the actor drawn as a picture rather
+than a face; *draws nothing for a cover that will not load* with the failure
+not remembered; and *draws a new actor as its tile* with the draft asking for
+its card, and with the actor drawn as a picture. *Never tabs*: no tab, tablist
+or tabpanel in any of the six editors drawn, and none in the client's source
+read as text — both fail with a chip given the tab role. The client's other
+test files pass, `LorebookEditorPage.test.tsx` with its two readings repointed
+and `tailwind-utilities.test.ts` after the build. *Not looked at in a browser*
+— none is installed where this was built — so whether the row reads as the
+page's contents, and where a jump lands on a long book, are a person's; no row
+of T names this stage.
+
+**Entry after: 320.18 kB, CSS 8.66** — **319.27 and 8.66 before**, at
+`d43d92fb`, gzip level 9 over the files `index.html` pulls, the budget test's
+method. **+0.91 kB, 0.18 over the 320 ceiling**: the registry, the chips and
+the jump **0.36**, the header's picture **0.16**, and the sections with the
+header's move into the frame about **0.39** — each measured by taking it out of
+a build. **The ceiling is raised to 325**, which leaves **4.82** for P12A.8,
+and `tools/entry-budget.test.ts` records beside the raise the measurement that
+makes it the lesser answer: **the four editors behind one `lazy()` chunk
+measured 294.42, −25.76 kB** — the largest boundary measured on this branch,
+and the *editors* group [21 §4.1](../21-client-loading.md) names among its first
+candidates. It is a loading decision with 21 §7's obligations — a chunk
+boundary, a pending state, a check that keeps it off the entry — and not a
+stage's, so it is measured and recorded (21 §4.1 has a dated note) and not
+built.
+
 ### P12A.8 — The phone rules
 
 Two rules, both already written and neither enforced: **sheets rather than

@@ -17,9 +17,10 @@ import {
   type FieldRow,
 } from '../library/fields.js';
 import { CheckboxField, Field, SelectField } from '../ui/Field.js';
-import { Fine, SubsectionTitle } from '../ui/Text.js';
+import { Fine } from '../ui/Text.js';
 import { LinesField } from './ListField.js';
 import { disclosure } from '../ui/classes.js';
+import { JumpHeading } from './jumps.js';
 
 /**
  * One entry, as the schema's own shape —
@@ -165,9 +166,16 @@ export function EntryFields(props: {
              * below rather than beside the title.
              */}
             <summary className={disclosure.quiet}>
-              <SubsectionTitle as="h4">
+              {/*
+               * ***Each group is a jump*** (2026-10-13, P12A.7), and its chip
+               * says the banner's word — *Timing* — while its heading says the
+               * closed-section summary as before. A jump to a shut group opens
+               * it (`jumpTo`), which writes the DOM's `open` and so leaves
+               * this fold as uncontrolled as the paragraph above needs it.
+               */}
+              <JumpHeading as="h4" title={group.title} className="text-subsection text-ink">
                 {groupSummary(group, props.entry, props.locale)}
-              </SubsectionTitle>
+              </JumpHeading>
             </summary>
             {group.note === undefined ? null : <Fine className="mt-1">{group.note}</Fine>}
             <div className="mt-3">

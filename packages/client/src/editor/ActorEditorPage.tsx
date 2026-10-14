@@ -23,12 +23,12 @@ import { Alert } from '../ui/Alert.js';
 import { Button } from '../ui/Button.js';
 import { TwoStep } from '../ui/TwoStep.js';
 import { page } from '../ui/classes.js';
-import { Face } from '../ui/Face.js';
 import { CheckboxField, Field } from '../ui/Field.js';
-import { Fine, Note, SubsectionTitle } from '../ui/Text.js';
+import { Fine, Note } from '../ui/Text.js';
 import { TagInput } from '../tags/TagInput.js';
 import { blankFor, isRequiredField } from '../library/fields.js';
 import { EditorFrame } from './EditorFrame.js';
+import { JumpHeading, JumpSection } from './jumps.js';
 import { useObjectEditor, type EditorKind } from './object-editor.js';
 
 /**
@@ -178,13 +178,29 @@ const ACTORS: EditorKind<ActorForm> = {
   nameOf: (form) => form.name,
   untitled: { draft: 'New actor', saved: 'Untitled actor' },
   editorRoute: '/library/actors/$id/edit',
+  /**
+   * ***The card, as a face*** — which this page drew itself until P12A.7 gave
+   * the header to the frame (2026-10-13).
+   *
+   * Shown, never replaced here — the card's pixels are the portrait as
+   * intended, and replacing them is not this editor's business. ***And a card
+   * with no picture has a face*** (2026-10-13,
+   * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.3): this
+   * was an empty grey square for a draft and, since the blank card loaded with
+   * a 200, for every actor made here — the commonest actor there is. `Face`
+   * draws the tile instead, from the name being typed and the id the draft was
+   * minted with, and falls back to it when the route answers 404 for a blank
+   * card. A draft has no card to ask for, which the frame knows (`unsaved`)
+   * and answers with the tile.
+   */
+  imageOf: (saved) => ({ as: 'face', src: api.avatarUrl(saved.id, saved.contentHash) }),
 };
 
 function Editor(props: { initial: LibraryObject; unsaved?: boolean }): JSX.Element {
   const editor = useObjectEditor(ACTORS, props.initial, {
     ...(props.unsaved === undefined ? {} : { unsaved: props.unsaved }),
   });
-  const { base, form, missing, unsaved } = editor;
+  const { form, missing } = editor;
   const aliases = useLandOnAliases();
 
   /**
@@ -235,34 +251,10 @@ function Editor(props: { initial: LibraryObject; unsaved?: boolean }): JSX.Eleme
       backLabel="Back to the actor"
       unsavedHeading="This actor has unsaved changes"
       listSearch={{ kind: 'actors' }}
-      header={
-        <>
-          <header className="mb-6 flex items-center gap-4">
-            {/* Shown, never replaced here — the card's pixels are the portrait as
-              intended, and replacing them is not this stage's business. A draft
-              has no card to show, and asking for one by an id the server has
-              never heard of would be a 404 rendered as a broken image.
-              ***And a card with no picture has a face*** (2026-10-13,
-              [P12A](../../../../docs/design/workplan/35-p12a-the-look.md)
-              P12A.3): this was an empty grey square for a draft and, since the
-              blank card loaded with a 200, for every actor made here — the
-              commonest actor there is. `Face` draws the tile instead, from the
-              name being typed and the id the draft was minted with, and falls
-              back to it when the route answers 404 for a blank card. */}
-            <Face
-              id={base.id}
-              name={form.name}
-              src={unsaved ? null : api.avatarUrl(base.id, base.contentHash)}
-              size="header"
-            />
-            <div>
-              <h1 className="text-title text-ink">{editor.heading}</h1>
-              <Note>
-                The card image travels with the file; this editor shows it and does not replace it.
-              </Note>
-            </div>
-          </header>
-        </>
+      note={
+        <Note>
+          The card image travels with the file; this editor shows it and does not replace it.
+        </Note>
       }
     >
       <Field
@@ -323,8 +315,18 @@ function Editor(props: { initial: LibraryObject; unsaved?: boolean }): JSX.Eleme
 
       {form.sections.map((section, index) => (
         <fieldset key={section.id} className="rounded-panel border border-line p-4">
+          {/* ***A heading inside the legend*** (2026-10-13, P12A.7): each of
+              the card's sections is a jump, and a jump lands on a heading. The
+              legend keeps naming the group for a screen reader's form mode;
+              the heading puts the section in the page's outline, where
+              heading navigation finds it, and carries the legend's own look —
+              `inline`, so the disposition still follows on its line. */}
           <legend className="px-1 text-sm font-medium text-ink-muted">
-            {section.title === '' ? 'Untitled section' : section.title}
+            <JumpHeading
+              as="h2"
+              title={section.title === '' ? 'Untitled section' : section.title}
+              className="inline"
+            />
             <span className="ms-2 text-xs font-normal text-ink-faint">{section.disposition}</span>
           </legend>
           <div className="flex flex-col gap-3">
@@ -366,14 +368,20 @@ function Editor(props: { initial: LibraryObject; unsaved?: boolean }): JSX.Eleme
           card and the longest: putting a page of pasted prose above the
           one-line identity fields would bury them.
         */}
-      <section className="flex flex-col gap-3">
-        <SubsectionTitle as="h2">Writing samples</SubsectionTitle>
-        <Fine>
-          Prose in this character&rsquo;s voice, offered to the model as an example to write like —
-          not a description of how they sound. Each one is budgeted like any other block, and the
-          lowest priority is dropped first when a prompt runs long.
-        </Fine>
-
+      <JumpSection
+        title="Writing samples"
+        // The subsection step it always had: its level is the card's sections',
+        // whose legends are smaller still, and the section step would stand it
+        // above them.
+        small
+        note={
+          <Fine>
+            Prose in this character&rsquo;s voice, offered to the model as an example to write like
+            — not a description of how they sound. Each one is budgeted like any other block, and
+            the lowest priority is dropped first when a prompt runs long.
+          </Fine>
+        }
+      >
         {form.samples.length === 0 ? (
           <p className="text-sm text-ink-muted">None yet.</p>
         ) : (
@@ -471,7 +479,7 @@ function Editor(props: { initial: LibraryObject; unsaved?: boolean }): JSX.Eleme
             Add a writing sample
           </Button>
         </div>
-      </section>
+      </JumpSection>
     </EditorFrame>
   );
 }

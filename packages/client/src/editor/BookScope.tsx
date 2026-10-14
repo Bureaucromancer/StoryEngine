@@ -11,8 +11,9 @@ import { ownWorlds } from '../play/world-start.js';
 import { useLibrary } from '../queries.js';
 import { Badge } from '../ui/Badge.js';
 import { SelectField } from '../ui/Field.js';
-import { Fine, SectionTitle } from '../ui/Text.js';
+import { Fine } from '../ui/Text.js';
 import { TokenField, type TokenOption } from '../ui/TokenField.js';
+import { JumpSection } from './jumps.js';
 import {
   pickableIds,
   scopeChoiceOf,
@@ -153,14 +154,7 @@ export function BookScope(props: {
   }
 
   return (
-    <section className="flex flex-col gap-3">
-      <div>
-        <SectionTitle as="h2" className="mb-2">
-          {WORDS.title}
-        </SectionTitle>
-        <Fine>{WORDS.about}</Fine>
-      </div>
-
+    <JumpSection title={WORDS.title} note={<Fine>{WORDS.about}</Fine>}>
       {/*
        * ***The only control that can change the scope***, so a kind this build
        * does not know is safe by construction: it is one of the options while
@@ -194,7 +188,7 @@ export function BookScope(props: {
           }}
         />
       ) : null}
-    </section>
+    </JumpSection>
   );
 }
 

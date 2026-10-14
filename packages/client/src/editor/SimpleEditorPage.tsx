@@ -13,8 +13,9 @@ import { EditorFrame } from './EditorFrame.js';
 import { hooksOf, withHooks } from './hook-form.js';
 import { HookList } from './HookList.js';
 import { MembersField } from './MembersField.js';
+import { JumpSection } from './jumps.js';
 import { contentsShape, membersOf, mergedMembers, withMembers } from './members-form.js';
-import { useObjectEditor, type EditorKind } from './object-editor.js';
+import { pictureOf, useObjectEditor, type EditorKind } from './object-editor.js';
 import { SchemaFields } from './SchemaFields.js';
 import { Note } from '../ui/Text.js';
 
@@ -282,6 +283,16 @@ export function descriptorFor(kind: SimpleKind): EditorKind<Draft> {
     nameOf,
     untitled: kind.untitled,
     editorRoute: kind.editorRoute,
+    /**
+     * ***The first picture it carries***, or none (2026-10-13, P12A.7). A
+     * treatment, a setup and a World each have a `media` list and none of them
+     * designates a cover the way a lorebook's `primaryMediaId` does, so the
+     * first is the honest choice: it is the one the author put there first,
+     * and it is the same one every time the page is opened. Most carry none,
+     * and the header then shows the name and the kind and nothing in the
+     * picture's place.
+     */
+    imageOf: (saved) => pictureOf(kind.kind, saved),
   };
 }
 
@@ -385,12 +396,7 @@ function SimpleEditor(props: {
       listSearch={{ kind: props.kind.kind }}
       formClassName="flex flex-col gap-6"
       storedCaption={props.kind.storedCaption}
-      header={
-        <header className="mb-6">
-          <h1 className="text-title text-ink">{editor.heading}</h1>
-          <Note>{props.kind.blurb}</Note>
-        </header>
-      }
+      note={<Note>{props.kind.blurb}</Note>}
     >
       <Field
         label="Name"
@@ -402,28 +408,39 @@ function SimpleEditor(props: {
         error={missing.includes('name') ? props.kind.nameRefusal : null}
       />
 
-      <SchemaFields
-        schemaId={props.kind.schemaId}
-        value={draft}
-        // `hooks` joins `name` as a field this page draws itself. Without it
-        // the array is rendered twice — once by the generic renderer, which
-        // reads an array of objects as a structure it will not invent a form
-        // for and prints it as JSON, and once by the list below that does.
-        // `contents` is the same case on the World [P16.1].
-        handled={[
-          'name',
-          ...(props.kind.hooks === undefined ? [] : ['hooks']),
-          ...(props.kind.members === undefined ? [] : ['contents']),
-        ]}
-        {...(props.kind.readOnly === undefined ? {} : { readOnly: props.kind.readOnly })}
-        // An updater, and so is every write on this page: an assist's result
-        // lands tens of seconds after its click, and a whole form built from
-        // this render would revert whatever was typed meanwhile. `patch` in
-        // `object-editor.ts` has the argument.
-        onChange={(key, next) => {
-          editor.patch((current) => ({ ...current, [key]: next }));
-        }}
-      />
+      {/*
+       * ***The schema's fields, under one heading*** (2026-10-13, P12A.7), so
+       * the page's first section has a chip like the two after it. *Fields*
+       * because that is what they are — every one the schema declares that
+       * this page does not draw itself, in the schema's order — and the one
+       * word that is true of a treatment's, a setup's and a World's alike. A
+       * banner added to one of these schemas becomes a group inside it with a
+       * chip of its own (`SchemaFields`), with no edit here.
+       */}
+      <JumpSection title="Fields" className="flex flex-col gap-4">
+        <SchemaFields
+          schemaId={props.kind.schemaId}
+          value={draft}
+          // `hooks` joins `name` as a field this page draws itself. Without it
+          // the array is rendered twice — once by the generic renderer, which
+          // reads an array of objects as a structure it will not invent a form
+          // for and prints it as JSON, and once by the list below that does.
+          // `contents` is the same case on the World [P16.1].
+          handled={[
+            'name',
+            ...(props.kind.hooks === undefined ? [] : ['hooks']),
+            ...(props.kind.members === undefined ? [] : ['contents']),
+          ]}
+          {...(props.kind.readOnly === undefined ? {} : { readOnly: props.kind.readOnly })}
+          // An updater, and so is every write on this page: an assist's result
+          // lands tens of seconds after its click, and a whole form built from
+          // this render would revert whatever was typed meanwhile. `patch` in
+          // `object-editor.ts` has the argument.
+          onChange={(key, next) => {
+            editor.patch((current) => ({ ...current, [key]: next }));
+          }}
+        />
+      </JumpSection>
 
       {/*
        * **After the schema's fields rather than lifted above them**, which is

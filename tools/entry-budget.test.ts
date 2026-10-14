@@ -369,7 +369,36 @@ const DIST = join(HERE, '..', 'packages', 'client', 'dist');
  * note sentences with the library surface that is their only reader are still
  * the largest candidate; choosing one is a loading decision and not a face's.
  */
-const JS_CEILING_KB = 320;
+/*
+ * ***Raised to 325 on 2026-10-13, at [P12A](../docs/design/workplan/35-p12a-the-look.md)
+ * P12A.7*** — section jumps and the identity header in the editors, found by
+ * this file failing as it is meant to be. The raise above left 4.63 for
+ * P12A.4 onward; P12A.4 to P12A.6 spent 3.90 of it, and P12A.6's record named
+ * the **0.73** left. Measured with this file's compressor: **319.27** before
+ * the stage (`d43d92fb`), **320.18** after — **+0.91 kB**, every byte the
+ * client's own code and **no new dependency**. *Where it went*, each measured
+ * by taking it out of a build: the registry, the chips and the jump itself,
+ * **0.36** (319.82 without); the header's picture — the frame drawing a
+ * kind's picture and finding one in its `media` — **0.16** (320.02 without);
+ * and the rest, about **0.39**, is the sections themselves: the heading that
+ * registers, the section that draws it, the fifteen places in four editors
+ * that now draw one where they drew a `<section>` and a `SectionTitle`, the
+ * header's kind and name moved into the frame, and each kind's `imageOf`.
+ * ***A split was measured, and this time it is the remedy rather than a worse
+ * answer***: the four editors behind one `lazy()` chunk — every editor page,
+ * new and existing, imported from one module — measured **294.42**, **−25.76
+ * kB** from this stage's build. The editors are on the entry because the router
+ * imports them, and nobody arriving at the library or at Play needs one; the
+ * `members-form` and `MembersField` modules the library's World page reads
+ * stay where they are. That measurement had no chunk boundary or pending
+ * state, so it is the bytes moved and not a built remedy, and building it is
+ * a loading decision with [21 §7](../docs/design/21-client-loading.md)'s
+ * obligations — the publish review's boundary, a check that keeps the chunk
+ * off the entry — rather than a stage's. So the raise, to leave about five
+ * kB as every raise above left: **325 leaves 4.82** for P12A.8, and the split
+ * is written down beside it as the next thing this file should be asked about.
+ */
+const JS_CEILING_KB = 325;
 
 /** The stylesheet, at 6.99 kB and growing with the design system rather than the app. */
 const CSS_CEILING_KB = 12;

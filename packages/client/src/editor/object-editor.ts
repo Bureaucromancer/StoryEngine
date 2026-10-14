@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import { uuidv7, type GeneratedFieldProvenance } from '@storyengine/shared';
 
-import { ApiError, type LibraryKind, type LibraryObject } from '../api.js';
+import { api, ApiError, type LibraryKind, type LibraryObject } from '../api.js';
 import { missingRequired, refusalFor } from '../library/fields.js';
 import { useCreateObject, useSaveObject } from '../queries.js';
 
@@ -89,6 +89,70 @@ export interface EditorKind<F> {
   untitled: { draft: string; saved: string };
   /** Where this kind's editor lives, for the create and copy redirects. */
   editorRoute: string;
+  /**
+   * ***The object's picture, for the frame's header*** (2026-10-13) —
+   * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.7, under
+   * its §0.4: *"the header's image is an answer every kind can give, and none
+   * is an answer."*
+   *
+   * **A member of the kind rather than a prop of the frame**, because that is
+   * the test `EditorFrame`'s docstring sets a new prop: an avatar for actors
+   * alone is the per-kind prop it refuses. Every kind can answer *what is your
+   * picture*, and four of the six answer it differently — an actor its card,
+   * drawn as a face that falls back to its tile; a lorebook the cover its
+   * gallery designates; a treatment, a setup or a World the first picture it
+   * carries; a preset nothing, since it carries none. Nothing is an answer,
+   * and the frame draws no frame for it.
+   *
+   * *Read from the saved object, never the form*: a picture is bytes the
+   * server serves from what is on disk (`readMedia` finds the media row in the
+   * stored object), so a cover chosen and not yet saved is a picture the route
+   * cannot find. The header shows what the library card shows, and changes
+   * when Save does. A draft has nothing on disk at all, which the frame
+   * decides once for every kind (`unsaved`) rather than six times here.
+   */
+  imageOf: (saved: LibraryObject) => EditorImage;
+}
+
+/**
+ * What a kind's header picture is — see {@link EditorKind.imageOf}.
+ *
+ * **A face** is an actor's: `ui/Face`, which draws the picture or, when there
+ * is none or it will not load, the drawn tile — so it is never empty. **A
+ * picture** is anything else's, and one that will not load is no picture
+ * rather than a tile: a book is not somebody, and initials on a coloured disc
+ * would claim that it was.
+ */
+export type EditorImage =
+  { as: 'face'; src: string | null } | { as: 'picture'; src: string } | null;
+
+/**
+ * ***A kind's picture from its own `media`*** — the one with `chosen`'s id
+ * when the kind designates one, or the first that is an image when it does
+ * not ask.
+ *
+ * *Read defensively*, as everything here reads a file: the object is
+ * hand-editable, so `media` can be anything, and a header that threw on it
+ * would make a typo somebody else made into an editor that will not open. A
+ * row without a string id and digest is not a picture this can address, and
+ * one whose `mime` is not an image's is not a picture at all.
+ */
+export function pictureOf(kind: LibraryKind, saved: LibraryObject, chosen?: unknown): EditorImage {
+  const media = saved.object['media'];
+  if (!Array.isArray(media)) return null;
+  for (const row of media as unknown[]) {
+    if (typeof row !== 'object' || row === null) continue;
+    const { id, digest, mime } = row as Record<string, unknown>;
+    if (
+      typeof id === 'string' &&
+      typeof digest === 'string' &&
+      String(mime).startsWith('image/') &&
+      (chosen === undefined || id === chosen)
+    ) {
+      return { as: 'picture', src: api.mediaUrl(kind, saved.id, id, digest) };
+    }
+  }
+  return null;
 }
 
 export interface ObjectEditor<F> {

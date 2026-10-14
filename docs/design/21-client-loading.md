@@ -145,6 +145,20 @@ queries begin only after components mount can acquire a code-then-data wait.
 Measure that before deciding whether selected data requests should start with
 navigation. Splitting need not require rewriting all data fetching at once.
 
+*(2026-10-13, [P12A](workplan/35-p12a-the-look.md) P12A.7: the **editors**
+group, measured and not built. Every editor page, new and existing, imported
+from one module behind one `lazy()` took the entry from **320.18 kB** to
+**294.42**, **−25.76** — measured with the entry-budget test's compressor at
+that stage's build, with no boundary or pending state written, so it is the
+bytes the split moves rather than a split. Nobody arriving at the library or
+at Play needs an editor, and the router's static imports are the only reason
+the entry carries them. Two things would stay where they are, by §7.4's
+lesson: `editor/members-form.ts` and `editor/MembersField.tsx`, which the
+library's World page reads, and `editor/jumps.tsx`, which the second draws
+its section with. The stage raised the ceiling to 325 rather than
+build it, since a boundary is a loading decision with §7's obligations, and
+`tools/entry-budget.test.ts` names it beside the raise as the next remedy.)*
+
 ### 4.2 Optional tools within a page — needed alongside routes
 
 The workbench is the first candidate because it is shared by the shell and
