@@ -147,7 +147,7 @@ const READ = {
     pacing: 'normal',
     rows: [
       {
-        hookId: 'h-1',
+        hookId: 'hook-1',
         title: 'A stranger at the door',
         source: { kind: 'session' },
         state: null,

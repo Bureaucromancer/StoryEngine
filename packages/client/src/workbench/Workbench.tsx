@@ -59,6 +59,10 @@ import { Note, SubsectionTitle } from '../ui/Text.js';
  * misspelt here would have passed the test that exists for this file's own
  * history: the resize handle below had no height for three phases. Quoted,
  * the test reads it again.
+ * *(2026-10-14, P12A's final audit: the test reads a template's text as well
+ * now, through the lexer `theme.test.ts` uses — `test-source-literals.ts`
+ * says why — so quoting is no longer what brings a list in reach of it. It
+ * stays quoted: one string, with a name.)*
  */
 const ASIDE =
   'relative flex w-(--workbench-size) shrink-0 flex-col border-s border-line bg-surface max-sm:w-full';

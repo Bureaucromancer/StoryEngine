@@ -540,6 +540,84 @@ describe('a mode’s placements in the strip', () => {
     const dialog = screen.getByRole('dialog', { name: 'How Vera looks' });
     expect(within(dialog).getByRole('img', { name: 'Vera, uneasy' })).toBeTruthy();
   });
+
+  /**
+   * ***Nothing in the line at rest is in the faintest ink*** (2026-10-14,
+   * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md)'s final
+   * audit). The strip stands on the backdrop's veil, where `ink-faint` is
+   * about 3 to 1 in the light theme, so P12A.4's review set every word in it
+   * in `strip.label` or darker — and a `meter` placed in the strip fell
+   * through to the stack's arm and kept `Meter`'s own `ink-faint` label, in
+   * the `hud` region since P12A.4 and as a `panel` reading since P12A.5.
+   * `theme.test.ts`'s scan of the strip reads the class lists of the two
+   * files that draw it, and could not see that: the ink is chosen in
+   * `ModeRegion` and spent in `RecordCard`, which both spell `ink-faint`
+   * rightly elsewhere. `ModeRegion.test.tsx` holds the bar's own label; this
+   * takes the ink at the DOM instead, **every arm a mode can place at once**,
+   * with both regions drawn as the strip draws them — so an arm added later
+   * is held too, without anybody remembering to list it.
+   *
+   * What a panel holds is out of its reach on purpose: a closed panel is in
+   * the document, `hidden`, and an open one stands on its own `surface`
+   * ground, so a class under a `hidden` ancestor is not on the veil. Mutation:
+   * the strip's `meter` arm removed from `stripWidgetFor`, and the test fails
+   * naming *Patience* and *Mood*.
+   */
+  it('sets nothing it draws in the line in the faintest ink, whichever arm a mode places', async () => {
+    const placed = (
+      region: string,
+      kind: string,
+      label: string,
+      over: Record<string, unknown> = {},
+    ): Record<string, unknown> => ({
+      region,
+      key: `example.${label.toLowerCase()}`,
+      channelId: `example.${label.toLowerCase()}`,
+      scopeKey: null,
+      kind,
+      label,
+      ...over,
+    });
+    readSession.mockResolvedValue(
+      sessionWith({
+        surfaces: [
+          placed('hud', 'text', 'Sky', {
+            text: 'rain',
+            edit: { kind: 'text', nullable: false },
+            value: 'rain',
+          }),
+          placed('hud', 'meter', 'Patience', { meter: { value: 3, min: 0, max: 10 } }),
+          placed('hud', 'record', 'Ledger', {
+            record: {
+              value: { owed: '3 crowns', to: 'the ferryman' },
+              fields: [
+                { key: 'owed', label: 'Owed', show: 'line' },
+                { key: 'to', label: 'To', show: 'line' },
+              ],
+            },
+          }),
+          placed('hud', 'image', 'Look', { image: { url: '/api/x.png', alt: 'Vera, uneasy' } }),
+          placed('hud', 'toggle', 'Rain', { on: true }),
+          placed('panel', 'meter', 'Mood', { meter: { value: 7, min: 0, max: 10 } }),
+          placed('panel', 'text', 'Weather', { text: 'fog' }),
+        ],
+      }),
+    );
+    renderStrip();
+    const strip = await theStrip();
+    await waitFor(() => {
+      expect(
+        within(strip)
+          .getAllByRole('meter')
+          .map((bar) => bar.getAttribute('aria-label')),
+      ).toEqual(['Patience', 'Mood']);
+    });
+
+    const faint = [...strip.querySelectorAll('.text-ink-faint')]
+      .filter((element) => element.closest('[hidden]') === null)
+      .map((element) => element.textContent);
+    expect(faint).toEqual([]);
+  });
 });
 
 describe('the strip’s items open in place', () => {

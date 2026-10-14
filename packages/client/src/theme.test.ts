@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
+import { literals as lexed, strip } from './test-source-literals.js';
 import * as recipes from './ui/classes.js';
 import { page, reveal, sheet, story, strip as stripItem } from './ui/classes.js';
 import { PHONE } from './ui/phone.js';
@@ -326,80 +327,19 @@ describe('controls that hide until you look at them', () => {
 });
 
 /**
- * Source with its comments gone — block comments and whole-line `//` ones —
- * so a class named in a sentence about classes is not read as one spent.
+ * Every string literal's text in a piece of source, through the lexer
+ * `test-source-literals.ts` holds; `strip`, beside it there, takes the
+ * comments out first.
  *
- * *Hoisted, with `literals` below, out of the radius scan* (2026-10-13,
- * [P12A.1]), because the story recipe's scan reads string literals the same
- * way and a second lexer would be a second answer to one question.
+ * *Hoisted, with `strip`, out of the radius scan* (2026-10-13, [P12A.1]),
+ * because the story recipe's scan reads string literals the same way and a
+ * second lexer would be a second answer to one question. *(2026-10-14,
+ * P12A's final audit: and out of this file, because
+ * `tailwind-utilities.test.ts` was that second answer and read no template;
+ * the helper's docstring says what that missed. Each scan here reads the
+ * text alone, as it did, so this is its one adapter.)*
  */
-const strip = (text: string): string =>
-  text.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/^[ \t]*\/\/.*$/gm, ' ');
-
-/**
- * Every string literal's text. A template literal's `${…}` holes are read
- * as code, so the `'a'` inside one is a literal of its own and the
- * template's text is what is left around it — which is how `${reveal} flex`
- * is read as ` flex`. A quoted string stops at a line's end, so the
- * apostrophe in a line of JSX prose cannot swallow the file after it.
- */
-function literals(source: string): string[] {
-  const found: string[] = [];
-  let at = 0;
-  const code = (inHole: boolean): void => {
-    let depth = 0;
-    while (at < source.length) {
-      const char = source[at];
-      if (char === "'" || char === '"') {
-        quoted(char);
-        continue;
-      }
-      if (char === '`') {
-        template();
-        continue;
-      }
-      if (char === '{') depth += 1;
-      if (char === '}') {
-        if (inHole && depth === 0) {
-          at += 1;
-          return;
-        }
-        depth -= 1;
-      }
-      at += 1;
-    }
-  };
-  const quoted = (quote: string): void => {
-    let text = '';
-    at += 1;
-    while (at < source.length && source[at] !== quote && source[at] !== '\n') {
-      if (source[at] === '\\') at += 1;
-      text += source[at] ?? '';
-      at += 1;
-    }
-    at += 1;
-    found.push(text);
-  };
-  const template = (): void => {
-    let text = '';
-    at += 1;
-    while (at < source.length && source[at] !== '`') {
-      if (source[at] === '$' && source[at + 1] === '{') {
-        at += 2;
-        text += ' ';
-        code(true);
-        continue;
-      }
-      if (source[at] === '\\') at += 1;
-      text += source[at] ?? '';
-      at += 1;
-    }
-    at += 1;
-    found.push(text);
-  };
-  code(false);
-  return found;
-}
+const literals = (source: string): string[] => lexed(source).map((literal) => literal.text);
 
 /**
  * The utility a class names, without its variants, its `!` or its sign.
@@ -468,7 +408,10 @@ const classList = (text: string): boolean =>
  * half a dozen comments in the client say *transition*. The bare words `rounded`,
  * `shadow` and `transition` are classes only beside other classes, so they
  * count only in a literal that reads as a class list: no capital letter, and
- * a token with a hyphen or a variant's colon in it.
+ * a token with a hyphen or a variant's colon in it. *(2026-10-14, P12A's
+ * final audit: a conditional writes one alone — `${open ? 'shadow' : ''}`,
+ * the idiom the client already uses for `opacity-50` — so a literal that is
+ * exactly one of them is read as well; none is a sentence.)*
  */
 describe('radius, elevation and motion are spent by name', () => {
   const ROOT = fileURLToPath(new URL('.', import.meta.url));
@@ -523,36 +466,73 @@ describe('radius, elevation and motion are spent by name', () => {
     return null;
   }
 
+  /**
+   * ***A literal that is the bare word alone*** (2026-10-14, P12A's final
+   * audit) — with or without `!`, since a form under a variant has a colon
+   * in it already and `classList` reads it. A conditional writes a class by
+   * itself, and these three are the ones a single class can spend wrongly.
+   */
+  const BARE = /^!?(?:rounded|shadow|transition)!?$/;
+
+  /** Each class one literal spends, with why it may not be written there or `null`. */
+  function read(
+    text: string,
+    path: string,
+    inRecipes: boolean,
+  ): { path: string; token: string; utility: string; why: string | null }[] {
+    const listed = classList(text) || BARE.test(text.trim());
+    return text
+      .split(/\s+/)
+      .filter((token) => token !== '')
+      .map((token) => ({ path, token, utility: utilityOf(token) }))
+      .filter(({ utility }) => listed || utility.includes('-'))
+      .map((found) => ({ ...found, why: refusal(found.utility, inRecipes) }));
+  }
+
   const scanned = sources(ROOT).flatMap((path) => {
     const inRecipes = path.endsWith(RECIPES);
-    return literals(strip(readFileSync(path, 'utf8'))).flatMap((text) => {
-      const listed = classList(text);
-      return text
-        .split(/\s+/)
-        .filter((token) => token !== '')
-        .map((token) => ({ path: path.slice(ROOT.length), token, utility: utilityOf(token) }))
-        .filter(({ utility }) => listed || utility.includes('-'))
-        .map((found) => ({ ...found, why: refusal(found.utility, inRecipes) }));
-    });
+    return literals(strip(readFileSync(path, 'utf8'))).flatMap((text) =>
+      read(text, path.slice(ROOT.length), inRecipes),
+    );
   });
 
   it('reads the class lists it is meant to', () => {
     // Calibrated, so a reader that stopped finding strings cannot pass: the
     // client spends `rounded-control` some seventy times, its three overlays
-    // spend `shadow-overlay`, its eight pictures and the two stand-ins that
-    // take a picture's slot `rounded-media`, and `reveal` is the one
-    // `transition-*` *(2026-10-13, P12A.6: one of six motion recipes now,
-    // three of them `transition-opacity` — `the motions` below holds them)*.
-    // `field-sizing-content` is written only after
-    // a `${control}` hole, in the composer and the chat's edit box, so it is
+    // spend `shadow-overlay` *(2026-10-14: five spends since P12A.3 and
+    // P12A.4 — `ui/Popover`'s two placements, `PANEL_INLINE` and
+    // `PANEL_BELOW`, beside FieldAssist, the notification toast and
+    // TokenField's list; P12A's final audit raised the floor below from
+    // three to five, the count, as `rounded-media`'s is)*, its eight pictures
+    // and the two stand-ins that take a picture's slot `rounded-media`, and
+    // `reveal` is the one `transition-*` *(2026-10-13, P12A.6: one of six
+    // motion recipes now, three of them `transition-opacity` — `the motions`
+    // below holds them)*. `field-sizing-content` is written only after a
+    // `${control}` hole, in the composer and the chat's edit box, so it is
     // the proof that a template literal's text is read at all.
     const count = (utility: string): number =>
       scanned.filter((found) => found.utility === utility).length;
     expect(count('rounded-control')).toBeGreaterThanOrEqual(50);
-    expect(count('shadow-overlay')).toBeGreaterThanOrEqual(3);
+    expect(count('shadow-overlay')).toBeGreaterThanOrEqual(5);
     expect(count('rounded-media')).toBeGreaterThanOrEqual(10);
     expect(count('transition-opacity')).toBeGreaterThanOrEqual(1);
     expect(count('field-sizing-content')).toBeGreaterThanOrEqual(2);
+
+    // And the bare word a conditional writes alone (2026-10-14, P12A's final
+    // audit), which the class-list test above cannot tell from a word in a
+    // sentence: each of these is Tailwind's own radius, shadow or motion, and
+    // a scan that stopped reading them would let the next one through.
+    // Mutation: `BARE` taken out of `read`, and all three pass unrefused.
+    for (const source of [
+      "x ? 'shadow' : ''",
+      "r ? 'rounded' : 'rounded-control'",
+      "t && 'transition'",
+    ]) {
+      const refused = literals(strip(source))
+        .flatMap((text) => read(text, 'probe', false))
+        .filter((found) => found.why !== null);
+      expect(refused, source).not.toEqual([]);
+    }
   });
 
   it('refuses a radius, a shadow or a motion that is not spent by name', () => {
@@ -1100,6 +1080,10 @@ describe("the story's measure", () => {
  * see, so `ModeRegion.test.tsx` holds it. `ModeRegion.tsx` and
  * `RecordCard.tsx` are not added here: each spells `ink-faint` rightly, on a
  * card or in a stack, and would fail this for the wrong reason.)*
+ * *(2026-10-14, the final audit's tests: and `HudStrip.test.tsx` takes the
+ * ink at the DOM, with every arm a mode can place drawn in both regions as
+ * the strip draws them, so an arm added later is held by that assertion
+ * rather than by this scan, without anybody listing it here.)*
  */
 describe('the HUD strip', () => {
   const ROOT = fileURLToPath(new URL('.', import.meta.url));
@@ -1353,7 +1337,11 @@ describe('the phone rules', () => {
           .map((token) => variantsOf(token).join(':'));
       const ways = ['[@media(hover:none)]', `group-focus-within/${group}`, `group-hover/${group}`];
       expect(at('opacity-100').sort(), `${group}: what shows the row`).toEqual([...ways].sort());
-      expect(at('pointer-events-auto').sort(), `${group}: what lets it be pressed`).toEqual(
+      // In halves (2026-10-14, P12A's final audit): the build reads this file
+      // for class names, and the utility written whole here was a rule in the
+      // stylesheet the client ships, bare, where the recipe spends it only
+      // under a variant.
+      expect(at('pointer-events-' + 'auto').sort(), `${group}: what lets it be pressed`).toEqual(
         [...ways].sort(),
       );
       const rest = tokens.filter((token) => variantsOf(token).length === 0).map(utilityOf);
@@ -1368,8 +1356,17 @@ describe('the phone rules', () => {
     // Every class is the phone's: on a desk the panel is where it was opened.
     expect(tokens.filter((token) => variantsOf(token).join(':') !== 'max-sm')).toEqual([]);
     // Along the bottom edge, the screen's width, and scrolling in itself.
+    // The class that lets go of the top is in halves, for the reason `at`
+    // above gives (2026-10-14, P12A's final audit): `sheet` spends it under
+    // the phone's variant alone, and the others are spent bare elsewhere.
     expect(tokens.map(utilityOf)).toEqual(
-      expect.arrayContaining(['fixed', 'inset-x-0', 'bottom-0', 'top-auto', 'overflow-y-auto']),
+      expect.arrayContaining([
+        'fixed',
+        'inset-x-0',
+        'bottom-0',
+        'top-' + 'auto',
+        'overflow-y-auto',
+      ]),
     );
     expect(tokens.map(utilityOf).some((utility) => utility.startsWith('max-h-'))).toBe(true);
   });

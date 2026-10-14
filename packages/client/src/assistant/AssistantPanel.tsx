@@ -74,6 +74,10 @@ const WORDS = labels('assistant.panel', {
  * `tailwind-utilities.test.ts` reads quoted literals only, so a utility
  * misspelt here would have passed the one test that exists to catch it.
  * Quoted, the test reads it again.
+ * *(2026-10-14, P12A's final audit: the test reads a template's text as well
+ * now, through the lexer `theme.test.ts` uses — `test-source-literals.ts`
+ * says why — so quoting is no longer what brings a list in reach of it. It
+ * stays quoted: one string, with a name.)*
  *
  * ***The view, on a phone*** (2026-10-13,
  * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.8). It

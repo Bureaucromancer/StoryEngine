@@ -368,12 +368,21 @@ describe('the backdrop’s veil', () => {
       expect(column.classList.contains('overflow-y-auto')).toBe(false);
 
       // main paints the strip for exactly that child, at the column's width.
+      //
+      // Each utility is written in two halves and joined (2026-10-14, P12A's
+      // final audit), because the build reads this file for class names as it
+      // reads a component: whole, each was a rule of its own in the stylesheet
+      // the client ships — the bare utility, without the variant `Shell.tsx`
+      // spends it under, which nothing spends. The size is cut after its
+      // second hyphen and not its first, or the half after the cut would be a
+      // utility of its own, an arbitrary size, and emitted in turn. (Neither
+      // is spelt out in this comment, which the build reads too.)
       const classes = main.className.split(/\s+/);
       for (const part of [
-        'bg-[linear-gradient(var(--color-veil),var(--color-veil))]',
-        'bg-no-repeat',
-        'bg-center',
-        'bg-size-[min(100%,var(--container-reading))_100%]',
+        'bg-' + '[linear-gradient(var(--color-veil),var(--color-veil))]',
+        'bg-' + 'no-repeat',
+        'bg-' + 'center',
+        'bg-size-' + '[min(100%,var(--container-reading))_100%]',
       ]) {
         expect(classes).toContain(`sm:has-[>[${marker}]]:${part}`);
       }

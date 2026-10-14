@@ -140,11 +140,16 @@ export type PopoverChange = 'trigger' | 'escape' | 'outside' | 'focus';
  * then the list sat in a template literal beside the recipe —
  * `tailwind-utilities.test.ts` reads quoted literals only, so a utility
  * misspelt in either, or a token that does not exist, would have passed the
- * one test that exists to catch it. Quoted, the test reads them again. *Not the bracketed value*: Tailwind emits an arbitrary
- * value whatever its brackets hold, so a unit mistyped inside the first
- * list's maximum height builds a rule and passes, quoted or not — a mutation
- * showed it. (Not spelt out here: the build reads comments too, and the
- * misspelling written as a class would be emitted from this sentence.)
+ * one test that exists to catch it. Quoted, the test reads them again.
+ * *(2026-10-14, P12A's final audit: the test reads a template's text as well
+ * now, through the lexer `theme.test.ts` uses — `test-source-literals.ts`
+ * says why — so quoting is no longer what brings a list in reach of it. They
+ * stay quoted: one string each, with a name.)* *Not the bracketed value*:
+ * Tailwind emits an arbitrary value whatever its brackets hold, so a unit
+ * mistyped inside the first list's maximum height builds a rule and passes,
+ * quoted or not — a mutation showed it. (Not spelt out here: the build reads
+ * comments too, and the misspelling written as a class would be emitted from
+ * this sentence.)
  */
 const PANEL_BELOW =
   'absolute inset-x-0 top-full z-10 mt-1 flex max-h-[70dvh] flex-col gap-2 overflow-y-auto rounded-panel border border-line bg-surface p-3 font-ui text-sm text-ink shadow-overlay';

@@ -753,7 +753,14 @@ overlays spend `shadow-overlay`. 10 §1.2 has a dated note.
   the face test's regex reads neither — and the bare words `rounded`, `shadow`
   and `transition` count only in a literal that reads as a class list. It is
   calibrated on what it must see, `field-sizing-content` among it, which is
-  written only after a `${control}` hole.
+  written only after a `${control}` hole. *(2026-10-14,
+  [the final audit](#the-final-audit-2026-10-14): and in a literal that is the
+  bare word alone, which is how a conditional writes one —
+  `${open ? 'shadow' : ''}`, or `open && 'transition'` — and which the
+  class-list test let through, so Tailwind's raw shadow, its default radius or
+  a motion outside the recipes passed the scan written to refuse them. The
+  calibration now probes all three. And the lexer is
+  `test-source-literals.ts`'s, which `tailwind-utilities.test.ts` reads too.)*
 - *"`contrast.test.ts` gains any inked pair"* — it could not read the veil at
   all: its parser took only `var(--color-<step>)`, so a `color-mix()` token was
   invisible rather than a failure, which is why the overlay was never read. It
@@ -934,6 +941,20 @@ than a critical one.
   recipe's scan reads string literals the same way, template text included.
   *(2026-10-13, after review: and `utilityOf` after them, so the recipe's scan
   reads each class as the utility it names, as the radius scan does.)*
+  *(2026-10-14, [the final audit](#the-final-audit-2026-10-14), after review:
+  **the other test that reads the client's class lists was not moved with
+  it.** `tailwind-utilities.test.ts` read a `className="…"` and a quoted
+  string by two regular expressions and no template at all, so the fourteen
+  story strings this stage turned into templates — fifteen with the player's
+  line beside its face, which [P12A.3](#p12a3--faces) wrote as one — left the
+  test that asks whether Tailwind emitted their other classes: a misspelt
+  `whitespace-pre-wrap` on the transcript's prose passed it, where on `main`
+  it failed, and so did a misspelling of the `print:max-w-none` this stage
+  gave the reading view's article. The lexer
+  is `test-source-literals.ts` now, which both tests read; it says whether a
+  literal was written as a `className`, and a template written so is a class
+  list by construction. That reaches the fifty-four other `className`
+  templates in the client too, which the test had never read.)*
 - *Comments and the corpus*: 10 §1.1 and §1.2 have dated notes, the measure's
   `--container-reading` struck where they named it; `ui/classes.ts`'s `page`
   docstring and the play column's comment carry dated notes beside what they
@@ -2618,7 +2639,11 @@ it spends.
   reads template text, still reads their radii and shadows. *(2026-10-14, after
   review: the five lists are quoted constants again — `SCRIM`, `PANEL_BELOW`,
   `PANEL_INLINE` and each dock's `ASIDE` — with `enter` alone in the template's
-  hole, and the test reads them; see* After review *below.)*
+  hole, and the test reads them; see* After review *below.)* *(2026-10-14,
+  [the final audit](#the-final-audit-2026-10-14): and the test reads template
+  text now, through P12A.0's lexer, so *reads quoted literals only* is no
+  longer so; the five stay quoted, and each comment that gave the old reason
+  has a dated note.)*
 - *Not looked at in a browser* — none is installed where this was built — so
   every motion's look, and its absence under the preference, is T5's.
 
@@ -3374,7 +3399,18 @@ unchanged.
 **Entry after: 321.12 kB, CSS 8.98**, unchanged from `2c1e81ed`, gzip level 9
 over the files `index.html` pulls, the budget test's method: the entry's script
 is the same bytes and the stylesheet is byte for byte the same. **3.88 kB is
-left** under the 325 ceiling.
+left** under the 325 ceiling. *(2026-10-14, [the final
+audit](#the-final-audit-2026-10-14): the practice the paragraph above states
+was not yet the phase's. Seven rules in that stylesheet were test literals,
+each a utility written whole where nothing in the client spends it bare —
+`pointer-events-auto` and `top-auto` in this stage's phone rules, the veil's
+four classes in `shell-layout.test.tsx` from
+[P12A.2](#p12a2--the-backdrop-becomes-a-backdrop)'s review, and a hook id,
+`h-1`, which is a height, in `reachability.test.tsx` from
+[P12A.5](#p12a5--the-column-that-grew-seven-disclosures). Each is written now
+so that no whole utility survives in the source, and the stylesheet sheds
+exactly those seven rules: **CSS 9.02 to 8.95**, at `0c968492` with the audit's
+earlier areas in it, compared rule by rule.)*
 
 ### The final audit, 2026-10-14
 
@@ -3770,6 +3806,127 @@ Aventuras import.
 method. **+0.02 kB** is the sentence's longer words in `note-labels`' chunk,
 which `index.html` preloads; the build drops the comment, and the stylesheet
 is the same file. **3.09 kB is left** under the 325 ceiling, so no raise.
+
+**Tests: the scans that read the client's class lists, and what each could not
+see.** Five findings, about the tests rather than through them: two of them
+let a defect through, one was a gap the appearance record above had already
+closed by another test, one put rules in the stylesheet, and one was a comment.
+
+**`tailwind-utilities.test.ts` read no template.** It found class lists with two
+regular expressions — a `className="…"`, a list by construction, and a quoted
+string with a real utility in it — so a template literal's text was never read,
+and [P12A.1](#p12a1--the-story-face-and-the-two-surfaces-that-wear-it) moved
+the story's paragraphs into templates: `` className={`whitespace-pre-wrap ${story} text-ink`} ``.
+The classes left beside the hole left the test that asks whether Tailwind
+emitted them. A misspelt `whitespace-pre-wrap` on the transcript's prose, which
+on `main` failed it, passed, and the paragraph would have stopped wrapping; so
+did a misspelling in the article's `print:max-w-none`, home's `gap-3`, or the
+player's line's `text-ink-subtle`. `theme.test.ts` had a lexer for exactly
+this, with a comment saying *a second lexer would be a second answer to one
+question*, and the regular expressions were that second answer. **The lexer
+moved** into `packages/client/src/test-source-literals.ts` — named with the
+`test-` prefix, as `test-dom-setup.ts` beside it is, so the client's build
+project leaves it to `tsconfig.spec.json` and it takes the test files' lint
+rules — and each literal it returns says whether it was written as a
+`className`, read off the ten or eleven characters before its opening quote or
+backtick. `theme.test.ts` maps to the text and reads as it did;
+`tailwind-utilities.test.ts` reads every literal through it, and **a template
+written as a `className` is a list by construction**, as the quoted attribute
+always was, which is what catches the chat's `` `whitespace-pre-wrap ${story} ${…}` ``,
+whose one class beside its holes has no real utility to vouch for it. It reaches
+the fifty-four other `className` templates in the client as well, none of which
+the test had read. *P12A.6's move was not taken*: a quoted constant per site
+would be fifteen constants of two to four classes each, and would leave every
+other template unread.
+
+**The radius scan let a conditional's bare word through.** P12A.0's scan counts
+the bare words `rounded`, `shadow` and `transition` only in a literal that reads
+as a class list, so that a sentence saying *transition* is not refused — and a
+conditional writes one alone: `${open ? 'shadow' : ''}`, or `open && 'transition'`,
+the idiom the client uses for `opacity-50`. Each is what the scan exists to
+refuse — Tailwind's raw shadow in its own colour, its default radius, a motion
+outside the recipes — and each passed. A literal that is exactly one of the
+three is read now (`BARE`), the per-literal reading is a function, `read`, and
+the calibration runs it over three such conditionals.
+
+**A bar in the strip, at the DOM.** The appearance record above fixed the
+`meter`'s label in the strip and pinned it in `ModeRegion.test.tsx`; what was
+left was this area's half of the finding, that `theme.test.ts`'s scan of the
+strip reads two files and an arm drawn from a third is out of its sight. So
+`HudStrip.test.tsx` takes the ink where it lands: a `text`, a `meter`, a
+`record`, a picture and a switch placed in `hud`, a `meter` and a `text` as
+`panel` readings, the strip drawn as Play draws it, and no element in
+`ink-faint` outside a `hidden` panel — a panel open stands on its own ground.
+An arm a later stage adds is held without anybody listing it.
+
+**Seven rules nothing spends were in the stylesheet, from test literals.** The
+build reads test files for class names, and
+[P12A.8](#p12a8--the-phone-rules)'s record states the practice — a class a test
+must spell is written in halves — which three tests did not follow: the veil's
+four classes in `shell-layout.test.tsx`, from P12A.2's review, written whole
+without the variant `Shell.tsx` spends them under; `pointer-events-auto` and
+`top-auto` in `theme.test.ts`'s phone rules, which the client spends only under
+variants; and a hook id in `reachability.test.tsx`, from P12A.5, that is a
+height. Each is joined from halves now, cut so that neither half is a utility
+of its own — the size after its second hyphen, since cut after the first, the
+arbitrary size left behind would be emitted in turn — and the hook is `hook-1`.
+*A first draft of the comments beside the halves spelt two utilities whole* —
+one kept its rule, and the other, an arbitrary size with an ellipsis for its
+value, was emitted new — which the rule-by-rule comparison found; the comments
+name neither now.
+
+**A calibration counted three overlays, and there are five.** *Reads the class
+lists it is meant to* said `shadow-overlay` was spent by three overlays; since
+P12A.3 and P12A.4 it is five — the popover's two placements beside the field
+assist, the notification toast and `TokenField`'s list. The comment keeps its
+words with a dated note, and **the floor is five**, the count, as
+`rounded-media`'s is.
+
+*Tests, each checked against a mutation and restored.* In
+`tailwind-utilities.test.ts`, after the build: `whitespace-pre-wrp` on the
+transcript's prose and on the chat's own turn, `text-ink-subtl` on the
+player's line, `gap-q3` on home's changelog and `print:max-w-nne` on the
+reading view's article each fail *was emitted by the build*, naming the class
+and the file; the old test, restored whole, passes all five; with the lexer's
+`className` flag always false, the chat's — the single class — passes again,
+and the transcript's still fails. The new calibration, *reads the class lists
+it is meant to*, probes a `className` template whose one class is misspelt and
+a template in a constant with a real class beside the misspelling, and counts
+at least a thousand lists read out of the client (1,548): it fails with the
+flag always false, with a template's text read as empty, and with the lexer
+finding nothing. In `theme.test.ts`, the lexer made blind fails six tests, the
+story recipe's *found exactly once* among them; `BARE` taken out of `read`
+fails the new probe (*x ? 'shadow' : '': expected [] to not deeply equal []*),
+and a component given the three conditionals fails *refuses a radius, a shadow
+or a motion* with exactly those three. In `HudStrip.test.tsx`, *sets nothing it
+draws in the line in the faintest ink* fails naming *Patience* and *Mood* with
+the strip's `meter` arm removed and with its `labelClassName` alone dropped,
+and with the `hidden` filter removed fails on the closed panels' fine print,
+so the filter is what lets it pass. The touched tests and their neighbours,
+forty-nine files — the theme, utility, shell-layout, page-column and shell
+tests, the strip's, its entry's, the mode region's, the play column's, the
+chat's and the reachability list, and every test under `ui/`, `workbench/`,
+`assistant/`, `reading/`, `home/` and `compare/`, where the lists the five
+mutations touched and the four quoted constants live — pass after the build,
+with `tools/entry-budget.test.ts` among them, as do `i18n/`'s and the `docs`
+and `release` projects.
+
+*Dated notes, none a rewrite*: `theme.test.ts`'s lexer adapter, its radius
+scan's bare words, its calibration's overlays and its strip describe;
+`tailwind-utilities.test.ts`'s *what it cannot catch* and its two rules; the
+*reads quoted literals only* of P12A.6's four quoted constants — `SCRIM` in
+`ui/Dialog.tsx`, `PANEL_BELOW` and `PANEL_INLINE` in `ui/Popover.tsx`, and each
+dock's `ASIDE` in `Workbench.tsx` and `AssistantPanel.tsx`, which stay quoted;
+and in this document P12A.0's scan bullet, P12A.1's lexer bullet, P12A.6's
+*cost in coverage* and P12A.8's entry figure after review.
+
+**Entry after: 321.91 kB, CSS 8.95** — **321.91 and 9.02 before**, at
+`0c968492`, gzip level 9 over the files `index.html` pulls, the budget test's
+method. The entry's script is the same bytes; the stylesheet, compared rule by
+rule with the build before the change, loses the seven rules above and gains
+nothing. The finding's own figure, 8.98 to 8.80, was not reproduced here: the
+seven rules are 419 bytes before compression. **3.09 kB is left** under the 325
+ceiling.
 
 ---
 

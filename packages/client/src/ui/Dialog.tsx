@@ -94,6 +94,10 @@ const SIZE: Record<'default' | 'wide' | 'large', string> = {
  * misspelt here would have passed the one test that exists to catch it. In
  * a quoted constant the test reads it again, and the template is left holding
  * two names.
+ * *(2026-10-14, P12A's final audit: the test reads a template's text as well
+ * now, through the lexer `theme.test.ts` uses — `test-source-literals.ts`
+ * says why — so quoting is no longer what brings a list in reach of it. It
+ * stays quoted: one string, with a name.)*
  *
  * ***`z-40`, because a modal is drawn where it is written*** (2026-10-14,
  * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md)'s final
