@@ -2,10 +2,19 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { Link, useMatch, useNavigate } from '@tanstack/react-router';
-import { Suspense, useRef, useState, type CSSProperties, type JSX, type RefObject } from 'react';
+import {
+  Suspense,
+  useRef,
+  useState,
+  type CSSProperties,
+  type JSX,
+  type ReactNode,
+  type RefObject,
+} from 'react';
 
 import { isLibraryKind, type TurnRecord } from '../api.js';
 import { ChangelogLoad, lazyChangelogReader } from '../home/ChangelogLoad.js';
+import { labels } from '../i18n/catalogue.js';
 import {
   useAuthState,
   useLiveTurn,
@@ -27,13 +36,15 @@ import {
   workbenchSizePatch,
 } from './prefs.js';
 import { ForceFire } from './ForceFire.js';
+import { DOCK_SECTIONS, jumpInDock } from './jump.js';
 import { ImportSubject } from './import/ImportSubject.js';
 import { LibrarySubject } from './library/LibrarySubject.js';
 import { LiveSubject } from './live/LiveSubject.js';
 import { PreviewSubject } from './turn/PreviewSubject.js';
+import { SessionSection } from './session/SessionSection.js';
 import { SettingsSubject } from './settings/SettingsSubject.js';
 import { TurnSubject } from './turn/TurnSubject.js';
-import { Note } from '../ui/Text.js';
+import { Note, SubsectionTitle } from '../ui/Text.js';
 
 /**
  * The workbench frame — [10 §3](../../../../docs/design/10-ui-surfaces.md),
@@ -46,6 +57,10 @@ import { Note } from '../ui/Text.js';
  * release of the changelog the page is showing one of, [home, revised]. Over
  * settings it is `SettingsSubject` — every section of the page, a row jumping
  * to one (2026-10-07). Over everything else, an honest empty state.
+ * *(2026-10-13, [P12A](../../../../docs/design/workplan/35-p12a-the-look.md)
+ * P12A.5: over Play the turn is the subject's second section, under a first,
+ * **Session**, which holds the panels that configure the session and which the
+ * play column carried until then — `PlaySubject` says why that order.)*
  *
  * **Non-modal is the load-bearing property, and it is achieved by omission.**
  * No `aria-modal`, no `useFocusTrap` — that hook must never be attached here:
@@ -150,7 +165,11 @@ export function Workbench({ onClose }: { onClose: () => void }): JSX.Element {
           </Button>
         </div>
         {play !== undefined ? (
-          <PlaySubject sessionId={play.params.sessionId} selected={play.search.turn} />
+          <PlaySubject
+            sessionId={play.params.sessionId}
+            selected={play.search.turn}
+            block={play.search.block}
+          />
         ) : object !== undefined && isLibraryKind(object.params.kind) ? (
           <LibrarySubject
             kind={object.params.kind}
@@ -348,13 +367,41 @@ function ResizeHandle(props: {
  * *committed* turn the panel can show, because the main view has no way to
  * point at a historical one until the transcript grows per-turn affordances
  * ([P3.6]).
+ *
+ * ***And the session above the turn*** (2026-10-13,
+ * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.5, under
+ * its §0.4). The panels that say how this session is set up — how a chat plays,
+ * what it retrieves from, its pack and its verbs, the dials, a mode's actions
+ * and switches — stood in the play column above the prose until this stage,
+ * where [10 §1.1](../../../../docs/design/10-ui-surfaces.md)'s *where the two
+ * meet, tooling gives way* said they should not. They are this subject's first
+ * section now, **Session**, and the record is its second, **Turn record**:
+ * stacked, with a jump to each at the top, and never tabs —
+ * [10 §1.3](../../../../docs/design/10-ui-surfaces.md)'s and 10 §3's *jump,
+ * not tab*, since a tab would hide one section to show the other and the point
+ * of a dense panel is that both are there.
+ *
+ * **This is [10 §3]'s second subject that is not a reader**, and the section
+ * that says so is rewritten around it: the panels write, as they did in the
+ * column. What keeps the panel itself stateless is unchanged — the subject is
+ * still the route's, every panel reads the same session entry Play does, and
+ * which section is in view is a scroll, not a selection (`jump.ts`).
+ *
+ * ***Session first***, because the chord that opens the dock is the keystroke
+ * the page's *Session settings* shows, and a dock opened shut-to-open starts
+ * at its top: so Ctrl+` lands on the settings with no second press. The meter,
+ * whose subject is the turn about to be taken, jumps past them to the record
+ * (`ContextMeter.tsx`), so [P3.4]'s *opens onto that same answer* still holds.
  */
 function PlaySubject({
   sessionId,
   selected,
+  block,
 }: {
   sessionId: string;
   selected: string | undefined;
+  /** `?block=` — the pack's block the Session section opens its editor on. */
+  block: string | undefined;
 }): JSX.Element {
   /**
    * **Force-fire sits under whichever subject is showing** — [10 §10.1], [P7.5].
@@ -373,9 +420,81 @@ function PlaySubject({
    */
   return (
     <div className="flex flex-col gap-4">
-      <TurnOrPreview sessionId={sessionId} selected={selected} />
-      <ForceFire sessionId={sessionId} />
+      <nav aria-label={SECTION_WORDS.jumps} className="flex flex-wrap gap-1">
+        <JumpChip to={DOCK_SECTIONS.session}>{SECTION_WORDS.session}</JumpChip>
+        <JumpChip to={DOCK_SECTIONS.record}>{SECTION_WORDS.record}</JumpChip>
+      </nav>
+      <DockSection anchor={DOCK_SECTIONS.session} title={SECTION_WORDS.session}>
+        <SessionSection sessionId={sessionId} block={block} />
+      </DockSection>
+      <DockSection anchor={DOCK_SECTIONS.record} title={SECTION_WORDS.record}>
+        <TurnOrPreview sessionId={sessionId} selected={selected} />
+        <ForceFire sessionId={sessionId} />
+      </DockSection>
     </div>
+  );
+}
+
+const SECTION_WORDS = labels('workbench.play-sections', {
+  jumps: 'Sections',
+  session: 'Session',
+  record: 'Turn record',
+});
+
+/**
+ * ***One section of a subject, and the place a jump lands*** — the play
+ * subject's two (2026-10-13, P12A.5).
+ *
+ * **The section is the anchor**, as `SettingsAnchor` is on the settings page:
+ * it exists from the subject's first render, before any panel inside it has
+ * read the session, so a jump made the moment the dock opens finds it.
+ * *Focusable and out of the tab order*, so a jump can hand it the keyboard and
+ * the ring shows only when the jump came from one; `scroll-mt-4` keeps the
+ * heading off the scroller's top edge.
+ */
+function DockSection({
+  anchor,
+  title,
+  children,
+}: {
+  anchor: string;
+  title: string;
+  children: ReactNode;
+}): JSX.Element {
+  return (
+    <section
+      id={anchor}
+      tabIndex={-1}
+      aria-labelledby={`${anchor}-title`}
+      className="flex scroll-mt-4 flex-col gap-3 rounded-control focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-focus"
+    >
+      <SubsectionTitle as="h3" id={`${anchor}-title`}>
+        {title}
+      </SubsectionTitle>
+      {children}
+    </section>
+  );
+}
+
+/**
+ * ***A jump, not a tab*** — [10 §1.3](../../../../docs/design/10-ui-surfaces.md).
+ * A button that brings a section into view and hands it the keyboard; both
+ * sections stay drawn, so nothing it does hides anything. Not a link, unlike a
+ * settings row, because what it moves is the dock, and the dock has no
+ * address (`jump.ts`).
+ */
+function JumpChip({ to, children }: { to: string; children: ReactNode }): JSX.Element {
+  return (
+    <Button
+      type="button"
+      variant="quiet"
+      size="tiny"
+      onClick={() => {
+        jumpInDock(to);
+      }}
+    >
+      {children}
+    </Button>
   );
 }
 

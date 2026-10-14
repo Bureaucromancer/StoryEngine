@@ -2710,7 +2710,11 @@ clears the first.
 of `text`, `image: { url, alt }` or `on`, already resolved. Four regions — `hud`
 (the strip, which a contribution *appends* to), `panel` (the stack beside the
 story), `message` (a decoration on a turn) and `stage` (the picture behind it,
-[10 §2.3]'s chrome). **Separate from `hud` because they answer different
+[10 §2.3]'s chrome). *(2026-10-13, [P12A](design/workplan/35-p12a-the-look.md)
+P12A.5: the stack beside the story is gone from this build's client, which
+draws a `panel` contribution by its arm — a `toggle` with the session's
+settings in the workbench, anything else in the strip after the hooks. What the
+route sends is unchanged.)* **Separate from `hud` because they answer different
 questions**: `hud` is every channel that declared itself worth a strip row, and
 this is every placement a mode asked for. A `kind` or a `region` a client does
 not know is **skipped**, which is what keeps both vocabularies additive — and

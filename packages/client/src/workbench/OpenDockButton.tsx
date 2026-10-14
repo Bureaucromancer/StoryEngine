@@ -3,9 +3,10 @@
 
 import type { JSX, ReactNode } from 'react';
 
-import { usePatchPrefs, usePrefs } from '../queries.js';
+import { usePrefs } from '../queries.js';
 import { Button } from '../ui/Button.js';
-import { workbenchOpenFromPrefs, workbenchOpenPatch } from './prefs.js';
+import { useOpenDockAt } from './jump.js';
+import { workbenchOpenFromPrefs } from './prefs.js';
 
 /**
  * ***A page's way to what the workbench shows over it*** — the library's
@@ -26,27 +27,43 @@ import { workbenchOpenFromPrefs, workbenchOpenPatch } from './prefs.js';
  * once it has worked is a control you cannot find twice. So a second press
  * changes nothing rather than closing the dock — the dock's own *Close* does
  * that.
+ *
+ * ***And it can open the dock at a part of it*** (2026-10-13,
+ * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.5): Play's
+ * *Session settings*, whose subject is two sections, of which it means the
+ * first. `at` is one of `jump.ts`'s section anchors; the press opens the dock
+ * if it is shut and then takes the reader there, and a second press takes them
+ * there again — the one thing a second press does, since by then the reader
+ * may have scrolled to the record. `keyshortcuts` names the chord that opens
+ * the dock at the same place, for the control's `aria-keyshortcuts`, so the
+ * keystroke is as discoverable from the control as the shell's own button
+ * makes it.
  */
 export function OpenDockButton({
   children,
   variant,
+  at,
+  keyshortcuts,
 }: {
   children: ReactNode;
   variant?: 'quiet';
+  at?: string;
+  keyshortcuts?: string;
 }): JSX.Element {
   const prefs = usePrefs();
-  const patchPrefs = usePatchPrefs();
   const open = workbenchOpenFromPrefs(prefs.data?.prefs);
+  const openAt = useOpenDockAt();
 
   return (
     <Button
       type="button"
       size="compact"
       {...(variant === undefined ? {} : { variant })}
+      {...(keyshortcuts === undefined ? {} : { 'aria-keyshortcuts': keyshortcuts })}
       aria-expanded={open}
       aria-controls={open ? 'workbench' : undefined}
       onClick={() => {
-        if (!open) patchPrefs.mutate(workbenchOpenPatch(true));
+        openAt(at);
       }}
     >
       {children}

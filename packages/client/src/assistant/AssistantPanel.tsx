@@ -101,7 +101,12 @@ export function AssistantPanel(props: { onClose: () => void }): JSX.Element {
                 rather than a thing that scrolled past. The play surface below is
                 the conversation and knows nothing about this. */}
             <Proposal sessionId={sessionId} />
-            <PlayPage sessionId={sessionId} starters={STARTERS} />
+            {/* *Its settings here* (2026-10-13, [P12A] P12A.5): the workbench
+                follows the main view, not this panel, so the session's
+                settings — *Archive this session* among them, the way to start
+                afresh — are drawn in the panel rather than behind a press that
+                would open the dock on something else. */}
+            <PlayPage sessionId={sessionId} starters={STARTERS} settings="here" />
           </>
         ) : pending ? (
           <Note>{WORDS.loading}</Note>

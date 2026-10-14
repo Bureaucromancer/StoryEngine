@@ -195,12 +195,25 @@ function BlockRow({
            * **Only a preset's own blocks**, because only those have anything to
            * edit — a slot positions what the engine supplies and its text is
            * not in the pack at all.
+           *
+           * ***Both ends in the dock now*** (2026-10-13,
+           * [P12A](../../../../../docs/design/workplan/35-p12a-the-look.md)
+           * P12A.5). The editor this opens is in the play subject's Session
+           * section, above the record this table is in, so the press is a jump
+           * within the dock rather than a trip to the page — and the address
+           * **keeps `turn`**: before, the editor was on the page and the dock
+           * falling back to the head cost nothing visible; now the record is
+           * right under the editor, and the turn the block was found in should
+           * still be the one it shows.
            */}
           {block.source.kind === 'preset' ? (
             <Link
               to="/play/$sessionId"
               params={{ sessionId }}
-              search={{ block: block.id }}
+              search={(previous: { turn?: string }) => ({
+                ...(previous.turn === undefined ? {} : { turn: previous.turn }),
+                block: block.id,
+              })}
               className={link.inline}
             >
               Edit in the pack

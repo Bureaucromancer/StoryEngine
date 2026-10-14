@@ -5,9 +5,10 @@ import type { CSSProperties, JSX } from 'react';
 
 import type { TurnPreview, UnmeasurableReason } from '../api.js';
 import { formatCount } from '../format.js';
-import { usePatchPrefs, usePrefs } from '../queries.js';
+import { usePrefs } from '../queries.js';
 import { headroom } from '../workbench/headroom.js';
-import { workbenchOpenFromPrefs, workbenchOpenPatch } from '../workbench/prefs.js';
+import { DOCK_SECTIONS, useOpenDockAt } from '../workbench/jump.js';
+import { workbenchOpenFromPrefs } from '../workbench/prefs.js';
 
 import { labels } from '../i18n/catalogue.js';
 
@@ -43,6 +44,15 @@ import { labels } from '../i18n/catalogue.js';
  * The click **opens** rather than toggles, and does not write when the dock is
  * already open — a redundant patch is the thing `dock.test.tsx` asserts
  * against on a mount that finds the preference already set.
+ *
+ * ***And it opens at the record*** (2026-10-13,
+ * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.5). The
+ * play subject has the session's settings above the turn now, so a dock that
+ * merely opened would open on the settings, and the block table this button's
+ * own name promises would be a screen further down. The click takes the reader
+ * to the record — opening the dock first if it is shut — and a click with the
+ * dock already open takes them there again, which is a second thing for the
+ * meter to do where before it did nothing.
  */
 
 const UNMEASURABLE: Record<UnmeasurableReason, string> = labels('play.unmeasurable', {
@@ -89,8 +99,8 @@ export function ContextMeter({
   locale: string | undefined;
 }): JSX.Element {
   const prefs = usePrefs();
-  const patchPrefs = usePatchPrefs();
   const open = workbenchOpenFromPrefs(prefs.data?.prefs);
+  const openAt = useOpenDockAt();
   const { text, ratio, imminent } = meterLabel(preview, locale);
 
   return (
@@ -102,7 +112,7 @@ export function ContextMeter({
       aria-controls={open ? 'workbench' : undefined}
       aria-busy={busy}
       onClick={() => {
-        if (!open) patchPrefs.mutate(workbenchOpenPatch(true));
+        openAt(DOCK_SECTIONS.record);
       }}
       className="flex w-full items-center gap-2 rounded-control px-1 py-1 text-start focus-visible:outline-2 focus-visible:outline-focus"
     >

@@ -343,6 +343,129 @@ describe('the HUD strip', () => {
 });
 
 /**
+ * ***The column without its configuration*** (2026-10-13,
+ * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.5). Play is
+ * the heading row, the strip, the prose and the composer: the panels that say
+ * how the session is set up — how a chat plays, the lore, the pack, the dials,
+ * a mode's actions and its switches — are the workbench's Session section,
+ * which the heading row's *Session settings* opens, and a mode's readings are
+ * items of the strip. `reachability.test.tsx` holds that each of them is still
+ * one press away, over the real router; this holds the page alone. Mutations:
+ * the lore panel, the dials, the actions and the panel region each drawn back
+ * in the column, and *Session settings* left out of the heading row.
+ */
+describe('the column', () => {
+  it('draws none of the session’s configuration, and offers the way to it', async () => {
+    readSession.mockResolvedValue({
+      session: {
+        ...SESSION,
+        lore: [],
+        treatment: null,
+        preset: { name: 'Scene pack', params: {}, blocks: [] },
+      },
+      activeJob: null,
+      health: [],
+      hud: [],
+      cast: [],
+      hooks: { pacing: 'normal', rows: [] },
+      goals: { rows: [], concluded: false },
+      dials: {
+        difficulty: { levelId: 'normal', levels: [{ id: 'normal', label: 'Normal' }] },
+      },
+      actions: [{ stepId: 'se.track', label: 'Update trackers' }],
+      surfaces: [
+        {
+          region: 'panel',
+          key: 'se.staging',
+          channelId: 'se.staging',
+          scopeKey: null,
+          kind: 'toggle',
+          label: 'Show the scene',
+          on: false,
+        },
+        {
+          region: 'panel',
+          group: 'Tracked',
+          key: 'se.track.world',
+          channelId: 'se.track.world',
+          scopeKey: null,
+          kind: 'record',
+          label: 'The world',
+          record: {
+            value: { weather: 'rain' },
+            fields: [{ key: 'weather', label: 'Weather', show: 'line' }],
+            locks: null,
+            hidden: null,
+          },
+        },
+        {
+          region: 'settings',
+          group: 'Agents',
+          key: 'se.track.world.on',
+          channelId: 'se.track.world.on',
+          scopeKey: null,
+          kind: 'toggle',
+          label: 'Track the world',
+          on: true,
+        },
+      ],
+    });
+    renderPage();
+
+    const strip = await screen.findByRole('region', { name: 'The story now' });
+    await waitFor(() => {
+      expect(strip.hidden).toBe(false);
+    });
+    // The way to the settings, in the heading row with the session's name.
+    const heading = screen.getByRole('heading', { name: 'The Ashfall Road', level: 1 });
+    const settings = screen.getByRole('button', { name: 'Session settings' });
+    expect(settings.parentElement).toBe(heading.parentElement);
+
+    // None of the configuration: no lore, no pack, no dials, no actions, no
+    // switches, nothing the mode put in its settings region.
+    for (const words of [/^Retrieving from/, /^Prompted with/, 'How this chat plays']) {
+      expect(screen.queryByText(words)).toBeNull();
+    }
+    expect(screen.queryByRole('combobox', { name: /How much the world resists you/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Update trackers' })).toBeNull();
+    expect(screen.queryByRole('checkbox', { name: 'Show the scene' })).toBeNull();
+    expect(screen.queryByRole('checkbox', { name: 'Track the world' })).toBeNull();
+
+    // And the mode's reading is the strip's, an item that opens in place.
+    const world = within(strip).getByRole('button', { name: 'The world' });
+    expect(world.getAttribute('aria-expanded')).toBe('false');
+    await userEvent.click(world);
+    expect(within(strip).getByText('rain')).toBeTruthy();
+  });
+
+  /**
+   * *Where the page is not the main view* — the assistant's panel — the dock
+   * follows the route and not this session, so the settings are drawn here,
+   * folded, and no control offers a dock that would open on something else.
+   * Mutations: the `here` arm ignored (the dock's control drawn, the settings
+   * nowhere), and the section drawn without the session panel's verbs.
+   */
+  it('draws its settings in place, folded, when it is not the main view', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <PlayPage sessionId={SESSION.id} settings="here" />
+      </QueryClientProvider>,
+    );
+    await screen.findByText('I knock twice.');
+
+    expect(screen.queryByRole('button', { name: 'Session settings' })).toBeNull();
+    const fold = await screen.findByText('Session settings', { selector: 'summary' });
+    await userEvent.click(fold);
+    expect(screen.getByText(/^Retrieving from/, { selector: 'summary' })).toBeTruthy();
+    await userEvent.click(
+      screen.getByText('How this session is prompted', { selector: 'summary' }),
+    );
+    expect(screen.getByRole('button', { name: 'Archive this session' })).toBeTruthy();
+  });
+});
+
+/**
  * ***The prose at its measure, and the column left to the rest*** (2026-10-13,
  * P12A.1). The story's measure is about seventy characters of its own face,
  * held in `ch`, and a `ch` counts the face of the element it is spent on —

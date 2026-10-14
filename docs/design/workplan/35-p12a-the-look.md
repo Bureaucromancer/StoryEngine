@@ -2081,6 +2081,188 @@ the suite**: every control reachable before is reachable after, and
 `PlayPage.test.tsx` is where that is asserted rather than hoped — it is 1,301
 lines of exactly the right assertions, and they should be moved, not deleted.
 
+***Built 2026-10-13***, under [§0.4](#04-what-the-audit-of-2026-10-13-found-and-what-each-finding-decides)'s
+decisions for this stage, which were binding on it: **10 §10.1 wins**, so the
+hooks stay on the play surface (P12A.4 had already made them the strip's item);
+the configuration panels move into a **Session** section of the workbench's play
+subject; [10 §3](../10-ui-surfaces.md)'s *honest residue* is honoured; and the
+reachability test is new, on the real router and shell, listing every control by
+its accessible name. Play is now the heading row, two lines a session can say
+about itself, the backdrop's two controls, the strip, the prose and the
+composer.
+
+**Every block, sorted by one rule.** A fact about *the story right now* stays on
+Play, in the strip P12A.4 built; a fact about *how this session is configured*
+moves to the workbench. The column as it stood at `5d01529d`, top to bottom:
+
+| Block | Where it is now | Why |
+|---|---|---|
+| Heading row — name, *Rename*, *Add to a world* | Play, with **Session settings** added | What the session is called and where it belongs is the session as a whole, not a setting; the row is where its new way to the settings goes. |
+| *In these worlds* | Play | A fact about what the session *is*, nothing in it is set from here. |
+| `StartedWithout`'s alert | Play | A standing warning about the whole session in the health banner's register; nothing in it can be changed, so it is not configuration. |
+| The health banner, the channels' entries, the cast | The strip (P12A.4) | — |
+| **How this chat plays** (`ChatSettingsPanel`, with the mode's `settings` region) | Session | Voice, dispatch, who replies, the author's note, the card prompts, the agents' switches: every one says how the session runs. |
+| The lore panel | Session | What the session retrieves from — its own comment called it *a fact about the session rather than about any turn*. |
+| The session panel, with *Memories*, *Pictures* and *Update from source* | Session | The pack, its parameters and the session's verbs. *Read it as a story* and *Export* went with it, since they are verbs on the session, not on a turn. |
+| The goal, the hooks | The strip (P12A.4, §0.4) | — |
+| The dials | Session | How hard the world pushes and how much the narrator steers are set, not read. |
+| `ModeActions` (*Update trackers*) | Session | **Decided here.** It is neither a fact nor a setting but a verb on the mode's machinery, and it is needed exactly when the tracker cadence switch beside it in the same section says *only when I press*; so it goes where that switch is. The cost is named below. |
+| The mode's `panel` region: its **switches** (*Show the scene*, *Stage a backdrop*, *Show me the secret plot*) | Session | Each says what the session does from now on — a model call, a picture, a view — which is configuration. |
+| The mode's `panel` region: its **readings** (the trackers' cards, the revealed plot, the echo chamber's reactions) | The strip, after the hooks | **Decided here.** The world's date, place and weather, a character's mood, a quest: values the story holds now, which is the strip's whole subject and 10 §1.3's *world state as a strip of widgets you can edit in place*. Each opens in place, as a record placed in the strip always has. |
+| *Set the scene*, *Choose a backdrop…* | Play | **Decided here.** The picture behind the story is a fact about now, and these are a person's two ways to change it: draw it again for here, or pick it. *Stage a backdrop* — whether the story stages its own from now on — is the setting, and it went. |
+| The strip, the transcript, the composer | Play | — |
+
+**What was built.**
+
+- **`workbench/session/SessionSection.tsx`** hosts the moved panels as they
+  were — `ChatSettingsPanel`, `LorePanel`, `SessionPanel`, `DialPanel`,
+  `ModeActions`, and `ModeRegion` over the `panel` region's switches — in the
+  column's order, each reading the session through the key Play holds, so drawing
+  them issues no new read and a write in one refreshes the other. `ModeActions`
+  waited on `running || send.isPending`; the dock cannot see the composer, so it
+  waits on the live turn the page mirrors into the cache, and a run asked for
+  before a turn's first frame is the route's to refuse as `busy`, which the
+  actions say in their own words.
+- **The play subject is two stacked sections**, **Session** and then **Turn
+  record**, each a `<section>` named by its `h3` and focusable out of the tab
+  order, with a jump to each at the top (`Workbench.tsx`'s `DockSection` and
+  `JumpChip`, words in a `labels` table) — never tabs. ForceFire stays with the
+  record. *Session first* because the chord Play shows opens the dock at its top.
+- **`workbench/jump.ts`**: the two sections' element ids, `jumpInDock` (scroll
+  and focus, waiting a frame at a time for a dock just opened, and only ever an
+  element inside `#workbench`), `useOpenDockAt` (open if shut, never toggle, write
+  only when shut, then jump), and `useOpenDockFor` (an address that names a block
+  opens the dock once per arrival).
+- **Play's heading row gains *Session settings***, `OpenDockButton` with an `at`
+  and `aria-keyshortcuts="Control+\`"`, the chord shown beside the name and out of
+  it, hidden on a phone. A second press with the dock open goes back to the
+  section and writes nothing.
+- **The context meter opens at the record** — opening the dock first if shut —
+  because a dock that merely opened would now open on the settings, and the
+  block table the meter's name promises would be a screen further down.
+- **`?block=` moved with the session panel.** The play route no longer passes it
+  to the page; the dock reads it from the address as it reads `?turn=`, the route
+  opens the dock when the address names a block (`useOpenDockFor`), and the block
+  editor brings itself into view and puts the keyboard in its text on mount —
+  mounting is the one moment certain to come after the dock, the session's read
+  and the pack have all arrived. *Edit in the pack* **keeps `turn`** in the
+  address, since the record is now directly under the editor and should still
+  show the turn the block was found in.
+- **The strip draws the `panel` region's readings** after the hooks, through
+  `ModeRegion`'s new `drawn="line"`; **`isSwitch`** — a `toggle` is a setting,
+  every other arm a reading — is the rule that split the region, and the file
+  still knows no channel. A per-member card's strip item is named for whom it is
+  about (*Character: Vera*), as its heading was, or three characters would be
+  three items called *Character*.
+- **The assistant draws the settings in place.** It mounts `PlayPage` in a panel
+  beside whatever the main view is, and the dock follows the main view, so its
+  *Session settings* would have opened the dock on the wrong subject — and
+  *Archive this session*, the assistant's documented way to start afresh, would
+  have been unreachable. `PlayPage` takes `settings="here"` from it and draws
+  the same section in one fold under its heading row instead.
+- **Words.** *Choose a backdrop*'s sentence names where *Stage a backdrop* is
+  now (*That switch is in Session settings.*). `ChatSettingsPanel`'s fold for a
+  mode with settings and no chat was called *Session settings*, which is now the
+  name of the section it is drawn in and of Play's control: it is *This mode's
+  settings*.
+
+**What the stage text said and what turned out different:**
+
+- *"Move into the workbench under a session subject"* — the workbench had no
+  session subject (§0.4), and the subject follows the route, so it is not a new
+  subject but a **section** of the play subject: over one route the panel
+  shows two things about one session.
+- *"`PlayPage.test.tsx` is where that is asserted … 1,301 lines of exactly the
+  right assertions, and they should be moved, not deleted"* — §0.4 found it is
+  2,606 lines and asserts nothing about where a panel sits, and a claim that
+  crosses from the page into the dock needs the real router and shell. So the
+  claim is a new file, `play/reachability.test.tsx`, and `PlayPage.test.tsx`
+  keeps every assertion and gains two. *No assertion anywhere was deleted.*
+- *§1.3's "already has a session subject"* — it did not; and *"the hooks"* move
+  to the workbench — they did not, 10 §10.1 won (P12A.4).
+- *"Nothing becomes harder to reach than one keystroke"* — one press of *Session
+  settings*, or Ctrl+` from shut; the reachability test holds the first.
+- *Found, and in no audit*: **the assistant mounts the play page** in a panel
+  whose dock is about something else — the `settings="here"` bullet above.
+- *Found*: **the `panel` region held switches and readings together**, so the
+  sort split it rather than moving it whole, by arm.
+- *Decided*: tracker cards to the strip, *Choose a backdrop* on Play,
+  `ModeActions` to Session, Session above the record, the meter to the record,
+  `?block=` opening the dock once per arrival, the link keeping `turn` — each
+  argued above or in the table.
+- *Not done, and said*: the Session section is still several panels stacked, not
+  the one panel [P7B §1.4](24-p7b-presets-and-prompts.md) wanted
+  (`SessionPanel`'s docstring answers its own debt note with that); **the dials
+  no longer sit by hook pacing**, which is in the strip's hook item, so the guide
+  says the three belong together; **in manual tracker cadence *Update trackers*
+  is a press away** — open the dock, press — where it was on the page, which T3's
+  walker should count; and *not looked at in a browser* — none is installed
+  where this was built — so where the jump lands, the chips' look and the dock
+  on a phone are T3's and T4's to see.
+
+**The docs.** [10 §3](../10-ui-surfaces.md) has the rewrite its honest residue
+asked for, as a dated note there and a new **§3.1**, *What the panel is about,
+now that two of its subjects write*; 10 §1.1, §1.3, §2.3 and §8.0 have dated
+records; the SDK's `panel` region and [the API reference](../../api.md) have
+dated notes on how this client draws it; `SessionPanel.tsx`'s and `PlayPage.tsx`'s
+debt comments have their answer, dated, and every comment in the column that
+named a moved panel has a dated note saying where it went; the guide's *Playing
+a session* has a **Session settings** section holding the lore, session and dial
+panels, and *Modes*, *Pictures*, *Lorebooks and memory*, *Presets and prompts*,
+*Importing and exporting* and *Troubleshooting* say where each control is now,
+edited in place as user prose.
+
+**Tests, each checked against a mutation and restored.** In the new
+`play/reachability.test.tsx`, on the real router and shell with a fixture that
+draws every block at once: *is still within reach: on the play surface, in a
+strip item, or in the Session section* — the column's list at `5d01529d`, a
+hundred controls by role and name, each asked for where the stage put
+it — fails with the lore panel, the session panel, `ModeActions` or the
+switches left out of the Session section, and with the strip not drawing the
+`panel` region's readings; *leaves none of what moved to the Session section on
+the play surface* fails with the lore panel drawn back in the column and with
+the strip drawing the switches too; *opens at Session from Session settings, and
+goes back there with the dock open* fails with the jump left out and with the
+open written on every press; *opens at the turn record from the context meter*
+fails with the meter aimed at Session; *opens a shut dock at the block's editor,
+with the keyboard in its text* fails with the route not opening the dock, the
+dock not handing the section the block, the section without the session panel,
+and the editor not taking the keyboard; *stays shut when it is closed with the
+block still in the address* fails with the effect keyed on the opener; *is what
+Edit in the pack opens, from a turn the head has passed, keeping that turn*
+fails with the link dropping `turn`. In `PlayPage.test.tsx`'s new *the column*:
+*draws none of the session's configuration, and offers the way to it* fails with
+the lore panel, the dials, `ModeActions`, the `panel` region or how a chat plays
+drawn back in the column, and with *Session settings* left out of the heading
+row; *draws its settings in place, folded, when it is not the main view* fails
+with the `here` arm ignored and with the section drawn without the session
+panel. In `workbench/dock.test.tsx`, the new *the play subject's sections*,
+*stacks Session over the turn record, each with a jump to it*, fails with the two
+sections in the other order, a jump aimed at the wrong section, and the record
+drawn inside Session; *shows the head turn* and *reaches the head turn's block
+table* are scoped to the record's section, deliberately, so a turn's words
+among the settings cannot pass for the record. In `ModeRegion.test.tsx`: *draws
+a panel's readings as items of a line, each named for whom it is about* fails
+with `drawn` ignored, the item named by its label alone, and `isSwitch`
+answering by anything but the arm. **Tests that held the column's answer**:
+`HudStrip.test.tsx`'s *draws a text a mode placed in the strip* asserted a
+panel's placement was not in the strip, and now asserts it is its own read-only
+item, not the entry pressed; `ChooseBackdrop.test.tsx`'s sentence test gained
+the new clause; `i18n/catalogue.test.ts` exempts `DOCK_SECTIONS`, element ids.
+`SessionPanel.test.tsx`, `LorePanel.test.tsx`, `ChatSettingsPanel.test.tsx` and
+`DialPanel.test.tsx` render their panels standalone and pass unchanged.
+
+**Entry after: 318.72 kB, CSS 8.43** — **317.79 and 8.42 before**, at
+`5d01529d`, both measured here — gzip level 9 over the files `index.html`
+pulls, the budget test's method. **+0.93 kB**: the two sections and their
+jumps, `jump.ts`, *Session settings* and its words, the strip's new region, the
+block editor's jump, and the assistant's fold; the panels themselves only moved,
+both ends being on the entry already. *Measured twice*: before the assistant's
+fold the figure was 319.25, and adding it took the entry down — gzip's window
+over a reordered module graph, not code removed — so the number is the build's,
+not a sum. **Under the 320 ceiling with 1.28 kB left** for P12A.6 onward, so no
+raise; CSS is 0.01 kB larger.
+
 ### P12A.6 — Motion, five of them
 
 Turn arrival, the streaming state, a panel or sheet entering, the backdrop's

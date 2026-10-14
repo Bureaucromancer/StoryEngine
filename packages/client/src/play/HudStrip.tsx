@@ -12,6 +12,7 @@ import { ChannelHealth } from './ChannelHealth.js';
 import { ChannelHud } from './ChannelHud.js';
 import { GoalPanel } from './GoalPanel.js';
 import { HookPanel } from './HookPanel.js';
+import { isSwitch, ModeRegion } from './ModeRegion.js';
 import { Portrait } from './Portrait.js';
 
 const WORDS = labels('play.strip', {
@@ -64,6 +65,15 @@ export interface HudStripHandle {
  * story now, and they move to the workbench at P12A.5. Until then they stay in
  * the column above the strip, which is why the strip sits directly over the
  * transcript: that is where P12A.5 leaves it.
+ * *(2026-10-13, P12A.5: they have moved — the workbench's play subject opens
+ * on them, its **Session** section — and the strip is the column's only
+ * block between the heading and the prose but for* Set the scene *and the
+ * two lines a session can say about itself. It gained one thing in the move:
+ * **what a mode put in its `panel` region that is not a switch**, after the
+ * hooks — Scene's trackers' cards, the revealed plot, the echo chamber's
+ * reactions — since each is a value the story holds now, and so a fact this
+ * strip is for. Each opens in place as a record placed in the strip always
+ * has; `isSwitch` in `ModeRegion.tsx` is the rule that split the region.)*
  *
  * ***Why it is one strip and not a panel per fact.*** [10 §1.1]'s *where the
  * two meet, tooling gives way*: five panels stacked above the prose had pushed
@@ -82,6 +92,9 @@ export function HudStrip(props: {
   ref?: Ref<HudStripHandle>;
 }): JSX.Element {
   const session = useSession(props.sessionId);
+  // The library's actors, for a member-scoped card's name — the key the cast
+  // item already holds, so asking costs no request.
+  const actors = useLibrary('actors');
   const [castOpen, setCastOpen] = useState(false);
   /**
    * ***Asked for *You play*, not only for the cast.*** The face on a player's
@@ -138,6 +151,19 @@ export function HudStrip(props: {
       />
       <GoalPanel sessionId={props.sessionId} busy={props.busy} />
       <HookPanel sessionId={props.sessionId} />
+      {/* ***A mode's readings, last*** (2026-10-13, P12A.5) — the order the
+          column had them in, where a mode's additions came after the engine's
+          own panels. Its switches are the workbench's (`SessionSection`). */}
+      <ModeRegion
+        sessionId={props.sessionId}
+        surfaces={(session.data?.surfaces ?? []).filter((one) => !isSwitch(one))}
+        region="panel"
+        drawn="line"
+        nameOf={(actorId) =>
+          actors.data?.objects.find((one) => one.id === actorId)?.name ?? actorId
+        }
+        className="contents"
+      />
     </section>
   );
 }

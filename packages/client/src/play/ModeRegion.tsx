@@ -81,6 +81,17 @@ export function ModeRegion(props: {
    * label alone.
    */
   nameOf?: (scopeKey: string) => string;
+  /**
+   * ***How the region is drawn: as the strip draws a line, or as a stack***
+   * (2026-10-13, [P12A](../../../../docs/design/workplan/35-p12a-the-look.md)
+   * P12A.5). The `hud` region is a line by definition and every other region a
+   * stack, which is the default; the `panel` region's readings are drawn in
+   * the strip since the column they stacked in is gone, so a caller can ask
+   * for the line for a region that is not `hud`. The arms are the strip's
+   * either way — a record or a picture opens in place under its label — and
+   * nothing about a channel decides it.
+   */
+  drawn?: 'line' | 'stack';
   className?: string;
 }): JSX.Element | null {
   const surfaces = (props.surfaces ?? []).filter(
@@ -91,13 +102,13 @@ export function ModeRegion(props: {
 
   if (surfaces.length === 0) return null;
 
+  const line = (props.drawn ?? (props.region === 'hud' ? 'line' : 'stack')) === 'line';
   const rendered = surfaces
     .map((surface) => ({
       surface,
-      node:
-        props.region === 'hud'
-          ? stripWidgetFor(surface, props.sessionId, props.nameOf)
-          : widgetFor(surface, props.sessionId, props.nameOf),
+      node: line
+        ? stripWidgetFor(surface, props.sessionId, props.nameOf)
+        : widgetFor(surface, props.sessionId, props.nameOf),
     }))
     .filter((one) => one.node !== null);
 
@@ -130,8 +141,10 @@ export function ModeRegion(props: {
    * refusal note taking the line's full width — and a group is its heading
    * and its items run on in the same line, the heading as faint as an item's
    * own label.
+   * *(2026-10-13, P12A.5: and the `panel` region's readings, which the strip
+   * draws after its own items now — `drawn` above.)*
    */
-  if (props.region === 'hud') {
+  if (line) {
     return (
       <div className={props.className ?? 'flex flex-wrap items-center gap-x-3 gap-y-1'}>
         {loose.map((one) => (
@@ -164,6 +177,31 @@ export function ModeRegion(props: {
       ))}
     </div>
   );
+}
+
+/**
+ * ***A switch, which is configuration; anything else, which is a reading***
+ * (2026-10-13, [P12A](../../../../docs/design/workplan/35-p12a-the-look.md)
+ * P12A.5).
+ *
+ * The `panel` region was the stack beside the story, and it held both kinds:
+ * Scene's *Show the scene* and *Stage a backdrop* beside its trackers' cards.
+ * P12A.5 empties the column by one rule — a fact about the story right now
+ * stays on Play, in the strip, and a fact about how the session is set up goes
+ * to the workbench — and in this vocabulary the rule is the widget's arm, not
+ * its channel. **A `toggle` is a person's switch on what the session does**:
+ * every one a mode declares is a setting, whether it costs a model call
+ * (*Show the scene*), an image (*Stage a backdrop*) or only a view (*Show me
+ * the secret plot*), and none of them is a fact about where the story is. **A
+ * record, a meter, a text or a picture is a value the story holds**, the
+ * world's date and weather, a character's mood, a quest, and is read rather
+ * than set, even where a card lets a person correct it. So the strip draws the
+ * second kind and the workbench's Session section the first, and this file
+ * still knows no channel: a mode that wanted a switch in the strip would put
+ * it in the `hud` region, which is what that region is for.
+ */
+export function isSwitch(surface: ModeSurface): boolean {
+  return surface.kind === 'toggle';
 }
 
 const ACTION_WORDS = labels('play.mode-actions', {
@@ -237,15 +275,7 @@ function widgetFor(
 
     case 'record':
       return surface.record === undefined ? null : (
-        <RecordCard
-          surface={surface}
-          sessionId={sessionId}
-          heading={
-            surface.scopeKey === null || nameOf === undefined
-              ? surface.label
-              : `${surface.label}: ${nameOf(surface.scopeKey)}`
-          }
-        />
+        <RecordCard surface={surface} sessionId={sessionId} heading={headingOf(surface, nameOf)} />
       );
 
     case 'text':
@@ -269,6 +299,16 @@ function widgetFor(
     default:
       return null;
   }
+}
+
+/** A widget's label, and for an actor-scoped one the member it is about. */
+function headingOf(
+  surface: ModeSurface,
+  nameOf: ((scopeKey: string) => string) | undefined,
+): string {
+  return surface.scopeKey === null || nameOf === undefined
+    ? surface.label
+    : `${surface.label}: ${nameOf(surface.scopeKey)}`;
 }
 
 /**
@@ -311,12 +351,19 @@ function stripWidgetFor(
     case 'record':
     case 'image': {
       const widget = widgetFor(surface, sessionId, nameOf);
+      /**
+       * *Named for whom it is about*, as the card's own heading is
+       * (2026-10-13, P12A.5): Scene's character tracker is one card per
+       * member, and three items all reading *Character* would be three
+       * triggers nobody could tell apart, on screen or by name.
+       */
+      const named = headingOf(surface, nameOf);
       return widget === null ? null : (
         <Popover
           place="under"
-          label={surface.label}
+          label={named}
           triggerClassName={strip.item}
-          trigger={<span className={strip.label}>{surface.label}</span>}
+          trigger={<span className={strip.label}>{named}</span>}
         >
           {widget}
         </Popover>

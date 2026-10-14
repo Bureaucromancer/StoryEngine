@@ -17,8 +17,8 @@ are called out as they come.
 
 A lorebook takes part in a session in one of three ways:
 
-- the session chose it — in the start form, or later in the play page's lore panel
-  (*Retrieving from …*). Starting in a world ticks that world's lorebooks for you,
+- the session chose it — in the start form, or later in the lore panel (*Retrieving from
+  …*) under the play page's [Session settings](playing.md#session-settings). Starting in a world ticks that world's lorebooks for you,
   and every book of yours whose **Scope** is for that world (see
   [Starting in a world](playing.md#starting-in-a-world)) — ticked, so you can untick
   them before **Start**;
@@ -365,7 +365,8 @@ its keywords is in the last two messages.
 
 ### Memory settings for a session
 
-In the session panel (*Prompted with …*) → **Memories**:
+Under [Session settings](playing.md#session-settings), in the session panel (*Prompted
+with …*) → **Memories**:
 
 - **Share memories from this session** (on) — new memories go into the characters' books.
   Off makes the session read history without adding to it.

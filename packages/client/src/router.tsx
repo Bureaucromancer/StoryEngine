@@ -29,6 +29,7 @@ import { SessionsPage } from './play/SessionsPage.js';
 import { Shell } from './Shell.js';
 import { Alert } from './ui/Alert.js';
 import { localised, useActiveLocale } from './i18n/useLocale.js';
+import { useOpenDockFor } from './workbench/jump.js';
 
 /**
  * Two surfaces and their pages: Library at `/library`, Play at `/play`, plus the
@@ -320,6 +321,14 @@ export interface PlaySearch {
    * the address for the same reason `turn` is: the panel is reached *from*
    * somewhere, and a control that opened a panel by poking its state would
    * leave the address unable to say what the page is showing.
+   *
+   * *(2026-10-13, [P12A](../../../docs/design/workplan/35-p12a-the-look.md)
+   * P12A.5: the session panel is the workbench's, in the play subject's
+   * **Session** section, so both ends of the link are in the dock — the
+   * block table that offers it and the editor that answers it. Arriving at an
+   * address with a block opens the dock (`useOpenDockFor`), and the editor
+   * brings itself into view. The link keeps `turn`, so the record below still
+   * shows the turn the block was found in.)*
    */
   block?: string;
 }
@@ -338,18 +347,22 @@ const playRoute = createRoute({
   component: function Play() {
     useActiveLocale();
     const { sessionId } = playRoute.useParams();
-    // The block to open on travels as a prop rather than being read inside the
-    // page, for the reason `sessionId` already does: the page is mounted in
+    // ~~The block to open on travels as a prop rather than being read inside
+    // the page, for the reason `sessionId` already does: the page is mounted in
     // tests without a router, and a component reaching for a route API would
-    // throw the moment it rendered anywhere but here.
+    // throw the moment it rendered anywhere but here.~~
+    // *(2026-10-13, [P12A](../../../docs/design/workplan/35-p12a-the-look.md)
+    // P12A.5: the block's editor is in the workbench now, in the play
+    // subject's Session section, and the dock reads `?block=` from the address
+    // as it reads `?turn=`. What is left here is the half only a route can do:
+    // an address that asks for a block opens the dock, once per arrival.)*
     const { block } = playRoute.useSearch();
+    useOpenDockFor(block);
     // **Keyed by the session**, so moving to another session is a fresh page
     // rather than this one with new props: the composer's words and pictures
     // belong to the session they were written in, and a picture uploaded to one
     // session's store is a digest the next one refuses.
-    return (
-      <PlayPage key={sessionId} sessionId={sessionId} {...(block === undefined ? {} : { block })} />
-    );
+    return <PlayPage key={sessionId} sessionId={sessionId} />;
   },
 });
 

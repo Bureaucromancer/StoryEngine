@@ -3,7 +3,7 @@
 
 import { Link, useNavigate } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { useRef, useState, type JSX } from 'react';
+import { useEffect, useRef, useState, type JSX } from 'react';
 
 import {
   ApiError,
@@ -62,6 +62,23 @@ import { RenditionSection } from './Rendition.js';
  * about the pack. **The debt is real and is recorded here rather than in a
  * commit message**: the column needs a pass, and it needs one more than it did
  * before this.
+ *
+ * ***The pass, and what it decided*** (2026-10-13,
+ * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.5). The
+ * column got it, and the answer was **move, not merge**. [P7B §1.4] wanted
+ * one panel because several disclosures in a column is the shape
+ * [10 §1.1](../../../../docs/design/10-ui-surfaces.md) warns against on a
+ * story surface; the column's real fault was that configuration was on a
+ * story surface at all. So this panel, the lore panel, how a chat plays, the
+ * dials and a mode's actions and switches are the workbench's play subject's
+ * **Session** section — a tooling surface, where a stack of panels is density
+ * rather than clutter — each one reused as it was, in the column's order,
+ * and Play's heading row opens the dock there. The goal, the hooks and the
+ * cast went the other way, into the strip, as facts about the story now
+ * ([P12A.4](../../../../docs/design/workplan/35-p12a-the-look.md)). *What is
+ * still owed* is §1.4's other half: they are still separate panels, stacked,
+ * and not one; in the dock that costs a summary line each, and no stage has
+ * asked for the merge since.
  */
 export function SessionPanel(props: {
   sessionId: string;
@@ -653,21 +670,51 @@ function BlockEditor(props: {
   const block = blocks.find((one) => one['id'] === props.blockId);
   const template = typeof block?.['template'] === 'string' ? block['template'] : null;
   const [draft, setDraft] = useState<string | null>(null);
+  const held = useRef<HTMLDivElement | null>(null);
+
+  /**
+   * ***It brings itself into view, and takes the keyboard*** (2026-10-13,
+   * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.5).
+   *
+   * In the column it opened at the top of the page, under the summary it was
+   * asked for from, and nothing needed moving. In the workbench it opens in
+   * the Session section, under how a chat plays and the lore panel, a
+   * screenful above the block table whose *Edit in the pack* asked for it —
+   * so the press would land on nothing visible. **On mount, because the
+   * editor is keyed by its block** (see the caller): a new block is a new
+   * editor, and mounting is the one moment that is certain to come after the
+   * dock, the session's read and the pack have all arrived, which an effect
+   * keyed on the address could not wait for. *The text box, not the
+   * frame*: a press of *Edit in the pack* is a request to edit, and the
+   * keyboard should be where the editing is. Whatever the editor says instead
+   * — a block the pack does not have, one with no text — is brought into view
+   * too, since that sentence is the answer to the press.
+   */
+  useEffect(() => {
+    held.current?.scrollIntoView({ block: 'start' });
+    held.current?.querySelector('textarea')?.focus({ preventScroll: true });
+  }, []);
 
   if (block === undefined) {
-    return <Note>{`This pack has no block called ${props.blockId}.`}</Note>;
+    return (
+      <div ref={held}>
+        <Note>{`This pack has no block called ${props.blockId}.`}</Note>
+      </div>
+    );
   }
   if (template === null) {
     return (
-      <Note>
-        That block positions something the engine supplies. There is no text in the pack to edit.
-      </Note>
+      <div ref={held}>
+        <Note>
+          That block positions something the engine supplies. There is no text in the pack to edit.
+        </Note>
+      </div>
     );
   }
 
   const value = draft ?? template;
   return (
-    <div className="rounded-control border border-line p-3">
+    <div ref={held} className="rounded-control border border-line p-3">
       <Field
         label={`Block: ${props.blockId}`}
         value={value}

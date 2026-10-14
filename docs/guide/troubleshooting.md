@@ -76,8 +76,8 @@ move cannot be sent.* before you even try. See [Connections and models](connecti
   summary; see [The running summary](lorebooks-and-memory.md#the-running-summary). Something
   that must not be forgotten belongs in a lorebook or a memory.
 - **A character's card prompt is missing.** Card prompts are sent only when characters speak
-  in their own voices, and each can be switched off in **How this chat plays** → **What each
-  card sends**.
+  in their own voices, and each can be switched off in **Session settings** → **How this
+  chat plays** → **What each card sends**.
 - **It cannot see an attached picture.** The composer says why under the picture; the model
   must be ticked under its connection's **Models that can see pictures**. See
   [Pictures](pictures.md#showing-the-model-a-picture).

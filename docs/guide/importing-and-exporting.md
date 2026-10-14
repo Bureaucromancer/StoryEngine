@@ -198,7 +198,8 @@ session export cannot be loaded twice on one install.
 
 Loading a chat again **updates** its session, as above.
 
-**Update from source**, in the session panel of a session imported from a chat, reads the
+**Update from source**, in the session panel of a session imported from a chat (under
+**Session settings** on its play page), reads the
 chat again and adds what is new: new messages, edits and branches, beside what is already
 there. Nothing is deleted or rewritten, nothing is written back to the source, and if you
 have played on, your place is kept and the new messages wait on the source's branches.
@@ -270,7 +271,8 @@ application reading StoryEngine's download sees the card as it was imported, not
 - **Lorebook entries** — **Export selected** in the lorebook editor; see
   [Lorebooks and memory](lorebooks-and-memory.md#moving-entries-between-books).
 - **A lorebook as a document** — **Copy as Markdown** and **Print** on its page.
-- **A session** — **Export this session** in its session panel: every turn on every branch,
+- **A session** — **Export this session** in its session panel, under **Session
+  settings**: every turn on every branch,
   with pictures as their descriptions. **Read it as a story** has its own **Copy as
   Markdown**, **Copy as text** and **Print**. See [Playing a session](playing.md#archiving-deleting-and-exporting).
 - **Everything** — a backup; see [Backups, restore and the trash](backups-and-trash.md).

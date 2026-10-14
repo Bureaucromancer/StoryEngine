@@ -577,7 +577,15 @@ export interface SurfaceContribution {
    *
    * - `hud` — the strip of short labelled values above the story ([10 §8]).
    * - `panel` — the stack beside it, where the cast, lore, goal and hook panels
-   *   already are.
+   *   already are. *(2026-10-13, [P12A](../../../docs/design/workplan/35-p12a-the-look.md)
+   *   P12A.5: that stack was Play's column, and it is gone — the cast, goal
+   *   and hooks are items of the strip, the lore and the session's other
+   *   settings the workbench's **Session** section. So the host splits this
+   *   region by the widget's arm: a `toggle` is a setting and is drawn with the
+   *   session's settings in the workbench; every other arm is a reading and is
+   *   drawn in the strip after the hooks, opening in place. A switch meant for
+   *   the story surface belongs in `hud`. Nothing here changed shape;
+   *   [10 §8.0](../../../docs/design/10-ui-surfaces.md) has the note.)*
    * - `message` — a decoration on a turn. [P7.7]'s mention overlay is the
    *   engine's own instance of one.
    * - `stage` — **the picture behind the story.** [06 §9]'s three were written

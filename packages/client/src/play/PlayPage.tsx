@@ -2,7 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { control, link, page, reveal, story } from '../ui/classes.js';
+import { control, disclosure, link, page, reveal, story } from '../ui/classes.js';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 
@@ -62,12 +62,10 @@ import {
   WhoSpeaksNext,
 } from './ChatComposer.js';
 import { ChatMessages, EditedOriginal, type ChatGestures } from './ChatMessages.js';
-import { ChatSettingsPanel } from './ChatSettingsPanel.js';
 import { anyoneWouldReply, canSpeak, hiddenEntry, hideSent, turnSiblings } from './chat.js';
 import { PlayedAs, Portrait } from './Portrait.js';
 import { liveMessages } from './reducer.js';
 import { AUTO_MODE_DEFAULT_SECONDS, useAutoMode } from './useAutoMode.js';
-import { DialPanel } from './DialPanel.js';
 import { InputKind, promptFor } from './InputKind.js';
 import {
   attachProblem,
@@ -79,12 +77,10 @@ import {
 import { preparePicture } from './preparePicture.js';
 import { Backdrop, useStage, veiled } from './Backdrop.js';
 import { ChooseBackdrop } from './ChooseBackdrop.js';
-import { ModeActions, ModeRegion } from './ModeRegion.js';
+import { ModeRegion } from './ModeRegion.js';
 import { Starters, Suggestions } from './Suggestions.js';
 import { MentionOverlay } from './MentionOverlay.js';
 import { HudStrip, type HudStripHandle } from './HudStrip.js';
-import { LorePanel } from './LorePanel.js';
-import { SessionPanel } from './SessionPanel.js';
 import { anchorOffset, RenditionChooser, RenditionView } from './Rendition.js';
 import { RememberThis } from './RememberThis.js';
 import { useSetupFromTurn } from './SetupFromTurn.js';
@@ -95,6 +91,9 @@ import { Note, SectionTitle } from '../ui/Text.js';
 import { useDebouncedInput } from './useDebouncedInput.js';
 import { useTurnStream } from './useTurnStream.js';
 import { writeFailed } from './WriteFailed.js';
+import { OpenDockButton } from '../workbench/OpenDockButton.js';
+import { DOCK_SECTIONS } from '../workbench/jump.js';
+import { SessionSection } from '../workbench/session/SessionSection.js';
 
 import { labels } from '../i18n/catalogue.js';
 
@@ -126,6 +125,12 @@ const HELD_WORDS: Record<'no-binding' | 'no-moment' | 'no-place', string> = labe
   },
 );
 
+/** The heading row's way to the session's settings, in the workbench — P12A.5. */
+const SETTINGS_WORDS = labels('play.session-settings', {
+  open: 'Session settings',
+  keys: 'Ctrl+`',
+});
+
 /**
  * A request that failed outright — not a held answer, which is a 200 — read by
  * class: `busy` says to wait for the turn, anything else that it could not
@@ -151,12 +156,17 @@ const ILLUSTRATE_WORDS = labels('play.rendition.request', {
  */
 export function PlayPage({
   sessionId,
-  block,
   starters,
+  settings = 'workbench',
 }: {
   sessionId: string;
-  /** A block of this session's pack to open the settings panel on — [P7B.4]. */
-  block?: string;
+  /*
+   * ~~`block` — a block of this session's pack to open the settings panel on,
+   * [P7B.4].~~ *(2026-10-13, [P12A] P12A.5: the session panel is the
+   * workbench's now, in its play subject's **Session** section, so the dock
+   * reads `?block=` from the address itself and the play route opens the dock
+   * when the address asks for one — `useOpenDockFor` in `workbench/jump.ts`.)*
+   */
   /**
    * ***Labelled entry points for a session nobody has typed into yet*** —
    * [06 §7.4]'s *starter prompts*, [10 §7],
@@ -176,6 +186,24 @@ export function PlayPage({
    * make the app's suggestion and the person's decision one gesture.
    */
   starters?: readonly string[];
+  /**
+   * ***Where this session's settings are*** (2026-10-13,
+   * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.5).
+   *
+   * Since P12A.5 they are the workbench's — its play subject's **Session**
+   * section — and the heading row's *Session settings* opens the dock there.
+   * That holds only while **this page is the main view**, because the dock's
+   * subject is the route's: over `/play/:id` it is this session. The
+   * assistant draws this page in a panel beside whatever the main view is,
+   * and there the dock is about something else entirely — a library object,
+   * another session — so a press that opened it would open the wrong
+   * session's settings, or none. `'here'` draws the same section in one
+   * disclosure under the heading row instead, which is what the assistant's
+   * *Archive this session* needs to stay reachable ([10 §7]'s *start
+   * afresh*), and is what [P7B §1.4] asked of the column once: one panel
+   * holding the session's settings.
+   */
+  settings?: 'workbench' | 'here';
 }): React.JSX.Element {
   const queryClient = useQueryClient();
   const { state, dispatch } = useTurnStream(sessionId);
@@ -1132,7 +1160,45 @@ export function PlayPage({
         {session.data === undefined ? null : (
           <AddToWorld sessionId={sessionId} name={session.data.session.name} />
         )}
+        {/* ***Session settings*** (2026-10-13, [P12A] P12A.5) — the way to the
+            panels that left this column. How a chat plays, what the session
+            retrieves from, its pack and its verbs, the dials, a mode's actions
+            and switches: facts about how the session is set up, which are the
+            workbench's play subject's first section now, **Session**. This
+            opens the dock there, or takes a reader there in a dock already
+            open, so nothing that was in the column is more than one press
+            away — [P12A §1.3]'s test.
+
+            *In the heading row* because every control in it is about the
+            session as a whole — its name, its Worlds — and none about the
+            story now, which is the strip's. *The chord is shown*, beside the
+            name and out of it: Ctrl+` opens the dock at its top, which over
+            Play is this section, so the keystroke and the press arrive at the
+            same place, and a person who learns one from the other has
+            learned the faster. Hidden on a phone, which has no Ctrl key to
+            press; the press is the way there. */}
+        {session.data === undefined || settings === 'here' ? null : (
+          <OpenDockButton at={DOCK_SECTIONS.session} keyshortcuts="Control+`">
+            {SETTINGS_WORDS.open}{' '}
+            <kbd aria-hidden="true" className="text-xs text-ink-subtle max-sm:hidden">
+              {SETTINGS_WORDS.keys}
+            </kbd>
+          </OpenDockButton>
+        )}
       </div>
+
+      {/* ***The settings, here***, when this page is not the main view and so
+          the dock is not about this session — the `settings` prop says why.
+          Folded, since the panel it is drawn in is the assistant's, and the
+          conversation is what that panel is for. */}
+      {settings === 'here' && session.data !== undefined ? (
+        <details className="rounded-control border border-line bg-surface px-3 py-2">
+          <summary className={`${disclosure.quiet} text-sm`}>{SETTINGS_WORDS.open}</summary>
+          <div className="mt-3">
+            <SessionSection sessionId={sessionId} block={undefined} />
+          </div>
+        </details>
+      ) : null}
 
       {/* ***In these worlds*** — the backlink [P16 §1.2] gives a session's page:
           the Worlds whose members name it, worked out from the Worlds list
@@ -1181,21 +1247,28 @@ export function PlayPage({
       {/* **How this chat plays** — [P14 §1.8]'s session settings, [P14.5].
           Beside the cast because the two are the chat's configuration: who is
           in it, and how they are asked to speak. Renders nothing for a mode
-          that does not play as a chat. */}
-      <ChatSettingsPanel sessionId={sessionId} />
+          that does not play as a chat.
 
-      {/* What this session retrieves from — [P6B.0]. Above the transcript and
+          What this session retrieves from — [P6B.0]. Above the transcript and
           closed by default: it is a fact about the session rather than about
-          any turn, and the story column is the surface. */}
-      <LorePanel sessionId={sessionId} />
+          any turn, and the story column is the surface.
 
-      {/* **How this session is prompted, and the two verbs it never had** —
+          **How this session is prompted, and the two verbs it never had** —
           [P7B.2]. Beside the lore panel because both are facts about the
           session rather than about a turn, and after it because what a session
           retrieves from is the thing people reach for more often than which
           pack it runs. *The seventh disclosure in this column*, which
-          `SessionPanel` says is a debt rather than a design. */}
-      <SessionPanel sessionId={sessionId} {...(block === undefined ? {} : { block })} />
+          `SessionPanel` says is a debt rather than a design.
+
+          *(2026-10-13, [P12A] P12A.5: the debt is paid, by moving rather than
+          by merging. None of the three is here now. Each is a fact about how
+          the session is set up — the sentence the lore panel's own comment
+          used — and [10 §1.1]'s* where the two meet, tooling gives way *was
+          the rule this column broke one good reason at a time. They are the
+          workbench's play subject's first section, **Session**, in the order
+          they had here, reused unchanged (`workbench/session/SessionSection.tsx`),
+          and* Session settings *in the heading row above opens the dock
+          there. `SessionPanel`'s docstring has the answer to its own note.)* */}
 
       {/* **What this story is trying to do** — [06 §7.3.3], [06 §7.3.4], [P7.6].
           Above the hooks because a goal is what the session is *for* and a hook
@@ -1230,8 +1303,13 @@ export function PlayPage({
           *(2026-10-13, P12A.4: the hook panel is the strip's item now, below
           this, and the pacing dial with it, so the three are a line apart
           rather than side by side — until P12A.5 moves the dials to the
-          workbench, which decides where they meet again.)* */}
-      <DialPanel sessionId={sessionId} />
+          workbench, which decides where they meet again.)*
+          *(2026-10-13, P12A.5: it decided they do not meet. The dials are the
+          workbench's Session section's, since a dial is how the session is
+          set up; the pacing dial stays in the hook item, since 10 §10.1 keeps
+          the hooks on the play surface and the dial explains an empty pool.
+          The guide says the three are one family, which the layout no longer
+          can.)* */}
 
       {/* **Whatever else this mode's declaration asked for** — [06 §9], [P7.11].
           Last in the panel stack because the four above it are the engine's own
@@ -1239,18 +1317,16 @@ export function PlayPage({
           declares none renders nothing here at all. */}
       {/* ***What a person may run between turns*** — [P14.5a]'s *Update
           trackers*, above the cards it updates. Renders nothing unless the
-          server lists an action, which it does only while a tracker is on. */}
-      <ModeActions
-        sessionId={sessionId}
-        actions={session.data?.actions}
-        busy={running || send.isPending}
-      />
-      <ModeRegion
-        sessionId={sessionId}
-        surfaces={session.data?.surfaces}
-        region="panel"
-        nameOf={(actorId) => actorObjects.find((one) => one.id === actorId)?.name ?? actorId}
-      />
+          server lists an action, which it does only while a tracker is on.
+
+          *(2026-10-13, P12A.5: neither is here now, and the region split on
+          the way out. A mode's `panel` region held switches and readings
+          together — Scene's* Show the scene *and* Stage a backdrop *beside its
+          trackers' cards — and the stage's rule sorts them apart: a switch is
+          how the session is set up and goes to the workbench's Session
+          section, with the actions; a card is a value the story holds now and
+          is an item of the strip, after the hooks. `isSwitch` in
+          `ModeRegion.tsx` is the rule.)* */}
 
       {/* **The stage** — [06 §7.2], [10 §2.3], [P7.11]. The picture the story is
           staged against, and it behaves like chrome: *"The prose wins,
@@ -1279,7 +1355,15 @@ export function PlayPage({
           *(2026-10-13, P12A.2: and **Choose a backdrop…** beside it, under the
           same condition, with no head needed — a pick is a channel write, which
           a session with no turn yet can make. Set the scene still waits for a
-          head, which is the turn it draws.)* */}
+          head, which is the turn it draws.)*
+
+          *(2026-10-13, P12A.5: both stay, and that was decided rather than
+          left. The picture behind the story is a fact about the story now —
+          where it is, drawn — and these two are a person's ways to change it:
+          draw it again for here, or pick it. **Stage a backdrop**, beside
+          them in spirit, went to the workbench, because it says whether the
+          story stages its own from now on, which is how the session is set
+          up; the dialog's sentence says where that switch is.)* */}
       {session.data?.renditions?.backdrop === undefined ? null : (
         <div className="flex flex-wrap items-center gap-2">
           {session.data.session.headTurnId === null ? null : (
@@ -1307,7 +1391,10 @@ export function PlayPage({
           goal and the hooks. **Directly over the transcript**, since that is
           where it stays once P12A.5 has moved the configuration panels above
           it to the workbench; its items open over the top of the story rather
-          than pushing it down. `HudStrip` says what each item opens. */}
+          than pushing it down. `HudStrip` says what each item opens.
+          *(2026-10-13, P12A.5: they have moved, and the strip took a mode's
+          readings from the column on the way — its trackers' cards and the
+          like, after the hooks.)* */}
       <HudStrip
         ref={strip}
         sessionId={sessionId}
@@ -1329,6 +1416,11 @@ export function PlayPage({
         by whatever sat on top. A floor of half the viewport means the page
         scrolls past the controls instead; on a tall window nothing changes,
         because `flex-1` was already giving it more.
+        *(2026-10-13, P12A.5: the session panels and the switches have left
+        the column for the workbench, so the heading, the strip and the
+        composer are what share the window with it now. The floor stays: a
+        strip that wraps, or a popover open under it, is still something above
+        the story.)*
       */}
       <ol
         className="flex min-h-[50dvh] flex-1 flex-col gap-4 overflow-y-auto"

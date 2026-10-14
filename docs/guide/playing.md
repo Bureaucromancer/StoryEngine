@@ -187,11 +187,14 @@ or Marinara chat as a new session — see
 
 ## The play page
 
-From the top: the session's name, **Rename** and **Add to a world…**, and under them
-**In these worlds** when any world names the session; for a Scene chat, **How this chat
-plays**; the lore panel (*Retrieving from …*); the session panel (*Prompted with …*);
-Freeform's dials; the mode's own panels; picture controls; **The story now**, a strip of
-what is true now; the **transcript**; and at the bottom the composer.
+From the top: the session's name, **Rename**, **Add to a world…** and **Session
+settings**, and under them **In these worlds** when any world names the session; in a
+mode that stages backdrops, **Set the scene** and **Choose a backdrop…**; **The story
+now**, a strip of what is true now; the **transcript**; and at the bottom the composer.
+
+How the session is set up — how a chat plays, what it draws on, its prompt pack, the
+dials, the mode's switches — is not on the page. **Session settings** opens it in the
+workbench; see [Session settings](#session-settings).
 
 The strip is one line. In order it holds:
 
@@ -199,7 +202,10 @@ The strip is one line. In order it holds:
 - the mode's entries, such as a Scene's **Time** and **Place**;
 - **Cast**, with the faces of who is here and *n of m here*;
 - the objective;
-- the plot hooks.
+- the plot hooks;
+- what the mode keeps track of, such as a Scene's trackers (**The world**, a
+  character, **You**, **Quests** …), the secret plot while it is shown, and the echo
+  chamber's reactions. Each opens to its card.
 
 Press an item to open it under the strip. An entry you can change opens to a box.
 **Save**, Enter, Tab away or a press elsewhere saves what you typed; **Escape** drops it.
@@ -246,8 +252,8 @@ words…*.
 The **context meter** above the box shows how much of the room the prompt may use the
 next turn would take — the room being the model's window, less the share the pack holds
 back and the space kept for the reply. It is re-measured as you type and changes colour
-at 85% of that room. Click it to open the workbench; with something typed, it shows what
-would be sent.
+at 85% of that room. Click it to open the workbench at the turn record; with something
+typed, it shows what would be sent.
 
 A turn runs **on the server**, not in your browser. Closing the tab mid-turn is safe:
 the turn finishes, and when you come back the page picks up where it was — or a
@@ -386,34 +392,6 @@ In a Scene chat the cast panel does more — making someone speak, muting them, 
 and removing members, how readily each joins in. See
 [Modes](modes.md#the-cast-in-a-chat).
 
-### Lore — *Retrieving from …*
-
-Which **Treatment** the session uses and which **Lorebooks** it draws on; **Save
-selection** applies changes from the next turn. These are links to your library, not
-copies: edit a lorebook and the session uses the new text at the next turn. See
-[Lorebooks and memory](lorebooks-and-memory.md).
-
-### The session — *Prompted with …*
-
-- **Prompt pack** — keep the session's copy, switch to the mode's own, or switch to a
-  preset from your library. Switching copies the pack into the session; turns already
-  taken keep what they were built from.
-- **Temperature** and **Maximum reply length** for this session, starting from the
-  pack's own values. Blank leaves them to the provider. Each saves when you leave the
-  box or press Enter.
-- **Read it as a story**, **Export this session**, **Archive this session** and
-  **Delete this session** — see [Reading a story](#reading-a-story) and
-  [Archiving, deleting and exporting](#archiving-deleting-and-exporting).
-- **Memories** — whether this session shares and uses memories. See
-  [Lorebooks and memory](lorebooks-and-memory.md#memory).
-- **Illustrate the story** — **Never**, **Only when I ask** or **Every turn**. See
-  [Pictures](pictures.md).
-- For a session imported from a chat, **Update from source**. See
-  [Importing and exporting](importing-and-exporting.md#chats-and-sessions).
-
-Editing one block of the session's pack opens from the workbench (**Edit in the
-pack**). See [Presets and prompts](presets.md#a-sessions-own-copy).
-
 ### Goals
 
 A story can have an objective, or a chain of them, written into a setup or set by you.
@@ -459,21 +437,77 @@ strip says how many are eligible now; press it to open the panel.
 To fire a particular hook on the next turn without waiting, use **Audition a hook** in
 the [workbench](#the-workbench).
 
+## Session settings
+
+**Session settings**, beside the session's name, opens the [workbench](#the-workbench) at
+its **Session** section, which holds how this session is set up. **Ctrl+`** opens the
+workbench there too when it is shut. From the top:
+
+- **How this chat plays**, in a Scene chat — who writes the replies, who replies, the
+  author's note — with the mode's own switches under **Agents**. See
+  [Modes](modes.md#how-this-chat-plays).
+- the lore panel (*Retrieving from …*) and the session panel (*Prompted with …*),
+  below;
+- Freeform's [dials](#dials);
+- **Update trackers**, while a Scene tracker is on;
+- the mode's switches, such as Scene's **Show the scene** and **Stage a backdrop**. See
+  [Modes](modes.md#time-place-and-the-stage).
+
+On a phone-sized screen the workbench takes over the page, so **Close** brings the story
+back. In the assistant's panel the same settings are folded under **Session settings** at
+the top of the conversation instead, because the workbench there is about the page behind
+the panel.
+
+### Lore — *Retrieving from …*
+
+Which **Treatment** the session uses and which **Lorebooks** it draws on; **Save
+selection** applies changes from the next turn. These are links to your library, not
+copies: edit a lorebook and the session uses the new text at the next turn. See
+[Lorebooks and memory](lorebooks-and-memory.md).
+
+### The session — *Prompted with …*
+
+- **Prompt pack** — keep the session's copy, switch to the mode's own, or switch to a
+  preset from your library. Switching copies the pack into the session; turns already
+  taken keep what they were built from.
+- **Temperature** and **Maximum reply length** for this session, starting from the
+  pack's own values. Blank leaves them to the provider. Each saves when you leave the
+  box or press Enter.
+- **Read it as a story**, **Export this session**, **Archive this session** and
+  **Delete this session** — see [Reading a story](#reading-a-story) and
+  [Archiving, deleting and exporting](#archiving-deleting-and-exporting).
+- **Memories** — whether this session shares and uses memories. See
+  [Lorebooks and memory](lorebooks-and-memory.md#memory).
+- **Illustrate the story** — **Never**, **Only when I ask** or **Every turn**. See
+  [Pictures](pictures.md).
+- For a session imported from a chat, **Update from source**. See
+  [Importing and exporting](importing-and-exporting.md#chats-and-sessions).
+
+**Edit in the pack**, beside a block in a turn's block table further down the workbench,
+opens that block's text here to edit, and leaves the turn record on the turn you found it
+in. See [Presets and prompts](presets.md#a-sessions-own-copy).
+
 ### Dials
 
 Freeform sessions have two: **How much the world resists you** and **How much the
 narrator steers**. Harder means longer and more expensive, never impossible. Each
-change is a turn, so rewinding undoes it.
+change is a turn, so rewinding undoes it. A third setting pulls on the story in the same
+way — **How often hooks fire**, in the plot hooks' panel in the strip — so when the story
+keeps pushing, look at all three.
 
 ## The workbench
 
 The workbench is a panel beside the page that shows what a turn was made of. Open it
 from **Workbench** in the header, with **Ctrl+`** (when the keyboard is not in a text
-box), or by clicking the context meter; **Close** shuts it, and so does **Escape** while
-the keyboard is inside it. Its width can be dragged, and whether it is open is
-remembered for your account. On a phone-sized screen it takes over the page.
+box), by clicking the context meter, or with **Session settings**; **Close** shuts it,
+and so does **Escape** while the keyboard is inside it. Its width can be dragged, and
+whether it is open is remembered for your account. On a phone-sized screen it takes over
+the page.
 
-Over a session it shows, by default, the turn beneath the page:
+Over a session it has two sections, one under the other, with a button for each at the
+top: **Session**, the [session settings](#session-settings), and **Turn record**. The
+context meter opens it at the turn record, **Session settings** at the session. The turn
+record shows, by default, the turn beneath the page:
 
 - **While a turn runs** — its progress, step by step, and the effects so far.
 - **While you are typing** — *What happens next*: what would be sent if you sent now,
@@ -502,7 +536,8 @@ delivered on the next turn with no judgement. Rewind afterwards to put it back.
 
 ## Reading a story
 
-**Read it as a story**, in the session panel, shows the line as prose with none of the
+**Read it as a story**, in the session panel under [Session settings](#session-settings),
+shows the line as prose with none of the
 machinery: your moves as quoted blocks, headed with the character you played them as
 (*Vera said*), or *You did* and *You said* for a move played as nobody in particular
 or from before the character was recorded with it; each speaker's lines
@@ -533,7 +568,7 @@ those.
 
 ## Archiving, deleting and exporting
 
-All three are in the session panel.
+All three are in the session panel, under [Session settings](#session-settings).
 
 - **Archive this session** hides it from the sessions list at once, and **Take out of
   the archive** brings it back. Nothing else changes.
@@ -586,8 +621,9 @@ is reloaded or refocused.
 - **Enter** sends; **Shift+Enter** is a new line.
 - Freeform's move buttons (**Do**, **Say**, **Think**, **Story**) are one stop for Tab:
   the arrow keys move between them, **Home** and **End** jump to the ends.
-- **Ctrl+`** opens and closes the workbench when the keyboard is not in a text box;
-  **Escape** closes it while the keyboard is inside it.
+- **Ctrl+`** opens and closes the workbench when the keyboard is not in a text box —
+  over a session it opens at the session settings; **Escape** closes it while the
+  keyboard is inside it.
 - **Skip to the page**, the first Tab stop on every page, jumps past the header.
 - The plot-hook questions put the focus on **Cancel**; **Delete this session** does
   not.

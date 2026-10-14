@@ -1,0 +1,775 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 StoryEngine contributors
+
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { RouterProvider } from '@tanstack/react-router';
+import { act, render, screen, waitFor, within, type ByRoleMatcher } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import type { Account, TurnRecord } from '../api.js';
+import { cancelledTurn, restingPreview, richTurn, SESSION_ID } from '../workbench/turn-fixtures.js';
+
+/**
+ * ***Everything the play column offered is still within reach*** — 2026-10-13,
+ * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.5.
+ *
+ * The stage moved the session's configuration out of the column and into the
+ * workbench, and the plan's measurable claim for it is *"every control
+ * reachable before is reachable after"*, asserted rather than hoped
+ * ([P12A §2](../../../../docs/design/workplan/35-p12a-the-look.md)). Its §0.4
+ * said where: `PlayPage.test.tsx` mounts the page alone, and a claim that
+ * crosses from the page into the dock needs the **real router and the real
+ * shell** — `workbench/dock.test.tsx`'s setup, which this file borrows.
+ *
+ * **The list below is the column as it stood at the start of the stage** —
+ * `5d01529d`, the commit before it — and not a list written from what the
+ * stage built. It was taken by rendering that column under this file's
+ * fixture through the same router and shell, opening every disclosure in it
+ * and every item of the strip in turn, and recording each control by its role
+ * and accessible name: buttons, links, check boxes, selects, text boxes,
+ * number boxes, radio buttons, and the disclosures' own summaries, which are
+ * pressed too. Nothing on it was chosen; what the fixture could draw, it
+ * drew. Each block carries where the stage put it — on the play surface, in
+ * a strip item's panel, or in the workbench's **Session** section — and the
+ * test asks for each control there, opening what a person would open on the
+ * way: the item, the dock through *Session settings*, a disclosure.
+ *
+ * **The fixture is every block at once, which no real mode sends**: Scene's
+ * chat settings and tracker cards beside Freeform's dials, a degraded channel,
+ * a session imported from a chat and in a World, started without something it
+ * asked for. The client draws whatever the read carries, so a union is the
+ * one session that makes every block of the column show up for one count.
+ * *The composer and the transcript are on the list too*, though the stage did
+ * not touch them: they were in the column, and a move that dropped one by
+ * accident is the regression a list like this is for.
+ */
+
+const ACCOUNT: Account = {
+  handle: 'ned',
+  displayName: 'Ned',
+  role: 'user',
+  enabled: true,
+  locale: null,
+  capabilities: {
+    privateConnections: true,
+    fileAccess: 'none',
+    enableExtensions: false,
+    scheduledBackups: false,
+  },
+  createdAt: 0,
+};
+
+const SESSION = {
+  id: SESSION_ID,
+  name: 'The Ashfall Road',
+  createdAt: '2026-08-18T10:00:00.000Z',
+  updatedAt: '2026-08-18T10:05:00.000Z',
+  headTurnId: 'turn-1',
+  treatment: null,
+  lore: [],
+  cast: { persona: null, actors: ['actor-vera'] },
+  preset: {
+    name: 'Scene pack',
+    params: { temperature: 0.8 },
+    blocks: [{ id: 'se.instruction', template: 'Write well.' }],
+  },
+  origin: { originalFilename: 'ashfall.jsonl' },
+  startedWithout: {
+    at: '2026-10-13T09:00:00.000Z',
+    unmet: [{ kind: 'extension', id: 'dice', minVersion: '0.1.0' }],
+  },
+};
+
+const TURN: TurnRecord = {
+  id: 'turn-1',
+  sessionId: SESSION_ID,
+  parentTurnId: null,
+  createdAt: '2026-08-18T10:00:00.000Z',
+  status: 'complete',
+  input: { actorId: null, text: 'I knock twice.', kind: 'action', raw: 'I knock twice.' },
+  output: { text: 'The door opens a handspan.' },
+  effects: [],
+  tape: [],
+};
+
+/** A toggle in a region, as the session read sends one. */
+function toggle(region: string, key: string, label: string, group?: string) {
+  return {
+    region,
+    key,
+    channelId: key,
+    scopeKey: null,
+    kind: 'toggle',
+    label,
+    on: false,
+    ...(group === undefined ? {} : { group }),
+  };
+}
+
+const READ = {
+  session: SESSION,
+  activeJob: null,
+  health: [
+    {
+      key: 'se.mood',
+      channelId: 'se.mood',
+      scopeKey: null,
+      version: 1,
+      reason: 'schema',
+      raw: 1,
+      value: null,
+    },
+  ],
+  hud: [
+    {
+      key: 'se.location',
+      channelId: 'se.location',
+      scopeKey: null,
+      kind: 'text',
+      label: 'Place',
+      text: 'the harbour',
+      edit: { kind: 'text', nullable: true },
+      value: 'the harbour',
+    },
+  ],
+  cast: [
+    {
+      actorId: 'actor-vera',
+      presence: true,
+      status: 'alive',
+      pending: null,
+      introduced: true,
+      party: null,
+    },
+  ],
+  hooks: {
+    pacing: 'normal',
+    rows: [
+      {
+        hookId: 'h-1',
+        title: 'A stranger at the door',
+        source: { kind: 'session' },
+        state: null,
+        refusal: null,
+        entrances: [],
+      },
+    ],
+  },
+  goals: {
+    rows: [
+      {
+        goalId: 'g-1',
+        statement: 'Reach the harbour',
+        visibility: 'player',
+        completion: 'narrative',
+        current: true,
+        achieved: false,
+        proposed: false,
+        next: null,
+        thenDefault: 'continue-open',
+      },
+    ],
+    concluded: false,
+  },
+  dials: {
+    difficulty: {
+      levelId: 'normal',
+      levels: [
+        { id: 'easy', label: 'Easy' },
+        { id: 'normal', label: 'Normal' },
+      ],
+    },
+    directedness: {
+      levelId: 'loose',
+      levels: [
+        { id: 'loose', label: 'Loose' },
+        { id: 'tight', label: 'Tight' },
+      ],
+    },
+  },
+  renditions: { illustration: 'on-demand', backdrop: true },
+  surfaces: [
+    toggle('panel', 'se.staging', 'Show the scene'),
+    toggle('panel', 'se.backdrop.on', 'Stage a backdrop'),
+    {
+      region: 'panel',
+      group: 'Tracked',
+      key: 'se.track.world',
+      channelId: 'se.track.world',
+      scopeKey: null,
+      kind: 'record',
+      label: 'The world',
+      record: {
+        value: { location: 'the harbour', weather: 'rain' },
+        fields: [
+          { key: 'location', label: 'Location', show: 'line' },
+          { key: 'weather', label: 'Weather', show: 'line' },
+        ],
+        locks: { key: 'se.track.locks', paths: [] },
+        hidden: { key: 'se.track.hidden', paths: [] },
+      },
+    },
+    toggle('panel', 'se.plot.reveal', 'Show me the secret plot', 'Director'),
+    toggle(
+      'settings',
+      'se.track.world.on',
+      'Track the world: date, time, place, weather',
+      'Agents',
+    ),
+  ],
+  actions: [{ stepId: 'se.track', label: 'Update trackers' }],
+  chat: {
+    voice: 'embodied',
+    dispatch: 'merged',
+    speakers: {
+      policy: 'natural',
+      allowSelfResponses: false,
+      namesInHistory: 'groups',
+      maxPerRound: 2,
+    },
+    note: null,
+    hidden: {},
+    prompts: { instruction: true, cards: {} },
+  },
+};
+
+/** One library row of a kind, with the fields every row carries. */
+function row(kind: string, id: string, name: string, object: unknown = {}) {
+  return {
+    id,
+    name,
+    schema: `storyengine.${kind}/1`,
+    slug: id,
+    source: 'user',
+    contentHash: `sha256:${id}`,
+    shadowed: false,
+    object,
+  };
+}
+
+const LIBRARY: Record<string, unknown[]> = {
+  presets: [row('preset', 'p-1', 'House style')],
+  lorebooks: [row('lorebook', 'b-1', 'Rain City')],
+  treatments: [row('treatment', 't-1', 'The Ashfall setting')],
+  actors: [row('actor', 'actor-vera', 'Vera')],
+  worlds: [
+    row('world', 'w-ash', 'The Ashfall setting', {
+      contents: [{ schema: 'storyengine.session/1', id: SESSION_ID }],
+    }),
+  ],
+};
+
+let prefsStore: Record<string, unknown> = {};
+const patchPrefs = vi.fn();
+let turns: TurnRecord[] = [TURN];
+
+beforeEach(() => {
+  prefsStore = {};
+  patchPrefs.mockClear();
+  turns = [TURN];
+});
+
+vi.mock('../api.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../api.js')>();
+  return {
+    ...actual,
+    api: {
+      ...actual.api,
+      authState: () => Promise.resolve({ setupRequired: false, account: ACCOUNT }),
+      listLibrary: (kind?: string) => Promise.resolve({ objects: LIBRARY[kind ?? ''] ?? [] }),
+      readPrefs: () => Promise.resolve({ prefs: { ...prefsStore } }),
+      patchPrefs: (patch: Record<string, unknown>) => {
+        patchPrefs(patch);
+        prefsStore = Object.fromEntries(
+          Object.entries({ ...prefsStore, ...patch }).filter(([, value]) => value !== null),
+        );
+        return Promise.resolve({ prefs: { ...prefsStore } });
+      },
+      readMyRoles: () =>
+        Promise.resolve({
+          roles: [{ role: 'prose', tier: 'hi', ok: true }],
+          connections: [],
+          disabled: [],
+          bindings: {},
+          contentHash: 'sha256:roles',
+        }),
+    },
+    listSessions: () => Promise.resolve({ sessions: [SESSION] }),
+    readSession: () => Promise.resolve(READ),
+    readTranscript: () => Promise.resolve({ turns }),
+    previewTurn: () => Promise.resolve({ preview: restingPreview() }),
+    readRenditions: () => Promise.resolve({ renditions: [], selection: {} }),
+    readMemoryPanel: () =>
+      Promise.resolve({
+        config: { share: true, intake: true, acrossPersonas: false, associations: {} },
+        books: [],
+        others: [],
+      }),
+  };
+});
+
+vi.mock('./stream.js', () => ({
+  openTurnStream: () => ({ close: () => undefined }),
+}));
+
+const { router } = await import('../router.js');
+
+function renderApp(): void {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(
+    <QueryClientProvider client={client}>
+      <RouterProvider router={router} />
+    </QueryClientProvider>,
+  );
+}
+
+async function overPlay(search: { turn?: string; block?: string } = {}): Promise<void> {
+  await act(async () => {
+    await router.navigate({ to: '/play/$sessionId', params: { sessionId: SESSION_ID }, search });
+  });
+  await screen.findByRole('heading', { name: 'The Ashfall Road', level: 1 });
+}
+
+/** Play's column: `<main>`'s one child. */
+function column(): HTMLElement {
+  const main = document.getElementById('main');
+  const found = main?.firstElementChild;
+  if (!(found instanceof HTMLElement)) throw new Error('no play column');
+  return found;
+}
+
+function theStrip(): HTMLElement {
+  return within(column()).getByRole('region', { name: 'The story now' });
+}
+
+/** Press every shut disclosure in a scope, nested ones included, as a reader would. */
+async function openEvery(scope: HTMLElement): Promise<void> {
+  for (let pass = 0; pass < 4; pass += 1) {
+    const shut = [...scope.querySelectorAll<HTMLElement>('details:not([open]) > summary')].filter(
+      (one) => one.closest('[hidden]') === null,
+    );
+    if (shut.length === 0) return;
+    for (const summary of shut) await userEvent.click(summary);
+  }
+}
+
+/**
+ * A control by role and name, or a disclosure by its summary's words — the
+ * one control a role query cannot reach, since a `<summary>` has none.
+ */
+type Control = readonly [role: ByRoleMatcher | 'summary', name: string | RegExp];
+
+/** Where a block of the column is after the stage. */
+type After = 'play' | 'strip' | 'session';
+
+/**
+ * ***The column at `5d01529d`, block by block, top to bottom*** — every
+ * control the fixture made it draw (see the file's docstring for how the list
+ * was taken). `after` is the stage's sorting, which its record in P12A §2
+ * argues block by block: a fact about the story now stays on Play, a fact
+ * about how the session is configured goes to the workbench's Session section.
+ */
+const BEFORE: readonly { block: string; after: After; controls: readonly Control[] }[] = [
+  {
+    block: 'the heading row',
+    after: 'play',
+    controls: [
+      ['button', 'Rename The Ashfall Road'],
+      ['button', 'Add to a world: The Ashfall Road'],
+    ],
+  },
+  { block: 'In these worlds', after: 'play', controls: [['link', 'The Ashfall setting']] },
+  // `StartedWithout`'s line came next, and holds no control.
+  {
+    block: 'How this chat plays (ChatSettingsPanel, with the mode’s settings region)',
+    after: 'session',
+    controls: [
+      ['summary', 'How this chat plays'],
+      ['radio', 'The characters, each in their own voice'],
+      ['radio', 'A narrator, telling the scene'],
+      ['checkbox', 'Each character replies in a call of their own'],
+      ['combobox', 'Who replies'],
+      ['checkbox', 'A character may reply straight after themselves'],
+      ['combobox', 'Naming speakers to the model'],
+      ['checkbox', 'Send the prompt pack’s own instruction'],
+      ['textbox', 'Author’s note'],
+      ['spinbutton', 'How many lines back'],
+      ['spinbutton', 'Every how many of your messages (0 switches it off)'],
+      ['button', 'Save the note'],
+      ['checkbox', 'Its system prompt'],
+      ['checkbox', 'Its post-history instructions'],
+      ['checkbox', 'Its depth prompt'],
+      ['checkbox', 'Track the world: date, time, place, weather'],
+    ],
+  },
+  {
+    block: 'the lore panel (LorePanel)',
+    after: 'session',
+    controls: [
+      ['summary', 'Retrieving from no lorebooks'],
+      ['combobox', 'Treatment'],
+      ['checkbox', 'Rain City'],
+      ['button', 'Save selection'],
+    ],
+  },
+  {
+    block: 'the session panel (SessionPanel, with Memories and Pictures)',
+    after: 'session',
+    controls: [
+      ['summary', 'Prompted with Scene pack'],
+      ['combobox', 'Prompt pack'],
+      ['spinbutton', 'Temperature'],
+      ['spinbutton', 'Maximum reply length'],
+      ['link', 'Read it as a story'],
+      ['link', 'Export this session'],
+      ['button', 'Archive this session'],
+      ['button', 'Delete this session'],
+      ['button', 'Update from source'],
+      ['summary', 'Memories'],
+      ['checkbox', /^Share memories from this session/],
+      ['checkbox', /^Use memories from these characters/],
+      ['checkbox', /^Remember across all my personas/],
+      ['summary', 'Pictures'],
+      ['combobox', 'Illustrate the story'],
+    ],
+  },
+  {
+    block: 'the dials (DialPanel)',
+    after: 'session',
+    controls: [
+      ['combobox', /^How much the world resists you/],
+      ['combobox', /^How much the narrator steers/],
+    ],
+  },
+  {
+    block: 'what a person may run (ModeActions)',
+    after: 'session',
+    controls: [['button', 'Update trackers']],
+  },
+  {
+    block: 'the mode’s panel region: its switches',
+    after: 'session',
+    controls: [
+      ['checkbox', 'Show the scene'],
+      ['checkbox', 'Stage a backdrop'],
+      ['checkbox', 'Show me the secret plot'],
+    ],
+  },
+  {
+    block: 'the mode’s panel region: its readings',
+    after: 'strip',
+    controls: [
+      ['summary', 'The world'],
+      ['button', 'Edit'],
+    ],
+  },
+  {
+    block: 'Set the scene, and Choose a backdrop…',
+    after: 'play',
+    controls: [
+      ['button', 'Set the scene'],
+      ['button', 'Choose a backdrop…'],
+    ],
+  },
+  {
+    block: 'the strip, and what its items open',
+    after: 'strip',
+    controls: [
+      ['button', '1 channel could not be loaded. Your story is unaffected.'],
+      ['button', 'Try again'],
+      ['button', 'Accept the reset'],
+      ['button', 'Place the harbour'],
+      ['textbox', 'Place'],
+      ['button', 'Save'],
+      ['button', 'Cast 1 of 1 here'],
+      ['combobox', 'You play'],
+      ['button', 'Play as them'],
+      ['checkbox', 'Muted'],
+      ['combobox', 'Status for Vera'],
+      ['button', 'Speak'],
+      ['button', 'Remove from the cast'],
+      ['summary', 'Card prompts'],
+      ['checkbox', 'Its system prompt'],
+      ['checkbox', 'Its post-history instructions'],
+      ['checkbox', 'Its depth prompt'],
+      ['combobox', 'Somebody to add'],
+      ['button', 'Add to the cast'],
+      ['button', 'Working toward: Reach the harbour'],
+      ['button', 'Mark it done'],
+      ['textbox', 'Set an objective'],
+      ['button', 'Set'],
+      ['button', 'Plot hooks — 1 of 1 eligible'],
+      ['combobox', 'How often hooks fire'],
+      ['button', 'Commit A stranger at the door'],
+      ['button', 'Remove A stranger at the door'],
+      ['textbox', 'Something you want to happen'],
+      ['textbox', 'What happens'],
+      ['button', 'Add'],
+    ],
+  },
+  {
+    block: 'the transcript',
+    after: 'play',
+    controls: [
+      ['button', 'Edit'],
+      ['button', 'Hide this exchange'],
+      ['button', 'Hide'],
+      ['button', 'Delete'],
+      ['button', 'Redo'],
+      ['button', 'Redo with guidance'],
+      ['button', 'Continue from here'],
+      ['button', 'Make a setup from here'],
+      ['button', 'Illustrate'],
+      ['button', 'Remember this'],
+      ['button', 'Undo'],
+    ],
+  },
+  {
+    block: 'the composer',
+    after: 'play',
+    controls: [
+      ['button', /^Context fill: /],
+      ['combobox', 'Who speaks next'],
+      ['combobox', 'Push the story'],
+      ['textbox', 'What do you do?'],
+      ['button', 'Let them talk'],
+      ['button', 'Attach a picture'],
+      ['button', 'Draft my next message'],
+      ['checkbox', 'Let them keep talking on their own'],
+      ['spinbutton', 'Seconds of quiet'],
+      ['summary', 'Guidance for this turn'],
+      ['textbox', 'Guidance for this turn'],
+    ],
+  },
+];
+
+/** Whether a control is in a scope, drawn — not inside a shut item's panel. */
+function holds(scope: HTMLElement, [role, name]: Control, outside?: HTMLElement): boolean {
+  const drawn = (one: Element): boolean =>
+    one.closest('[hidden]') === null && outside?.contains(one) !== true;
+  if (role === 'summary') {
+    return [...scope.querySelectorAll('summary')].some(
+      (one) =>
+        drawn(one) &&
+        (typeof name === 'string'
+          ? one.textContent.trim() === name
+          : name.test(one.textContent.trim())),
+    );
+  }
+  return within(scope).queryAllByRole(role, { name }).some(drawn);
+}
+
+function label(control: Control): string {
+  return `${String(control[0])} “${String(control[1])}”`;
+}
+
+describe('every control the play column offered', () => {
+  it('is still within reach: on the play surface, in a strip item, or in the Session section', async () => {
+    renderApp();
+    await overPlay();
+    await within(column()).findByRole('button', { name: 'Place the harbour' });
+    const missing: string[] = [];
+
+    // **On the play surface**: the column, every disclosure in it opened, and
+    // the strip left out — what is in the strip is reached through its items.
+    await openEvery(column());
+    for (const block of BEFORE.filter((one) => one.after === 'play')) {
+      for (const control of block.controls) {
+        if (!holds(column(), control, theStrip()))
+          missing.push(`${block.block}: ${label(control)}`);
+      }
+    }
+
+    // **In a strip item's panel**: each item pressed in turn, as one would be,
+    // and what it opens opened in its turn. A control counts once any item
+    // (or the line itself) shows it.
+    const inStrip = BEFORE.filter((one) => one.after === 'strip').flatMap((one) =>
+      one.controls.map((control) => ({ block: one.block, control })),
+    );
+    const seen = new Set<number>();
+    const look = (): void => {
+      inStrip.forEach((one, index) => {
+        if (holds(theStrip(), one.control)) seen.add(index);
+      });
+    };
+    look();
+    const items = [...theStrip().querySelectorAll<HTMLElement>('button[aria-expanded]')].filter(
+      (one) => one.closest('[hidden]') === null,
+    );
+    expect(items.length).toBeGreaterThan(0);
+    for (const item of items) {
+      await userEvent.click(item);
+      await openEvery(theStrip());
+      look();
+      if (item.getAttribute('aria-expanded') === 'true') await userEvent.click(item);
+    }
+    inStrip.forEach((one, index) => {
+      if (!seen.has(index)) missing.push(`${one.block}: ${label(one.control)}`);
+    });
+
+    // **In the workbench's Session section**, opened the way the page offers:
+    // its *Session settings*, one press.
+    expect(screen.queryByRole('complementary')).toBeNull();
+    await userEvent.click(within(column()).getByRole('button', { name: 'Session settings' }));
+    const dock = await screen.findByRole('complementary');
+    const session = within(dock).getByRole('region', { name: 'Session' });
+    await within(session).findByText('Prompted with Scene pack');
+    await openEvery(session);
+    await within(session).findByRole('checkbox', { name: /^Share memories from this session/ });
+    for (const block of BEFORE.filter((one) => one.after === 'session')) {
+      for (const control of block.controls) {
+        if (!holds(session, control)) missing.push(`${block.block}: ${label(control)}`);
+      }
+    }
+
+    expect(missing).toEqual([]);
+  });
+
+  /**
+   * ***And the configuration is not on Play any more*** — the other half of the
+   * sort, held here over the same list rather than restated: no control of a
+   * block the stage moved to the Session section is drawn in the column.
+   * `PlayPage.test.tsx` holds the same claim over the page alone.
+   */
+  it('leaves none of what moved to the Session section on the play surface', async () => {
+    renderApp();
+    await overPlay();
+    await within(column()).findByRole('button', { name: 'Place the harbour' });
+    await openEvery(column());
+
+    const left = BEFORE.filter((one) => one.after === 'session')
+      .flatMap((one) => one.controls)
+      // Two names are in both places by design: the cast panel's card prompts,
+      // in the strip, and the chat settings' own, which moved.
+      .filter((control) => !String(control[1]).startsWith('Its '))
+      .filter((control) => holds(column(), control))
+      .map(label);
+    expect(left).toEqual([]);
+  });
+});
+
+/**
+ * ***One press to the Session section, and one to the record*** — the two
+ * controls on the page that open the dock somewhere in particular. Each opens
+ * the dock if it is shut, writing the preference once, and hands the section
+ * the keyboard; a press with the dock open writes nothing and takes the reader
+ * there again. Mutations: the jump left out (focus stays on the page), the
+ * anchor swapped (the meter landing on the settings), and the open patched on
+ * every press.
+ */
+describe('opening the dock at a section', () => {
+  it('opens at Session from Session settings, and goes back there with the dock open', async () => {
+    renderApp();
+    await overPlay();
+
+    const control = within(column()).getByRole('button', { name: 'Session settings' });
+    expect(control.getAttribute('aria-keyshortcuts')).toBe('Control+`');
+    expect(control.getAttribute('aria-expanded')).toBe('false');
+    await userEvent.click(control);
+
+    const dock = await screen.findByRole('complementary');
+    const session = within(dock).getByRole('region', { name: 'Session' });
+    await waitFor(() => {
+      expect(document.activeElement).toBe(session);
+    });
+    expect(patchPrefs).toHaveBeenCalledTimes(1);
+    expect(patchPrefs).toHaveBeenCalledWith({ 'ui.workbench-open': true });
+    expect(control.getAttribute('aria-expanded')).toBe('true');
+
+    // Somewhere else, then the same press: back at Session, nothing written.
+    within(dock).getByRole('region', { name: 'Turn record' }).focus();
+    await userEvent.click(control);
+    await waitFor(() => {
+      expect(document.activeElement).toBe(session);
+    });
+    expect(patchPrefs).toHaveBeenCalledTimes(1);
+  });
+
+  it('opens at the turn record from the context meter', async () => {
+    renderApp();
+    await overPlay();
+
+    await userEvent.click(within(column()).getByRole('button', { name: /^Context fill/ }));
+    const dock = await screen.findByRole('complementary');
+    const record = within(dock).getByRole('region', { name: 'Turn record' });
+    await waitFor(() => {
+      expect(document.activeElement).toBe(record);
+    });
+    expect(patchPrefs).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * ***`?block=`, both ends in the dock*** — [P7B.4]'s *Edit in the pack*, whose
+ * editor moved with the session panel into the Session section. The address
+ * still names the block, and an address that names one opens the dock; the
+ * link in the record keeps the turn it was pressed under, since the record is
+ * now right under the editor. Mutations: the route not opening the dock, the
+ * dock not handing the block to the section, the editor not bringing itself
+ * into view, and the link dropping `turn`.
+ */
+describe('the ?block= deep link', () => {
+  it('opens a shut dock at the block’s editor, with the keyboard in its text', async () => {
+    renderApp();
+    await overPlay({ block: 'se.instruction' });
+
+    const dock = await screen.findByRole('complementary');
+    const session = within(dock).getByRole('region', { name: 'Session' });
+    const box = await within(session).findByRole('textbox', { name: 'Block: se.instruction' });
+    await waitFor(() => {
+      expect(document.activeElement).toBe(box);
+    });
+    expect(patchPrefs).toHaveBeenCalledWith({ 'ui.workbench-open': true });
+    // The page draws no editor of its own: the panel is the dock's alone.
+    expect(within(column()).queryByRole('textbox', { name: 'Block: se.instruction' })).toBeNull();
+  });
+
+  /**
+   * *Once per arrival, not for as long as the address says so*: a person who
+   * closes the dock with the block still in the address is not overruled on
+   * the next render. Mutation: the effect keyed on the opener as well as the
+   * block, whose identity changes when the dock closes.
+   */
+  it('stays shut when it is closed with the block still in the address', async () => {
+    renderApp();
+    await overPlay({ block: 'se.instruction' });
+    const dock = await screen.findByRole('complementary');
+    await within(dock).findByRole('textbox', { name: 'Block: se.instruction' });
+
+    await userEvent.click(within(dock).getByRole('button', { name: 'Close' }));
+    await waitFor(() => {
+      expect(screen.queryByRole('complementary')).toBeNull();
+    });
+    await new Promise((settle) => setTimeout(settle, 50));
+    expect(screen.queryByRole('complementary')).toBeNull();
+    expect(router.state.location.search).toEqual({ block: 'se.instruction' });
+  });
+
+  it('is what Edit in the pack opens, from a turn the head has passed, keeping that turn', async () => {
+    turns = [richTurn(), cancelledTurn()];
+    prefsStore = { 'ui.workbench-open': true };
+    renderApp();
+    await overPlay({ turn: 't-10' });
+
+    const dock = await screen.findByRole('complementary');
+    const record = within(dock).getByRole('region', { name: 'Turn record' });
+    await within(record).findByText('A turn the head has passed. Nothing here is live.');
+    const [edit] = within(record).getAllByRole('link', { name: 'Edit in the pack' });
+    if (edit === undefined) throw new Error('no Edit in the pack link');
+    await userEvent.click(edit);
+
+    await waitFor(() => {
+      expect(router.state.location.search).toEqual({ turn: 't-10', block: 'se.instruction' });
+    });
+    const session = within(dock).getByRole('region', { name: 'Session' });
+    const box = await within(session).findByRole('textbox', { name: 'Block: se.instruction' });
+    await waitFor(() => {
+      expect(document.activeElement).toBe(box);
+    });
+    // Still on the turn it was pressed under.
+    expect(
+      within(record).getByText('A turn the head has passed. Nothing here is live.'),
+    ).toBeTruthy();
+  });
+});

@@ -144,6 +144,24 @@ the temptation is to treat them as tool surfaces because there is a lot the
 engine could show. They are not: what the engine understands belongs in §13's
 affordances and the workbench, on demand.
 
+*(2026-10-13, [P12A](workplan/35-p12a-the-look.md) P12A.5: the rule is enforced
+on Play now, after a column that had broken it one good reason at a time — up
+to thirteen blocks above the prose by the time P12A audited it. Every block was
+sorted by one question: **is it a fact about the story right now, or about how
+this session is set up?** The first kind stays on Play, in the strip of §1.3
+(the cast, the goal, the hooks, the channels' entries, a mode's readings such
+as Scene's trackers); the second is the workbench's, in a **Session** section
+of its play subject (§3.1) — how a chat plays, the lore selection, the pack and
+its parameters with the session's verbs, the dials, a mode's actions and
+switches. Play keeps its heading row, the two lines a session can say about
+itself, the backdrop's two controls, the strip, the prose and the composer.
+**Nothing became harder to reach than one press**: *Session settings* in the
+heading row opens the dock at that section, and Ctrl+` opens it there too. The
+risk [P12A §1.3](workplan/35-p12a-the-look.md) named — that moving a control
+into a panel someone must open is the disclosure reflex this section rejects —
+is answered by argument rather than measurement, and its sitting T3 is where a
+person answers it.)*
+
 **What this is not.** Not an excuse for clutter: density and noise are
 different, and the difference is entirely in whether the layout has a structure
 you can learn — which is a real cost in typographic discipline and consistent
@@ -342,6 +360,15 @@ project already committed to:
   itself — Scene's place read* Where this is happening: the harbour*, the
   prompt's sentence, until then. The configuration panels above the strip are
   [P12A.5](workplan/35-p12a-the-look.md)'s move.)*
+  *(2026-10-13, [P12A](workplan/35-p12a-the-look.md) P12A.5: moved, and the
+  strip is the column's only block between the heading and the prose but for
+  the backdrop's two controls and the two lines a session says about itself.
+  It took one thing from the column on the way: what a mode put in its
+  `panel` region that is not a switch — Scene's trackers' cards, the revealed
+  plot, the echo chamber's reactions — after the hooks, each opening in place,
+  since each is a value the story holds now. A mode's switches went to the
+  workbench with the session's other settings (§3.1). The rule is the widget's
+  arm, not its channel, so the host still knows no channel (§8.0's note).)*
 - **Atmosphere behind the prose, with the prose always winning.** Crossfade,
   vignette, scrim. §2.3 already decides the policy; what Marinara supplies is
   the *mechanism*, and its own **Reading Surface Rule** — never heavy blur
@@ -674,7 +701,10 @@ is not. What each sentence above became:
   it would need 99.5% — so the fine print the column still carries falls below
   its floor over a backdrop; it is tooling rather than prose, and
   [P12A](workplan/35-p12a-the-look.md) P12A.5's move of the panels is where
-  most of it leaves.
+  most of it leaves. *(2026-10-13, P12A.5: it has left — the session's panels,
+  with their hints and fine print, are the workbench's now (§3.1), and what
+  stays over the picture is the heading row, the strip, set in `ink-subtle`
+  since P12A.4's review, the prose and the composer.)*
 - **It is chrome.** It takes no room in the flow, so it pushes nothing when it
   changes, and a change is a **crossfade**: the new picture arrives over the
   old one once its pixels have, on the `arrive` duration and the `swap`
@@ -712,6 +742,13 @@ with the tree. *What the decision leaves open*: a staged picture already being
 drawn when a person chooses still lands, because a finished background is shown
 whatever the switch says — *Set the scene* depends on that — so it overwrites the
 pick once. [P12A](workplan/35-p12a-the-look.md)'s record of the stage has it.
+
+*(2026-10-13, [P12A](workplan/35-p12a-the-look.md) P12A.5: *Set the scene* and
+*Choose a backdrop…* stay on Play, since the picture behind the story is a fact
+about the story now and they are a person's two ways to change it. *Stage a
+backdrop* and *Show the scene* went to the workbench's Session section (§3.1),
+since each says whether the story stages from now on, which is how the session
+is set up; the dialog's sentence names where the switch is.)*
 
 ---
 
@@ -769,6 +806,14 @@ a quiet reinterpretation:
 second one arrives the section should be rewritten around *what the main view is
 about* rather than around *the record it has*. One exception is a decision; two
 is a definition nobody updated.
+
+*(2026-10-13, [P12A](workplan/35-p12a-the-look.md) P12A.5: the second one
+arrived — the session's settings, moved off Play into a **Session** section of
+the play subject, every panel in it a writer — and the rewrite this paragraph
+asks for is §3.1, a new subsection rather than this section rewritten under
+the reader, because the sentences above are the design as it was decided and
+each is still true of the subject it was written about. Where §3.1 and a
+sentence above disagree, §3.1 is the later decision.)*
 
 ***Over home, the panel shows the releases*** — 2026-09-15, with the arrival
 page's revision (§2.2). Home renders one release of this build's changelog; the
@@ -944,6 +989,71 @@ one.**
 dock is a desktop metaphor. Same content, same toggle, full-height sheet over the
 main view — which is also the honest admission that on a phone the workbench *is*
 briefly a place, because there is no room for it to be anything else.
+
+### 3.1 What the panel is about, now that two of its subjects write
+
+*Added 2026-10-13, at [P12A](workplan/35-p12a-the-look.md) P12A.5, as the
+rewrite §3's honest residue asked for when a second subject that is not a reader
+arrived. It does not replace §3; it says what §3's rule is now that the
+exception has a sibling.*
+
+**The panel is about what the main view is about, and it shows the half of that
+the main view should not carry.** That is the rule every subject already
+followed, stated around the main view rather than around the record: over a
+turn in Play, the record; over an object, its raw truth; over the library list,
+import; over home, every release; over settings, the page's contents. **Over
+Play the main view is about a session**, and since P12A.5 the panel shows two
+things about it, stacked in this order:
+
+- **Session** — how this session is set up: how a chat plays and the mode's own
+  settings, what it retrieves from, its pack and parameters with the session's
+  verbs (read it, export it, archive it, delete it, update it from its source,
+  its memories and its pictures), the two dials, what a person may run between
+  turns, and a mode's switches. These were the play column's panels, and they
+  are here because §1.1's *where the two meet, tooling gives way* says a story
+  surface is the wrong place for them; each is the component the column drew,
+  unchanged.
+- **Turn record** — everything above this subsection: the turn about to be
+  taken, or one taken, as §3 describes it.
+
+***A subject may write when what it is about is something a person sets up.***
+Import is the first case and the session's settings the second, and the rule
+covers both: the main view is not the place for them — the library list is a
+browse surface, Play a story one — so the panel holding them is the dense
+surface doing its job, not a second implementation of anything. *What still
+makes the panel a panel and not a place* is unchanged and is the test any third
+subject faces: **the subject is derived from the route** and goes when the route
+does; **it holds no state of its own** — a selection is in the address (`?turn=`,
+`?block=`), whether the dock is open is a preference, and which section is in
+view is a scroll; **it has no address of its own**; and **it never makes a
+second copy of what it shows** — every panel in the Session section reads the
+session the page reads, so a write in one is seen in the other.
+
+**Stacked sections with a jump to each, never tabs** — §1.3's *section jumps,
+not tabs*, applied here. Both sections are drawn; a jump scrolls one into view
+and gives it the keyboard, and hides nothing. *Session first*, because the
+chord that opens the dock (Ctrl+`) is the keystroke Play's **Session settings**
+shows, and a dock opened from shut starts at its top. The other two ways in
+land where they mean: the context meter, whose subject is the turn about to be
+taken, jumps to the record — §3's *opens the panel in place, already on the
+current turn* still holds — and a block table's *Edit in the pack* opens the
+block's editor in the Session section, keeping the turn it was found in.
+**`?block=` opens the dock**, once per arrival: an address that names something
+only the panel shows is the one case where the address opens it, and closing
+the dock is not overruled while the address still says so.
+
+***What it costs, and where the cost is paid.*** Play's settings are a press
+away rather than on the page, which is the trade §1.1's rule makes on a story
+surface and which [P12A](workplan/35-p12a-the-look.md)'s sitting T3 is where a
+person says whether it survives contact. On a phone the dock *is* the view, so
+the story is hidden while the settings are open, as it is while the record is.
+**One mount is not the main view**: the assistant draws Play in a panel of its
+own (§7) beside whatever the main view is, and the dock there is about that
+view, not the assistant's session — so the assistant's Play draws the same
+Session section in place, folded, and no control on it opens the dock. *What is
+not done*: the Session section is still several panels stacked rather than the
+one panel [P7B §1.4](workplan/24-p7b-presets-and-prompts.md) once asked for, which
+the move made cheaper and did not make necessary.
 
 ---
 
@@ -1904,6 +2014,19 @@ carries no min or max (the `meter` arm has carried its own since
 an editor's), and a number's bounds reach the strip from its schema's `minimum`
 and `maximum`. A `record` or an `image` placed there opens in place under its
 label, since neither is a line.
+
+***The `panel` region is split between the strip and the workbench***,
+2026-10-13 — [P12A](workplan/35-p12a-the-look.md) P12A.5. It was *the stack
+beside the story*, and that stack was the play column, which is gone: a mode's
+`panel` contributions that are **switches** (`toggle`) are drawn in the
+workbench's Session section (§3.1) with the session's other settings, and
+**everything else** — a record, a meter, a text, a picture — is drawn in the
+strip after the hooks, by the strip's arms, opening in place. The rule is the
+arm and never the channel, so the host still knows no channel; a mode that
+wants a switch on the story surface puts it in the `hud` region, which is what
+that region is for. *The vocabulary did not change*: the region's name and
+every arm are as they were, and an older client still draws the region as a
+stack.
 
 ***Two of the six slots still have no consumer at all*** — **input-bar actions**
 and **library columns** — and naming them here is cheaper than discovering later

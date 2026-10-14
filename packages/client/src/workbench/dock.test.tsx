@@ -47,6 +47,14 @@ import {
  * *renders* — only the head's call was Stopped, only the first turn has the
  * `se.extract` call — because since [P3.2] the dock shows a rendering, not
  * the JSON whose `parentTurnId` used to make id-based assertions ambiguous.
+ *
+ * ***The subject over Play is two sections since P12A.5*** (2026-10-13,
+ * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md)): **Session**,
+ * the panels that left the play column, and then **Turn record**, the reader
+ * every assertion below about a turn was written against. Those assertions
+ * are scoped to the record's section where they name the turn, so that a
+ * turn's words turning up among the settings could not pass for the record;
+ * *the play subject's sections* below holds the order and the jumps.
  */
 
 const ACCOUNT: Account = {
@@ -298,7 +306,11 @@ describe('the panel frame', () => {
     await overPlay();
     await userEvent.keyboard(CHORD);
 
-    const dock = screen.getByRole('complementary');
+    // In the record's section (2026-10-13, P12A.5), which is the whole dock's
+    // second half now.
+    const dock = within(screen.getByRole('complementary')).getByRole('region', {
+      name: 'Turn record',
+    });
     expect(within(dock).getByText('The head turn of this session.')).toBeTruthy();
     // The head's call was Stopped; se.extract exists only on the first turn.
     expect(within(dock).getByText('Stopped')).toBeTruthy();
@@ -318,7 +330,11 @@ describe('the panel frame', () => {
     await overPlay();
     await userEvent.keyboard(CHORD);
 
-    const dock = screen.getByRole('complementary');
+    // The record's section's table (2026-10-13, P12A.5): the Session section
+    // above it has none, and a table found anywhere in the dock would be one.
+    const dock = within(screen.getByRole('complementary')).getByRole('region', {
+      name: 'Turn record',
+    });
     const table = within(dock).getByRole('table');
     expect(within(table).getByText('se.instruction')).toBeTruthy();
     const actor = within(table).getAllByRole('link', { name: 'Actor' })[0];
@@ -401,6 +417,44 @@ describe('the panel frame', () => {
     const dock = await screen.findByRole('complementary');
     expect(within(dock).getByText('Stopped')).toBeTruthy();
     expect(patchPrefs).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * ***The play subject's sections*** — 2026-10-13,
+ * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.5. Over
+ * Play the dock is **Session** and then **Turn record**, stacked, each with a
+ * jump at the top: Session first, because the chord the page's *Session
+ * settings* shows opens the dock at its top. Asserted here, over the real
+ * route, for the reason the other subjects are: the claim is about what the
+ * route reaches. Mutations: the two sections in the other order, a jump aimed
+ * at the wrong section, and the record drawn inside the Session section.
+ */
+describe('the play subject’s sections', () => {
+  it('stacks Session over the turn record, each with a jump to it', async () => {
+    prefsStore = { 'ui.workbench-open': true };
+    renderApp();
+    await overPlay();
+
+    const dock = await screen.findByRole('complementary');
+    const session = within(dock).getByRole('region', { name: 'Session' });
+    const record = within(dock).getByRole('region', { name: 'Turn record' });
+    expect(session.compareDocumentPosition(record) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(session.contains(record)).toBe(false);
+
+    // The session's configuration in the first, the turn in the second.
+    expect(await within(session).findByText('Retrieving from no lorebooks')).toBeTruthy();
+    expect(within(session).queryByText('The head turn of this session.')).toBeNull();
+    expect(within(record).getByText('The head turn of this session.')).toBeTruthy();
+
+    // Jumps, not tabs: both sections stay drawn, and a jump hands its section
+    // the keyboard.
+    const jumps = within(dock).getByRole('navigation', { name: 'Sections' });
+    await userEvent.click(within(jumps).getByRole('button', { name: 'Turn record' }));
+    expect(document.activeElement).toBe(record);
+    await userEvent.click(within(jumps).getByRole('button', { name: 'Session' }));
+    expect(document.activeElement).toBe(session);
+    expect(within(dock).getByRole('region', { name: 'Turn record' })).toBe(record);
   });
 });
 

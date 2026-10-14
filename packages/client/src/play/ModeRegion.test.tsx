@@ -35,7 +35,7 @@ vi.mock('../api.js', async (importOriginal) => {
   };
 });
 
-const { ModeActions, ModeRegion } = await import('./ModeRegion.js');
+const { isSwitch, ModeActions, ModeRegion } = await import('./ModeRegion.js');
 type ModeSurface = import('../api.js').ModeSurface;
 
 const SESSION_ID = '01a008de-7e08-70d0-899c-f6869d6b9aeb';
@@ -408,6 +408,56 @@ describe('a record, a meter and a group', () => {
     const bars = screen.getAllByRole('meter');
     expect(bars.map((bar) => bar.getAttribute('aria-label'))).toEqual(['Health', 'Patience']);
     expect(screen.getByText('3/10')).toBeTruthy();
+  });
+
+  /**
+   * ***A panel's readings, drawn as the strip draws them*** (2026-10-13,
+   * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.5). The
+   * column the `panel` region stacked in is gone; its readings are items of
+   * the strip, each opening in place, and its switches are the workbench's —
+   * `isSwitch` the rule, by arm and never by channel. A per-character card is
+   * named for whom it is about on its item as on its heading, or three
+   * characters would be three items all called *Character*. Mutations: `drawn`
+   * ignored (the card drawn open in a stack), the item named by its label
+   * alone, and `isSwitch` answering by anything but the arm.
+   */
+  it('draws a panel’s readings as items of a line, each named for whom it is about', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const vera = world({
+      key: 'se.track.character#a-vera',
+      channelId: 'se.track.character',
+      scopeKey: 'a-vera',
+      label: 'Character',
+      group: undefined,
+      record: {
+        value: { mood: 'wary' },
+        fields: [{ key: 'mood', label: 'Mood', show: 'line' }],
+        locks: null,
+        hidden: null,
+      },
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <ModeRegion
+          sessionId={SESSION_ID}
+          surfaces={[vera] as unknown as ModeSurface[]}
+          region="panel"
+          drawn="line"
+          nameOf={(actorId) => (actorId === 'a-vera' ? 'Vera' : actorId)}
+        />
+      </QueryClientProvider>,
+    );
+
+    const item = screen.getByRole('button', { name: 'Character: Vera' });
+    expect(item.getAttribute('aria-expanded')).toBe('false');
+    // Shut, the card is held hidden rather than unmade (`Popover`'s `under`).
+    expect(screen.getByText('wary').closest('[hidden]')).not.toBeNull();
+    await userEvent.click(item);
+    expect(screen.getByText('wary').closest('[hidden]')).toBeNull();
+
+    expect(isSwitch({ ...(vera as unknown as ModeSurface), kind: 'toggle' })).toBe(true);
+    expect(isSwitch(vera as unknown as ModeSurface)).toBe(false);
+    expect(isSwitch({ ...(vera as unknown as ModeSurface), kind: 'meter' })).toBe(false);
   });
 
   /**

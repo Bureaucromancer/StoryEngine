@@ -70,7 +70,11 @@ const WORDS = labels('play.chat-settings', {
   removeNote: 'Remove the note',
   cards: 'What each card sends',
   failed: 'That setting could not be saved.',
-  modeSettings: 'Session settings',
+  // ~~'Session settings'~~ (2026-10-13, P12A.5): that is the name of the whole
+  // workbench section this panel is drawn in now, and of Play's control that
+  // opens it, so a fold inside the section with the same name would be one name
+  // for two things. What it holds is the mode's own settings, and says so.
+  modeSettings: 'This mode’s settings',
 });
 
 /**

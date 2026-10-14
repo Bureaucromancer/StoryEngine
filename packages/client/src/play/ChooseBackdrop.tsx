@@ -54,7 +54,9 @@ import { WriteFailed } from './WriteFailed.js';
 const WORDS = labels('play.backdrop', {
   open: 'Choose a backdrop…',
   title: 'Choose a backdrop',
-  lead: 'Choosing a picture here, or No backdrop, stops the story staging its own: “Stage a backdrop” is switched off, so what you choose stays until you change it. Switching “Stage a backdrop” back on hands the choice back to the story.',
+  // 2026-10-13, P12A.5: and where that switch is, since it left the column
+  // beside this control for the workbench's Session section.
+  lead: 'Choosing a picture here, or No backdrop, stops the story staging its own: “Stage a backdrop” is switched off, so what you choose stays until you change it. Switching “Stage a backdrop” back on hands the choice back to the story. That switch is in Session settings.',
   none: 'No backdrop',
   held: 'This session’s own backgrounds',
   treatments: 'From the treatment “{name}”',

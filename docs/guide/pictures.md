@@ -38,8 +38,8 @@ pressed or automatic, fails with *Nothing is set up to make pictures.*
 
 ### Choosing how a session illustrates
 
-In the session panel (*Prompted with …*, or *How this session is prompted*) →
-**Pictures** → **Illustrate the story**:
+Under [Session settings](playing.md#session-settings), in the session panel (*Prompted
+with …*, or *How this session is prompted*) → **Pictures** → **Illustrate the story**:
 
 - **Never** — no illustrations, and no **Illustrate** buttons. The default for Freeform
   and the assistant. In Scene, backdrops follow **Stage a backdrop** and **Set the
@@ -99,8 +99,9 @@ service refused this one.*
 *Scene only.* A backdrop is a picture of where the story is, filling the window behind
 the page. The story's column is drawn over it on a pale veil (dark in the dark theme),
 so the story's text stays clearly readable whatever the picture. The faintest small
-print in the column — labels, hints and figures around the story, and the placeholder
-in an empty box — is harder to read over a bright picture. With no backdrop the page is
+print on the page — figures and hints around the story, and the placeholder in an empty
+box — is harder to read over a bright picture; the session settings, with most of the
+page's small print, are in the workbench, away from the picture. With no backdrop the page is
 exactly as it is without the feature. A new backdrop fades in over the old one — or
 simply appears, if your system is set to reduce motion. On a phone-sized window there
 is no backdrop at all.
@@ -108,8 +109,9 @@ is no backdrop at all.
 A backdrop comes from one of two places: the story stages one (**Stage a backdrop**,
 below), or you choose one (**Choose a backdrop…**, further down).
 
-**Stage a backdrop**, among the switches above the transcript, has the story make its
-own. It is off by default.
+**Stage a backdrop**, among the switches at the bottom of
+[Session settings](playing.md#session-settings), has the story make its own. It is off by
+default.
 
 While it is on — or while **Show the scene** is — a model call after each reply names the
 place in a few words. The place shows as **Place** in the strip above the transcript,
@@ -123,7 +125,8 @@ shown again instead. The place is in the model's words, so *the harbourmaster's 
 is asked for again after every reply while the place stays the same — each a new image
 request, with a *could not be made* notification when you are away.
 
-**Set the scene**, under the switches, draws a new backdrop of the current place
+**Set the scene**, under the session's name on the play page, draws a new backdrop of the
+current place
 whenever no turn is being written, even with **Stage a backdrop** off. It is there in
 every Scene session once it has a turn, and needs a known place: otherwise *The story
 has not said where this is yet, so there is no place to draw.*
@@ -145,8 +148,8 @@ the story, from what the session already uses:
 Pick one and it is the backdrop. **No backdrop** takes the backdrop away and leaves no
 empty frame. Either way, **choosing switches Stage a backdrop off**, so the story stops
 staging its own and what you chose stays until you change it; the dialog says so.
-Switching **Stage a backdrop** back on hands the choice back to the story, whose next new
-or reused backdrop replaces yours. A picture the story was already drawing when you
+Switching **Stage a backdrop** back on, under **Session settings**, hands the choice back
+to the story, whose next new or reused backdrop replaces yours. A picture the story was already drawing when you
 chose still arrives, and replaces your choice once.
 
 To use a picture that is not on that list, add it in the library to a lorebook the

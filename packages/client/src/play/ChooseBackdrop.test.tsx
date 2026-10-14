@@ -130,6 +130,9 @@ describe('choosing a backdrop', () => {
    * *Stage a backdrop* off, said in the same sentence, and turning it back on
    * hands the choice back. A dialog that wrote the switch without saying so
    * would be a control that changes another control behind the person's back.
+   * *(2026-10-13, P12A.5: and where that switch is, now that it is not in the
+   * column beside this control but in the workbench's Session section, which
+   * Play's* Session settings *opens.)*
    */
   it('says that choosing stops the story staging one, and how to hand it back', async () => {
     const dialog = await opened();
@@ -138,6 +141,7 @@ describe('choosing a backdrop', () => {
     expect(said).toContain('stops the story staging its own');
     expect(said).toContain('“Stage a backdrop” is switched off');
     expect(said).toContain('Switching “Stage a backdrop” back on hands the choice back');
+    expect(said).toContain('That switch is in Session settings.');
   });
 
   it('turns staging off and then writes the choice, as it was sent', async () => {

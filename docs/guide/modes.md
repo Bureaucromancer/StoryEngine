@@ -131,7 +131,8 @@ rest — are under each turn as in every mode.
 
 ### How this chat plays
 
-The settings for one chat, in the panel under the cast. Switches and lists save as you
+The settings for one chat, under [Session settings](playing.md#session-settings) — the
+first panel in the workbench's **Session** section. Switches and lists save as you
 change them; **The most a smart pick may choose** saves when you leave the box; the
 author's note has its own **Save the note**; and the agents' cadence and rules cards
 change with **Edit**, then **Save**:
@@ -181,8 +182,9 @@ are given to every reply — each character's call as well as a narrator's — t
 suggestions and to **Draft my next message**, as *When this is happening* and *Where
 this is happening*.
 
-Two switches in the panels above the strip decide how much the scene is staged. Both
-are off by default. With either or both on, one more model call follows every reply,
+Two switches under [Session settings](playing.md#session-settings), at the bottom of the
+workbench's **Session** section, decide how much the scene is staged. Both are off by
+default. With either or both on, one more model call follows every reply,
 shared by the two; **Stage a backdrop** also makes a picture when the place changes:
 
 - **Show the scene** — reads each reply, picks an expression for each present character
@@ -216,15 +218,17 @@ before your line, as what the story has established so far:
 
 All the trackers that are on update together in one model call after a reply — every
 turn by default (**Every how many turns**), or only when you press **Update trackers**.
-The model is told to change only what the story showed. Each card can be edited by hand
-(**Edit**, **Save**); in edit mode, **Lock** keeps the model from changing a field, and
-**Hide** keeps it off the card (both save at once). **Update trackers** runs them now
-and records the result as a turn; *Nothing to change.* means nothing moved.
+The model is told to change only what the story showed. Each card is an item in the
+strip above the transcript, after the plot hooks — press it to open the card. A card can
+be edited by hand (**Edit**, **Save**); in edit mode, **Lock** keeps the model from
+changing a field, and **Hide** keeps it off the card (both save at once). **Update
+trackers**, under [Session settings](playing.md#session-settings), runs them now and
+records the result as a turn; *Nothing to change.* means nothing moved.
 
 **Keep a secret plot** has a model keep a hidden arc the story is building toward, which
 steers the replies without being announced. It is revisited every few turns (four by
-default) and when an arc resolves. **Show me the secret plot** reveals it, and the card
-can be edited.
+default) and when an arc resolves. **Show me the secret plot**, under **Director** at the
+bottom of the session settings, reveals it as a card in the strip, which can be edited.
 
 **Edit replies for style** has a model rewrite each reply against your rules — banned
 words and phrases, what to avoid, what to prefer. **Check replies for continuity** lists
@@ -235,8 +239,8 @@ call per message; if any of a round's calls fails, the whole round goes through
 unedited.
 
 **Echo chamber** writes a one- or two-sentence aside from each present character after a
-reply, shown as **Reactions** beside the chat. It is never sent to the model, so it
-cannot steer the story.
+reply, shown as **Reactions** in the strip. It is never sent to the model, so it cannot
+steer the story.
 
 They run in this order: secret plot, the reply, the editor, staging, the trackers, the
 echo chamber.
@@ -304,7 +308,7 @@ turn (until the page reloads), and each tells the narrator something different:
 
 **How much the world resists you** (**Gentle**, **Even**, **Harsh**) and **How much the
 narrator steers** (**Follow me**, **Have its own ideas**) start at your answers and can
-be changed at any time. Each change is recorded as a turn, so it follows branches.
+be changed at any time, under [Session settings](playing.md#session-settings). Each change is recorded as a turn, so it follows branches.
 Harder means longer and more expensive, never impossible.
 
 The premise and the other answers cannot be changed after the session starts.
@@ -335,8 +339,9 @@ While the conversation has nothing on record, **Or start with one of these.** of
 starter questions; one fills the box without sending. Opening the panel over a library
 object or a session records what you have open, so there they soon disappear.
 
-To start afresh, open the session panel inside the assistant (*Prompted with …*) and
-**Archive this session**; the panel then offers **Start a conversation** again.
+To start afresh, open **Session settings** at the top of the conversation, then the
+session panel inside it (*Prompted with …*), and **Archive this session**; the panel then
+offers **Start a conversation** again.
 
 ### What it can see
 

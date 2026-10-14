@@ -440,6 +440,12 @@ describe('a mode’s placements in the strip', () => {
    * definition, so it is drawn and edited the same way; a panel's placement is
    * not drawn here. Mutations: the region left undrawn, and the text drawn
    * as a panel's read-only line.
+   * *(2026-10-13, P12A.5: a panel's placement **is** drawn here now, since the
+   * column it stacked in is gone and a reading is a fact about now — but as
+   * an item of its own and read-only, the server sending an edit only for
+   * the `hud` region. So the assertion that the panel's line was absent from
+   * the strip is the assertion that it is not the entry pressed: its own
+   * item, opening to the sentence and not to a box.)*
    */
   it('draws a text a mode placed in the strip, and writes it like any entry', async () => {
     readSession.mockResolvedValue(
@@ -473,7 +479,9 @@ describe('a mode’s placements in the strip', () => {
     const strip = await theStrip();
 
     await userEvent.click(within(strip).getByRole('button', { name: 'Sky rain' }));
-    expect(within(strip).queryByText('Weather, at length')).toBeNull();
+    const panels = within(strip).getByRole('button', { name: 'Weather, at length rain' });
+    expect(panels.getAttribute('aria-expanded')).toBe('false');
+    expect(screen.getAllByRole('textbox')).toHaveLength(1);
 
     const box = screen.getByRole('textbox', { name: 'Sky' });
     await userEvent.clear(box);
@@ -481,6 +489,9 @@ describe('a mode’s placements in the strip', () => {
     await waitFor(() => {
       expect(writeSessionChannel).toHaveBeenCalledWith(SESSION_ID, 'example.weather', 'hail');
     });
+
+    await userEvent.click(panels);
+    expect(within(strip).getByText(/^This can’t be changed from here/)).toBeTruthy();
   });
 
   /**

@@ -36,7 +36,8 @@ When a session starts, it copies the preset chosen under **Preset** in the start
 or the mode's own — and plays from the copy from then on. Editing the library preset
 later does not change a story in progress.
 
-The session panel (*Prompted with …*) works on that copy:
+The session panel (*Prompted with …*), under the play page's
+[Session settings](playing.md#session-settings), works on that copy:
 
 - **Prompt pack** — **Keep the one this session has**, **Switch to the mode's own**, or
   **Switch to** a preset from your library. Switching takes a fresh copy and discards any
@@ -54,7 +55,8 @@ The session panel (*Prompted with …*) works on that copy:
   back instead.
 - **Editing one block's text.** In the [workbench](playing.md#the-workbench), over a
   finished turn, a block from the preset has **Edit in the pack**. It opens the session
-  panel on that block — *Block: …* — with **Save this block**. The change applies from
+  panel on that block — *Block: …* — with **Save this block**, in the workbench's
+  **Session** section above the turn, with the keyboard in the block's text. The change applies from
   the next turn; **Redo** the turn to see the difference. Only text blocks have words to
   edit.
 
