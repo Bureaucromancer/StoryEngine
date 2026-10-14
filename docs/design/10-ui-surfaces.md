@@ -516,6 +516,22 @@ The split is therefore explicit, and it is the last thing this section does:
   face left this list on 2026-10-02, at the merge that brought it in: `main`
   had built it the day before ([polish §17](workplan/06-polish.md)), and what
   [P12A](workplan/35-p12a-the-look.md) keeps of it is the measure check.*
+  *(2026-10-14, [P12A](workplan/35-p12a-the-look.md)'s final audit: **every
+  item P12A owned is built**, on the branch `p12a`, and is **not yet merged**.
+  Item by item, with its stage and the commit that built it: **faces**,
+  P12A.3 (`9fe271f9`); **the editable channel HUD**, P12A.4 (`700385a6`);
+  **the backdrop's legibility mechanism**, P12A.2 (`5fa72f50`), the veil 86%
+  since the final audit; **the motion vocabulary**, P12A.6 (`f221d276`), on
+  the tokens P12A.0 built (`886c726b`); **the section jumps**, P12A.7
+  (`1d363604`), with the identity header beside them; and **the phone rules**,
+  P12A.8 (`73e0e631`). Of the struck story face, **the measure check** is
+  P12A.1 (`4aca8f06`, `55ch` after review at `21236728`). And one move this
+  list never named, because §1.1 had already ruled on it — *where the two
+  meet, tooling gives way* — is P12A.5 (`dba87285`): the play column's
+  configuration moved into the workbench (§3.1). Each stage's review and the
+  final audit's fixes followed, recorded in P12A §2. **Built is not closed**:
+  the phase's gate, [manual testing](workplan/05-manual-testing.md)'s sitting
+  T, is unwalked, and the merge is the owner's word to give.)*
 - **Not 1.0, and not commitments** — the gallery view and per-step setup
   explanation. They are on the feature list ([25](25-roadmap.md))'s priorities,
   and if P12A reaches them they ship early rather than late.

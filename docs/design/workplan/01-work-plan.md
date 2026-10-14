@@ -1722,6 +1722,14 @@ for reasons its own §0.1 gives~~; both are before beta, and R4 waits on both.)*
 *(2026-10-12: P16 ran first instead, at the owner's word of 2026-10-10, and merged
 first, so it sits above this entry as its document sits at 34, ahead of this
 phase's 35. P12A is the phase in front of us, and the last before beta again.)*
+*(2026-10-14: **opened 2026-10-13 at the owner's word, on the branch `p12a`, and
+built there** — every stage by 2026-10-14, the entry's headroom first, and then
+the final audit's fixes, `08d634a2` to `0f026a0b`. **Not merged**: the owner has
+not said to, and [sitting T](05-manual-testing.md) is unwalked, though each of
+its rows can be walked on the branch's build. So the phase is open on both
+counts, and R4 still waits on it. What the merge owes, what is open for the
+owner and the changelog's draft are the last list in [P12A](35-p12a-the-look.md)'s
+§2.)*
 
 **Why there is a phase after the beta-hardening phase**, since that reads as a
 contradiction and the answer is mechanical. A directive to push the client

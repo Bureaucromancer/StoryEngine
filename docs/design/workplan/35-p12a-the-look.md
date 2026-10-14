@@ -1,6 +1,11 @@
 # 35 — P12A implementation plan: the look, and the sentence it has to put back
 
-**Status: ~~skeleton~~ *opened 2026-10-13 on branch `p12a` (the note below)*; written 2026-09-22**, the day
+**Status: ~~skeleton~~ *opened 2026-10-13 on branch `p12a` (the note below)*;
+*built there by 2026-10-14 — every stage, then the final audit's fixes —
+and not merged, with sitting T unwalked, so open (2026-10-14: the last of the
+notes below, and §2's
+[Owed at the merge](#owed-at-the-merge-and-at-the-next-tag--2026-10-14) for
+what the merge owes)*; written 2026-09-22**, the day
 [10 §1.3](../10-ui-surfaces.md) was written. ~~Nothing is built.~~ *Part of it
 is, since 2026-10-01 — see the note on [polish §17](06-polish.md) below.* Format follows
 [P1](07-p1-implementation.md); citations follow the corpus convention.
@@ -141,6 +146,23 @@ that changes a stage is **§0.4**, with the decision each finding forces. Those
 decisions are the lead's, dated, and open to the owner's reversal, as
 [P16](34-p16-world.md)'s were; none of them edits a stage's text or a row of §3,
 which stay as written beside them.
+
+***Built by 2026-10-14, and not merged*** — a note dated 2026-10-14, after the
+final audit. Every stage is built on `p12a` — the entry's headroom first, then
+P12A.0 to P12A.8, each reviewed and fixed after review — and
+[the final audit](#the-final-audit-2026-10-14) read the whole branch at the
+seams, confirmed twenty-eight findings and refuted five, and fixed the
+twenty-eight in six commits by area, `08d634a2` to `0f026a0b`. **The owner has
+not said to merge**, so `main` does not have this phase, and **sitting T is
+unwalked**: under [manual testing §0](05-manual-testing.md)'s two-tier rule a
+person walks the critical list before a phase closes, and a merge would not
+close it either, as [P16](34-p16-world.md)'s did not. Every row of T is
+walkable on this branch's build — [manual testing](05-manual-testing.md)'s
+notes after T's table say what to hand — and R4 still waits on T's results, by
+§5's last sentence. §2's
+[*Owed at the merge, and at the next tag*](#owed-at-the-merge-and-at-the-next-tag--2026-10-14)
+holds the rest in one place: what the merge must do, what is open for the
+owner, the entry budget, and the changelog's entry.
 
 ---
 
@@ -3444,6 +3466,45 @@ area in a commit of its own, and each area's record is below. No stage's text
 and no row of §3 is edited; where a fix makes an earlier sentence false, that
 sentence gets a dated note where it stands.*
 
+**What it found, in sum** — added at the docs pass that closed the audit,
+2026-10-14. **Twenty-eight findings were confirmed and five refuted, and all
+twenty-eight are fixed**, thirteen of them should-fix and fifteen minor. By
+area, in the order the records below take them:
+
+| Area | Confirmed | Should-fix | Minor | Commit | What it came to |
+|---|---|---|---|---|---|
+| UI primitives | 1 | 1 | — | `08d634a2` | The modal's scrim at a layer of its own, `z-40`, over the dock and `<main>` and under the toast |
+| Appearance | 4 | 3 | 1 | `2628b61d` | The veil at 86% for the ring and the failure lines, measured; a bar in the strip in the strip's ink; a focused item's ground |
+| Play | 11 | 6 | 5 | `4bce6222` | The keyboard handed back on a close, drafts kept past one, Escape keeping a lore selection, *Edit in the pack* landing again, a refused death and who is here said on the strip, the phone's wrapped row and backdrop sentence, and three sentences true again |
+| Editors | 1 | 1 | — | `0c968492` | The vault-file portrait sentence names the database import, not an editor control |
+| Tests | 5 | 2 | 3 | `d262e07b` | One lexer for both class scans, the bare word a conditional writes, the strip's ink at the DOM, seven unspent rules out of the stylesheet, and a calibration's count |
+| Docs | 6 | — | 6 | `0f026a0b` | §0.3's reading view, P12A.2's portal, P12A.4's entry a byte lighter, the guide's initials, and a function by its name |
+
+**The five refuted**, one line each, so that nobody files them again:
+
+- *Comments still describe the moved panels as stacked in the play column* —
+  the column layout still exists: the assistant mounts Play with
+  `settings="here"`, and that arm draws the whole Session section in a fold
+  under the heading row ([P12A.5](#p12a5--the-column-that-grew-seven-disclosures)).
+- *A strip item shows no sign of being pressable on a touch screen* — true of
+  the class list, `strip.item` having no touch arm and its ground coming with
+  `(hover: hover)`, and no phone rule is broken, since an item hides nothing
+  until hovered; *a fact first and a control second* is the decision `strip`'s
+  docstring records with its reason
+  ([P12A.4](#p12a4--the-hud-and-whether-it-can-write)).
+- *The reachability fixture never draws* Save this to… *or the talkativeness
+  select* — true of the fixture, and neither control is on the column's list at
+  `5d01529d` that the test holds, so the move's claim is not short of them.
+- *`GET /sessions/:id/backdrops` has no test that another account is refused* —
+  true of `routes/backdrops.test.ts`, and the refusal is not the route's: it
+  reads through `readMine`, the shared door eight other session routes go
+  through, which the skeptic checked by mutation.
+- *Faint fine print still sits on the veil at about 3 to 1 where 10 §2.3 says it
+  has left* — the transcript's and the composer's `ink-faint` over a picture is
+  [P12A.2](#p12a2--the-backdrop-becomes-a-backdrop)'s recorded decision, about
+  3.3 to 1 on the 86% veil; the strip's meter, the one part of it that was a
+  defect, was confirmed under another finding and is the appearance record's.
+
 **UI primitives: a modal drawn under the dock, and under `<main>`.**
 `ui/Dialog`'s scrim had no `z-index`. A dialog is rendered where it is
 written rather than portalled out of the page, so its `fixed` scrim made no
@@ -4012,6 +4073,279 @@ here is drawn, so nothing was looked at in a browser.
 method: 329,633 bytes and 9,169 both times, since the build drops the
 docstring and the guide is not in the client. **3.09 kB is left** under the
 325 ceiling.
+
+### Owed at the merge, and at the next tag — 2026-10-14
+
+**What the docs pass after the final audit could not close, in one place**, as
+[P16](34-p16-world.md)'s list did, so that the merge and the next release cut
+read one list rather than eleven records' worth of italics. Each item says whose
+it is. *Nothing on it is a confirmed finding left unfixed*: every one the audit
+confirmed is fixed, and what is here is the merge's, the owner's, the walk's or
+the tag's.
+
+**What the merge must do** — the lead's, once the owner says merge.
+
+- **Bring `main` in first, if it has moved.** `p12a` holds `main` at
+  `6197270c`; anything since is merged into `p12a`, as `e93cab0e` brought P16's
+  follow-ups, so that the phase lands on what it was tested against.
+- **Then build, and run the whole gate on the result**: `pnpm build` first,
+  since `tailwind-utilities.test.ts` and `tools/entry-budget.test.ts` read
+  `dist/`, then `pnpm test`, `pnpm typecheck`, `pnpm lint` and
+  `pnpm format:check`. The audit's fixes were checked by their own tests and
+  their neighbours and by the `docs` and `release` projects, each after a build;
+  the whole suite on the merged tree is the merge's.
+- **Measure the entry again** if `main` brought anything, by the budget test's
+  method, and record it beside the figure below.
+- **`--no-ff` into `main`, with a colon-subtitled merge commit, and never
+  squashed**: every record in §2 cites its stage commits by hash.
+- **No refile.** `PLAN_ORDER` in `tools/renumber-docs.mjs` ends with this
+  document, and nothing has run ahead of it since P16 on 2026-10-12. If a phase
+  merges first after all, the order of work is the one P16's list wrote down:
+  the rename committed on the branch, then `--rewrite`, then the hand edits.
+- **The sentences the merge makes stale**, each a dated note in the merge's own
+  docs commit and none a rewrite: this document's Status and *Built by
+  2026-10-14, and not merged*; its third renumbering note's *the phase in front
+  of us and the last before beta again*; the work-plan [README](README.md)'s
+  P12A row and its *How to read them*'s *35 is the phase in front of us*;
+  [work plan §4](01-work-plan.md)'s P12A entry, whose notes say the same;
+  `tools/renumber-docs.mjs`'s comment over this document's entry;
+  [manual testing](05-manual-testing.md)'s P12A row in §6, and §1's *Not on it
+  either*, where T joins the list if it is still unwalked; and
+  [10 §1.3](../10-ui-surfaces.md)'s owner note, which says *not yet merged*.
+
+**What is open for the owner.** The opening notes call §0.4's decisions *the
+lead's, dated, and open to the owner's reversal*, and what a stage record marks
+as its own — *decided inside the stage*, *decided here* — stands on the same
+terms. All of them are built, and none is reversed by being listed. In five
+groups.
+
+- ***The merge, and the walk.*** Whether T is walked before the merge or after
+  it. Every row is walkable on this branch now; P16 merged by the owner's word
+  with its list unwalked, and so merged without closing.
+- ***§0.4's decisions, one line a stage.***
+  - *The entry first* ([Before P12A.0](#before-p12a0--the-entrys-headroom)): the
+    administration half of Settings behind one `lazy()`, built before any stage,
+    and the ceiling brought down to 315.
+  - *P12A.0*: three radii that differ — every panel 2px rounder, every picture
+    2px tighter — made in the tokens; one shadow colour per theme, dark's at 50%;
+    two durations and two easings under Tailwind's own namespaces, and one
+    reduced-motion block; no spacing scale.
+  - *P12A.1*: the measure — about seventy characters of the story face, held as
+    `55ch` on the prose through the `story` recipe — with the column left at
+    48rem for the composer and the strip.
+  - *P12A.2*: a backdrop chosen from what the session already uses, through the
+    channel route, with no upload into a session and no new arm of
+    `MediaSelection`; choosing turns *Stage a backdrop* off in the same act;
+    *No backdrop* is off; the veil's floor computed rather than chosen — 86%
+    since the audit.
+  - *P12A.3*: a blank card's avatar is a `404`; one face, on the sign-in tile's
+    spelling; the client sends `input.actorId`, and a line whose record names
+    nobody draws no face; a mention opens who it matched, with the aliases.
+  - *P12A.4*: a strip entry carries its value and how it is edited, derived
+    from the channel's schema; one `ui/Popover`, built once.
+  - *P12A.5*: [10 §10.1](../10-ui-surfaces.md) wins over §1.3's proposal, so
+    the hooks stay on Play as a strip item; the configuration moves into a
+    **Session** section of the workbench's play subject; 10 §3's honest residue
+    is answered as its §3.1.
+  - *P12A.6*: only the turn the page watched finish arrives; every motion is one
+    recipe on the tokens.
+  - *P12A.7*: a section's heading is its chip; a jump opens a shut fold; the
+    header's picture is the kind's own answer, *none* among them.
+  - *P12A.8*: the audit's list was the work list; the scan refuses a reveal on
+    hover outside the recipe and a control explained by its title alone.
+- ***Decided inside a stage, and said so there.***
+  - [P12A.1](#p12a1--the-story-face-and-the-two-surfaces-that-wear-it): each of
+    the fourteen sites — the reading view's article released for print, a
+    chat's lines capped, home's changelog narrowed most.
+  - [P12A.2](#p12a2--the-backdrop-becomes-a-backdrop): a server route lists the
+    candidates rather than the browser stitching library reads; both writes
+    always, the switch first; the heading *This session’s own backgrounds*; the
+    dialog left on the entry, a split having measured worse.
+  - [P12A.3](#p12a3--faces): a redo is played as whoever made the move; a
+    roster, even an empty one, draws the cast panel; the reading view heads a
+    move played as the persona with the persona's name, *Ned said*, by
+    [polish §11](06-polish.md)'s rule.
+  - [P12A.4](#p12a4--the-hud-and-whether-it-can-write): a string is shown as
+    itself; an editable entry stands empty, so every Scene session shows
+    *Place*; a panel is hidden while shut rather than unmade; a refused value is
+    not sent again on a close; the health banner is the strip's first item.
+  - [P12A.5](#p12a5--the-column-that-grew-seven-disclosures): a mode's readings
+    in the strip and its switches in Session; *Set the scene* and *Choose a
+    backdrop…* on Play; *Update trackers* in Session; Session above the record;
+    the meter opening the record; `?block=` opening the dock once per arrival;
+    *Edit in the pack* keeping `turn`; the assistant drawing the section in
+    place.
+  - [P12A.6](#p12a6--motion-five-of-them): the press is `ui/Button`'s and
+    enabled only; nothing fades out; a panel fades and does not slide.
+  - [P12A.7](#p12a7--editors-section-jumps-and-an-identity-header): chips are
+    buttons, not addresses, and are not pinned; the import review stays a
+    region without a chip.
+  - [P12A.8](#p12a8--the-phone-rules): the dialog stays a centred modal; each
+    `title` judged essential or decoration, the swatch and the meter exempt.
+  - [The final audit](#the-final-audit-2026-10-14): the scrim at `z-40` rather
+    than a portal; the veil at 86% rather than 85% or a darker `warn-ink`;
+    drafts kept for the page load in `play/kept.ts`, rather than a dock kept
+    mounted or a question on every close; the backdrop's two controls kept on a
+    phone, with a sentence.
+- ***What a stage could not decide, and left to the owner by name.***
+  - *A staged background already being drawn when a person chooses still lands
+    once over the pick* ([P12A.2](#p12a2--the-backdrop-becomes-a-backdrop)):
+    telling the two apart is the rule in the runner §0.4 chose not to write.
+  - *Scene's reveal of its secret plot is in the dock*, against its mode's own
+    placement beside the revealed card
+    ([P12A.5](#p12a5--the-column-that-grew-seven-disclosures)): moving it to
+    `hud` is a design change, the owner's or T3's.
+  - *The hand-built buttons do not press* — the strip's items, the turn kinds
+    beside Send, the context meter, the backdrop tiles
+    ([P12A.6](#p12a6--motion-five-of-them)): spent in `ui/Popover`, `press`
+    would reach the story's own words through every mention.
+  - *A text a mode places in the `panel` region is read-only in the strip*,
+    since only `hud` placements carry an edit (the audit's play record):
+    deriving one for `panel` reverses that.
+  - *A cover for a treatment, a setup or a World*:
+    [10 §11.3](../10-ui-surfaces.md) names a treatment cover and a World cover,
+    no schema designates one, and the header shows the first picture
+    ([P12A.7](#p12a7--editors-section-jumps-and-an-identity-header)) — a schema
+    decision, and the note and the schema disagree until it is taken.
+  - ***10 §11.3's image slots have no owner past the lorebook's.*** *Upload,
+    generate, crop, replace* wherever an image can appear — the actor's avatar
+    first in its list — was built for a lorebook's pictures at
+    [P11](28-p11-implementation.md) and for nothing else, and no surface
+    replaces a card's picture: P12A.7's header shows the card and cannot change
+    it, and the import sentence that promised a control is corrected rather
+    than kept (the audit's editors record). It is a 1.0 sentence that R4 will
+    read with no phase carrying it — the defect [P11 §0.1](28-p11-implementation.md)'s
+    register exists to catch — so it wants an owner before beta, or a dated
+    note narrowing it.
+  - *The phase's name*: P12A rather than P15A, which the opening notes call a
+    choice for a person rather than one a merge makes on its way past.
+- ***Left for T's walker, or for a later stage, and said where it was left.***
+  For T: a phone held sideways is a desk, and leaves `<main>` about 12px with
+  both panels open (P12A.8, T4); the turn that last arrived may fade in again
+  when the dock closes on a phone (P12A.6 and P12A.8, T4); a touch that starts a
+  scroll outside a sheet closes it, and a sheet under a phone's keyboard (T4);
+  the lore selection does not outlive a close of the dock (the audit, T3 or
+  T4); *Update trackers* a press away, and the reveal in two places (T3); a
+  streamed reply leaving for a moment before its record (T5); and the dark
+  theme's 50% shadow, for any row's eye. For a later stage: a `choice` arm for
+  an `enum` in the strip, [10 §8.0](../10-ui-surfaces.md)'s next one; the shared
+  `NumberField`'s keypad without *-* or *.* on an iPhone; the sign-in gallery's
+  and the settings preview's faces onto `ui/Face`; a shadowed actor's face, the
+  winner's; the three hand-drawn overlays that spend neither `enter` nor
+  `sheet`; *Workbench*'s `aria-expanded` saying open while the assistant covers
+  the dock; a `text` a mode places in `message`, in `ink-faint` on the veil; and
+  the Session section, still several panels rather than
+  [P7B §1.4](24-p7b-presets-and-prompts.md)'s one.
+
+**The entry budget.** **321.91 kB of the 325 ceiling, CSS 8.95 of 12 — 3.09 kB
+left**, at `0f026a0b`, the audit's last commit, as at `d262e07b` before it:
+gzip level 9 over the files `index.html` pulls, `tools/entry-budget.test.ts`'s
+method. The
+phase opened at 313.21 against 317; the administration split took it to 310.30
+and the ceiling to 315; the merge of `main` at `e93cab0e` brought P16's
+follow-ups (310.37 to 312.25); P12A.3 raised the ceiling to 320, at 315.37, and
+P12A.7 to 325, at 320.18, each raise with its paragraph in the test. **The next
+remedy is measured and not built**: the four editors behind one `lazy()` came
+to **294.42, −25.76 kB** ([21 §4.1](../21-client-loading.md)'s dated note), a
+loading decision with [21 §7](../21-client-loading.md)'s obligations — a chunk
+boundary, a pending state, a check that keeps it off the entry — which the next
+change to meet this ceiling weighs before a raise. Nothing is owed at the merge
+unless `main` brings bytes.
+
+**The changelog's entry**, owed at the next tag, drafted here because
+`CHANGELOG.md` refuses an unreleased heading — the convention
+[P12](29-p12-implementation.md), [P13](30-p13-aventuras-import.md),
+[P15](33-p15-setup-from-a-turn.md) and [P16](34-p16-world.md) followed. *Alpha 6
+is the last tag*, so P16's drafted entry, in its own *Owed at the merge*, and
+this one are the same tag's, and are one entry when it is cut. *What the
+changelog will say*, in its own sections:
+
+- ***Before you upgrade.*** **Nothing to edit, and nothing on disk moves**: no
+  schema, setting or stored file changed. **The play page's settings have
+  moved** — to **Session settings**, beside the session's name; *Changed* says
+  where each went, and nothing was taken away. *If you script against the API*:
+  an actor with no picture answers `404` at `GET /api/library/actors/:id/avatar`,
+  where it served a blank image, and its download still hands the card over; a
+  strip entry for a string channel is the string itself, where it was the
+  prompt's sentence about it, and says how it can be changed; and a move sent
+  from the browser records, in `input.actorId`, who it was played as.
+- ***Added.***
+  - **A backdrop behind the story**, rather than a picture above it: behind the
+    page, under a veil that keeps the story readable over any picture,
+    crossfading when the scene changes, and not drawn on a phone. **Choose a
+    backdrop…**, beside **Set the scene**, picks one from what the session
+    already uses — its own backgrounds, and the pictures on its treatment, setup,
+    worlds, lorebooks and cast — or **No backdrop**; choosing stops the story
+    staging its own until **Stage a backdrop** is turned on again.
+  - **Faces**: on everyone in the cast, on your own lines, on the card a marked
+    name opens, and on a character's row, page and editor — their portrait, or
+    their initials on a colour of their own.
+  - **You play**, in the cast panel: who you play, changed with **Play as
+    them**. Each move records who it was played as, and the face on your line
+    takes you there.
+  - **A marked name opens a card**: who it was matched to and by which words,
+    **Open**, and a link to their aliases, where a wrong match is put right.
+  - **The story now**, one line over the transcript: the mode's entries (a
+    Scene's **Time** and **Place**), the cast, the objective, the plot hooks and
+    what the mode keeps track of, each opening in place. **An entry that is a
+    line of text or a number is changed right there**, recorded as your change;
+    **Escape** drops it. A death the narrator wrote and you have not ruled on is
+    said on the line.
+  - **Five small motions** — a reply arriving, the wait for the first words, a
+    panel opening, the backdrop changing, a button pressed — and **none** when
+    your system asks for reduced motion.
+  - **Section jumps in every editor**, a row of chips under the object's name,
+    one for each section shown; and every editor's header shows the object's
+    picture, its kind and its name.
+  - **On a phone**: a strip item and a marked name open along the bottom of the
+    screen; the assistant fills the screen and covers the workbench rather than
+    squeezing in beside it; and what was only a tooltip is said on the page —
+    what *Think* means, how auto-mode stops, what a lorebook shelf's badges and
+    an import's counts mean, and the rest.
+- ***Changed.***
+  - **The play page is the story**: the heading, the strip, the transcript and
+    the composer. How the session is set up — how a chat plays, its lorebooks,
+    the prompt pack and its settings, **Memories**, **Pictures**, **Update from
+    source**, **Read it as a story**, **Export**, the dials, **Update trackers**
+    and the mode's switches — is under **Session settings**, which opens the
+    workbench there; **Ctrl+`** does too. In the assistant's panel they are
+    folded at its top. The context meter opens the workbench at the turn record.
+  - **The story is set to about seventy characters a line** — in play, in the
+    reading view and in Home's release notes — rather than across the column.
+  - **Panels are a little rounder and pictures a little squarer**, and the dark
+    theme's shadows are heavier.
+  - **A move played as a character is headed with their name** in the reading
+    view, its copies and Print — *Ned said*, where it read *You said*. A move
+    from before this release keeps *You*, and in play has no face: a chat no
+    longer puts today's character on yesterday's lines.
+  - **A Scene shows *Place* from its first turn**, *not set* until somebody
+    names it.
+  - **The workbench keeps what you type**: an unsaved author's note or prompt
+    block survives closing it; **Escape** does not close it while you are
+    typing, or while a lorebook selection is unsaved; and closing it puts the
+    keyboard back where you were.
+  - **A character file from Aventuras** still arrives without its portrait, and
+    the import says now that the whole Aventuras library brings portraits
+    across, since nothing here replaces a character's picture.
+- ***Known.***
+  - *If sitting T is still unwalked when this is cut*: **nobody has looked at
+    this release's look in a browser** — how the story reads over a dark or
+    busy picture, where a sheet lands on a phone, and each motion with reduced
+    motion asked for.
+  - **No backdrop on a phone**: the two controls stay, and say that what is set
+    shows on a wider screen.
+  - **Only a line of text or a number can be changed from the strip**; Scene's
+    **Time** says it can't be changed there.
+  - **A background the story was already drawing when you chose one** still
+    lands once over your choice.
+  - **A character's picture cannot be replaced in the app**: upload, crop and
+    replace are a lorebook's pictures' alone.
+  - **The faintest fine print on the play page is hard to read over a
+    backdrop**, a dark one most in the light theme; the story's text is not.
+  - **A phone held sideways is laid out as a desk**, and with the workbench and
+    the assistant both open there is almost no page left beside them.
+  - **Not every button moves when pressed**: Send and the app's ordinary
+    buttons do, and a strip item and the Do/Say/Think/Story toggles do not.
 
 ---
 
