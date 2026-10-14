@@ -2811,7 +2811,14 @@ actor's line.
   is a section in every editor that draws it; [03 §4.1](../03-data-model.md)'s
   *secondary* is kept by what kept it before — last on the page, shut, under its
   sentence — and its chip is last, where the fold stands. A chip into it opens
-  it.
+  it. *(2026-10-14, after review: and one region in the form that has no chip,
+  deliberately. The import review `EntryTravel` draws after a file is read,
+  "What arrived", stays a region named by its label, with a subsection heading:
+  a report on one import, drawn under the button that asked for it while the
+  reader is still looking there, gone when it is dismissed, and inside the
+  section the Entries chip already reaches. A chip for it would jump to where
+  the reader is, and arrive in the row and leave it again with every import.
+  See* After review *below.)*
 - *Decided here: buttons, not addresses.* Settings' rows are links because the
   address is the jump there, with a fixed anchor per section. An editor's
   sections come and go with what is selected and their ids are `useId`'s, so a
@@ -2853,9 +2860,11 @@ has them* fails with the sort removed, since a section drawn late then lands
 last, and with the first chip dropped from the row; *takes the chip away with
 its section, and renames it with its heading* fails with the cleanup keeping
 the chip, and with a heading that does not follow its title; and over all six
-editors, *holds in the … editor* — every region in the form has exactly one
-chip, every chip lands on a heading in the form that says its words, no two on
-one, and every level-two heading in the form is one a chip reaches — fails with
+editors, *holds in the … editor* — every region in the form *(2026-10-14,
+after review: as its fixture draws it, which never imports — see* After review
+*below)* has exactly one chip, every chip lands on a heading in the form that
+says its words, no two on one, and every level-two heading in the form is one a
+chip reaches — fails with
 a heading that never registers, with the focus dropped, with the first chip
 dropped, with the lorebook's *Pictures* drawn as a plain `<section>` and
 heading, and with an actor's section heading drawn plainly. *Registers the
@@ -2899,6 +2908,57 @@ candidates. It is a loading decision with 21 §7's obligations — a chunk
 boundary, a pending state, a check that keeps it off the entry — and not a
 stage's, so it is measured and recorded (21 §4.1 has a dated note) and not
 built.
+
+***After review, 2026-10-14*** — a review of the stage's diff, each finding
+verified before it was acted on, found two things, both in what the stage said
+rather than in what it built: that the every-region check was stated of every
+state of the lorebook page and holds of the states its fixture draws, and that
+`EditorFrame`'s docstring gave [10 §1.3](../10-ui-surfaces.md) a sentence that
+is this stage's.
+
+**The import review is a region with no chip.** Import entries from a file and
+`EntryTravel` draws *What arrived* in the form — a `<section>` named by its
+`aria-label`, with an `h3` — and no chip arrives for it. The stage's own claim
+survives it: what became a `JumpSection` was every `<section>` and
+`SectionTitle` pair, and this one's heading is a `SubsectionTitle`. But *holds
+in the … editor*'s docstring said *every region in the form*, and had its loop
+run with a review drawn it would have stopped at *a region named by its
+heading*, since the review is named by a label and not by its heading. **The
+review stays as it is, and the claim is narrowed to what holds.** It is a
+report on one import, drawn under the button that asked for it while the reader
+is still looking there and gone at *Dismiss*, inside the region whose chip,
+*Entries*, lands on the heading it sits under; a chip of its own would jump to
+where the reader is, and would arrive in the row and leave it again with every
+import. The test's docstring now states its rule of the form as the fixture
+draws it, which never imports, and names the review as the one other region the
+form can hold and why it has no chip; `ImportReview`'s docstring says the same
+from its side; the bullet and the tests paragraph above have dated notes.
+*Converting it was the other answer* — a `JumpSection` at `h3` with *Dismiss*
+as its aside, and a test that imports and watches the chip arrive and leave on
+*Dismiss* — and was not taken, for the reason above. *That it is the one other
+region* was checked by reading every `<section>` and `role="region"` in the
+client: `HistoryPanel`'s stands after the `<form>`, not in it, and
+`WorldMembers`' is on the read page.
+
+**`EditorFrame`'s docstring credited 10 §1.3 with the stage's words.** It said
+§1.3 *asks for the actor's shape everywhere — the object's image, its name, its
+kind*. That is P12A.7's stage text; what §1.3 says is *the avatar first in an
+editor header*, written of characters. The sentence now gives the ask to the
+stage and says what it takes from §1.3 — a sentence about characters, taken for
+every kind — which is the direction citations run in this corpus: 10 is the
+authority, and P12A is the plan. Comment only.
+
+**No test is new**, since neither finding is behaviour: one is a test's
+account of itself and the other a comment, so there is no mutation to check
+them against. `editor/jumps.test.tsx`, which holds the every-region loop over
+all six editors, and `LorebookEditorPage.test.tsx`, which draws the review, pass
+unchanged, with the rest of `editor/`.
+
+**Entry after: 320.18 kB, CSS 8.66** — unchanged from `e6f00ac3`, gzip level 9
+over the files `index.html` pulls, the budget test's method: the build drops
+comments, and the entry's file and the stylesheet hash the same before the
+change and after it. **4.82 kB is left** for
+[P12A.8](#p12a8--the-phone-rules).
 
 ### P12A.8 — The phone rules
 

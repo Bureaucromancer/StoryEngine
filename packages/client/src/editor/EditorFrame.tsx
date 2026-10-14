@@ -45,16 +45,18 @@ import { UnsavedChangesGuard } from './UnsavedChanges.js';
  * ***The header is the frame's now, and passed that test*** (2026-10-13,
  * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.7, under
  * its §0.4). Each page drew its own: an actor's card beside its name, the
- * other five a name and a line. [10 §1.3](../../../../docs/design/10-ui-surfaces.md)
- * asks for the actor's shape everywhere — *the object's image, its name, its
- * kind* — and every kind has an answer to each: the name is `heading`, the
- * kind is `KIND_WORDS`, and the image is the kind's own `imageOf`, where
- * *none* is an answer (a preset carries no picture, and a book with no cover
- * has none to show). So the frame draws the header, the kind supplies only
- * what differs, and **the actor avatar this paragraph refused as a prop is
- * here as an answer every kind gives** — which is the difference the test was
- * written to find. What a page still says for itself is its line under the
- * name, which is why `header` became `note`.
+ * other five a name and a line. P12A.7's stage text asks for the actor's
+ * header everywhere — *the object's image, its name, its kind* — which is
+ * [10 §1.3](../../../../docs/design/10-ui-surfaces.md)'s *the avatar first in
+ * an editor header*, written of characters, taken for every kind; and every
+ * kind has an answer to each: the name is `heading`, the kind is
+ * `KIND_WORDS`, and the image is the kind's own `imageOf`, where *none* is an
+ * answer (a preset carries no picture, and a book with no cover has none to
+ * show). So the frame draws the header, the kind supplies only what differs,
+ * and **the actor avatar this paragraph refused as a prop is here as an answer
+ * every kind gives** — which is the difference the test was written to find.
+ * What a page still says for itself is its line under the name, which is why
+ * `header` became `note`.
  *
  * ***And the chips over the form*** — `jumps.tsx`. The frame owns the list,
  * because it is the one thing every editor is built from, and the sections

@@ -306,6 +306,18 @@ const REVIEW: Readonly<Record<string, string>> = labels('editor.import-review', 
  * the common case."* Four claims, four sections, and each of them is omitted
  * when it has nothing to say — a review that always showed five empty headings
  * would be a form rather than a report.
+ *
+ * ***A labelled region, and not a `JumpSection`*** (2026-10-14,
+ * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.7, after
+ * review). Every section of an editor has a chip over the form now, and this
+ * is the one region the form can hold that does not: a report on what one
+ * import did, drawn under the button that asked for it while the reader is
+ * still looking there, and gone at *Dismiss* or with the page. A chip for it
+ * would jump to where the reader already is, and would appear in the row and
+ * leave it again with each import — and *Entries*' chip already lands on the
+ * heading this sits under. So it keeps its subsection heading and its
+ * `aria-label`, and `jumps.test.tsx`'s every-region check is stated of the
+ * form as its fixture draws it, which never imports.
  */
 function ImportReview(props: { report: MergeReport; onDismiss: () => void }): JSX.Element {
   const renamed = props.report.entries.filter((one) => one.wasNamed !== undefined);

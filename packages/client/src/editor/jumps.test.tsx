@@ -303,16 +303,20 @@ describe('a chip for every section, and a section for every chip', () => {
 
   for (const kind of LIBRARY_KINDS) {
     /**
-     * ***Every editor, the claim both ways.*** Every region in the form —
-     * every `JumpSection`, which is what a `<section>` in an editor now is —
-     * has exactly one chip, and every chip lands on a heading in the form that
-     * says what the chip says. The headings a chip reaches outside a region
-     * (an actor's sections, a lore entry's groups) are counted by the second
-     * half: no two chips land on one heading. *And every section heading in
-     * the form is one a chip reaches* — a level-two heading is a section of
-     * the editor in all four, so a `<section>` and `SectionTitle` pair left
-     * unconverted, which no region check would see, is a heading no chip
-     * lands on.
+     * ***Every editor, the claim both ways.*** Every region in the form as the
+     * fixture draws it — every `JumpSection`, which is what each `<section>`
+     * and `SectionTitle` pair in an editor now is — has exactly one chip. The
+     * one other region the form can hold, the import review `EntryTravel`
+     * draws after a file is read, is a passing report beside the button that
+     * asked for it, with a subsection heading. It is deliberately not a
+     * section with a chip, and the fixture never imports. And every chip
+     * lands on a heading in the form that says what the chip says. The
+     * headings a chip reaches outside a region (an actor's sections, a lore
+     * entry's groups) are counted by the second half: no two chips land on
+     * one heading. *And every section heading in the form is one a chip
+     * reaches* — a level-two heading is a section of the editor in all four,
+     * so a `<section>` and `SectionTitle` pair left unconverted, which no
+     * region check would see, is a heading no chip lands on.
      */
     it(`holds in the ${kind} editor`, async () => {
       renderApp();
