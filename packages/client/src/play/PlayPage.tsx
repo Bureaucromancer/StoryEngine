@@ -1243,7 +1243,11 @@ export function PlayPage({
           with *Start anyway* says what its World or Setup asked for that this
           install lacked. Beside the health banner, in its register, for its
           reason: a fact about the whole session, persistent, and nothing when
-          there is nothing to say — which is every other session. */}
+          there is nothing to say — which is every other session.
+          *(2026-10-14: "beside" is now its register rather than its place.
+          The banner is the strip's first item (P12A.4, the note above), and
+          P12A.5 kept this on Play, under* In these worlds *and above the
+          backdrop's controls and the strip, because nothing in it is set.)* */}
       <StartedWithout sessionId={sessionId} />
 
       {/* **What the session's channels say, declared by whoever owns them** —
@@ -2221,8 +2225,18 @@ function TurnView({
           visible always on a device that cannot hover, which is what `reveal`
           is for and why it is spelled once. *(2026-10-13, P12A.8: the hover
           and focus arms are the recipe's too, by the turn's group name, and a
-          row nobody can see takes no tap — `reveal` says why.)* */}
-      <div className={`flex gap-2 ${reveal.turn}`}>
+          row nobody can see takes no tap — `reveal` says why.)*
+          *(2026-10-14, [P12A]'s final audit: **and it wraps**, which P12A.8
+          did not ask. A generated turn's Redo, Redo with guidance, Continue from
+          here, Make a setup from here and Undo alone are wider than a phone's
+          327px column, and a row that does not wrap overflowed into the
+          transcript's `overflow-y-auto`, whose overflow on the other axis is
+          then `auto` too: the whole story scrolled sideways, prose and all, and
+          the controls at the row's end began off the screen — T4's *use a
+          per-turn control* met only by scrolling the story. Remember this's
+          `w-full` panel takes a line of its own only in a row that wraps, as
+          `ChatMessages`' two rows always have.)* */}
+      <div className={`flex flex-wrap gap-2 ${reveal.turn}`}>
         {rerunnable ? (
           <Button
             type="button"

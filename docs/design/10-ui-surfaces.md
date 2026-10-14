@@ -376,6 +376,13 @@ project already committed to:
   since each is a value the story holds now. A mode's switches went to the
   workbench with the session's other settings (§3.1). The rule is the widget's
   arm, not its channel, so the host still knows no channel (§8.0's note).)*
+  *(2026-10-14, [P12A](workplan/35-p12a-the-look.md)'s final audit: **the cast
+  item carries a refused death**, in the warning tone and in words — *The
+  narrator has Vera as dead. Rule on it* — since the panel became a press away
+  at P12A.4 and a death waiting on a ruling is the one fact about the cast
+  §13.2 says must not be quiet; *Confirm* and *Not so* stay in the panel. And
+  its faces are named for who they are, so a screen reader hears who is here as
+  a sighted reader sees it.)*
 - **Atmosphere behind the prose, with the prose always winning.** Crossfade,
   vignette, scrim. §2.3 already decides the policy; what Marinara supplies is
   the *mechanism*, and its own **Reading Surface Rule** — never heavy blur
@@ -822,7 +829,13 @@ is not. What each sentence above became:
   after review: and not downloaded there either. Hiding a picture stops the
   drawing, not the fetch, so each one is loaded lazily, which a picture that
   is not displayed never is; the veil, too, is painted only from the
-  breakpoint up.)*
+  breakpoint up.)* *(2026-10-14, [P12A](workplan/35-p12a-the-look.md)'s final
+  audit: **the two controls stay, and say so.** *Set the scene* and *Choose a
+  backdrop…* are still drawn below the breakpoint, since a pick is a channel
+  write that holds wherever the session is opened, and a sentence under them,
+  and again in the dialog, says there is no backdrop on a phone-sized screen
+  and that what is set there shows on a wider one — where a press had seemed
+  to do nothing.)*
 
 ***"Generated or uploaded"*** is built as **generated or chosen**. *Choose a
 backdrop…*, beside *Set the scene*, lists the session's own background
@@ -1134,6 +1147,16 @@ does; **it holds no state of its own** — a selection is in the address (`?turn
 view is a scroll; **it has no address of its own**; and **it never makes a
 second copy of what it shows** — every panel in the Session section reads the
 session the page reads, so a write in one is seen in the other.
+*(2026-10-14, [P12A](workplan/35-p12a-the-look.md)'s final audit: **and what is
+typed in it outlives a close.** The dock is unmounted when it closes, and on a
+phone closing is the only way back to the story, so the two drafts the Session
+section holds behind a Save — the author's note and the pack's block — went
+with it. They are kept outside the dock for the page's lifetime and are there
+when it reopens, until a Save writes them. That is a draft of what a person is
+setting up, not the panel's own state: the subject, the selection and the open
+state are where this sentence puts them. And a keyboard sent into the dock by
+**Session settings** or the meter is handed back to that control when it
+closes.)*
 
 **Stacked sections with a jump to each, never tabs** — §1.3's *section jumps,
 not tabs*, applied here. Both sections are drawn; a jump scrolls one into view
@@ -3273,7 +3296,15 @@ the faces of who is present — four at most, since a line has only so much room
 and how many of the cast that is. Drawn for exactly the sessions the panel is
 drawn for, and the face on the player's line opens the item and hands *You
 play* the keyboard, as it handed it the panel's before. Nothing in the panel
-changed.
+changed. *(2026-10-14, [P12A](workplan/35-p12a-the-look.md)'s final audit: and
+the item had become the place a refused death went quiet. *Surfaced
+prominently* above was the panel's `Alert`, seen while the panel stood open in
+the column; a press away, the item read *3 of 3 here* as before while a ruling
+waited. So while a row is pending the item takes the warning tone and says the
+first ruling — *The narrator has Vera as dead. Rule on it*, with how many more —
+and a live region beside it says the same; the ruling is still made in the
+panel. The faces on the item are named for who they are, which the
+`aria-hidden` faces were not.)*
 
 ---
 

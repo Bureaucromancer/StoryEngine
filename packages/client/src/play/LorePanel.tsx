@@ -96,6 +96,24 @@ export function LorePanel(props: { sessionId: string }): JSX.Element {
       onToggle={(event) => {
         toggle(event.currentTarget.open);
       }}
+      /**
+       * ***Escape while the selection is unsaved is the selection's***
+       * (2026-10-14, [P12A](../../../../docs/design/workplan/35-p12a-the-look.md)'s
+       * final audit). Since P12A.5 this panel is in the workbench's Session
+       * section, and the dock closes on an Escape nothing inside it answered —
+       * a rule that leaves a text box's keystroke alone, since a text box holds
+       * a draft, and lets a check box's or a select's through, since those
+       * usually write as they are changed. This panel's do not: they build a
+       * draft that *Save selection* writes, and closing the dock unmounts the
+       * panel with the draft in it, so two ticked books and an Escape pressed
+       * out of habit were gone without a word. So while something is unsaved
+       * the panel answers Escape itself, which the dock reads as answered;
+       * with nothing unsaved, Escape still closes the dock, and a keyboard
+       * user is not left without the one key out.
+       */
+      onKeyDown={(event) => {
+        if (event.key === 'Escape' && changed) event.preventDefault();
+      }}
       className="rounded-control border border-line bg-surface px-3 py-2"
     >
       <summary className={`${disclosure.quiet} text-sm`}>

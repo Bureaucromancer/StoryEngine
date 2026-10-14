@@ -1439,6 +1439,20 @@ what the page is left with the workbench and the assistant both open — about
 12px on an 844px screen, which [P12A §2](35-p12a-the-look.md)'s P12A.8 record
 lists as not done and leaves to this row's answer)*.)*
 
+*(2026-10-14, [P12A](35-p12a-the-look.md)'s final audit — for T4's walker, and
+not an edit to the row: three things the audit changed on a phone. **What is
+typed in the workbench outlives closing it**: open **Session settings**, start
+an author's note without saving it, press **Close** to read the last turn, and
+open **Session settings** again — the note is there, under *How this chat
+plays*, until **Save the note** writes it; the same holds for a block opened
+with *Edit in the pack*. **The per-turn controls wrap** onto a second line
+rather than running off the screen, so the story never scrolls sideways; press
+**Remember this** and its box takes a line of its own under the buttons. And
+**Set the scene** and **Choose a backdrop…** stay on a phone with a sentence
+under them saying there is no backdrop at that size and that what is set there
+shows on a wider screen — a pick that changes nothing on the phone is the
+sentence being true, not a failure.)*
+
 ***What this list cannot reach*** is whether any of it is beautiful, and the
 gate does not ask. Five of its six rows test a written claim; taste is a
 standing-list matter and a token away from being reversed.

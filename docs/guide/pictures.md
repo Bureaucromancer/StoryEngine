@@ -104,7 +104,9 @@ box — is harder to read over a dark picture in the light theme; the session se
 with most of the page's small print, are in the workbench, away from the picture. With no
 backdrop the page is exactly as it is without the feature. A new backdrop fades in over
 the old one — or simply appears, if your system is set to reduce motion. On a
-phone-sized window there is no backdrop at all.
+phone-sized window there is no backdrop at all; **Set the scene** and **Choose a
+backdrop…** still work there, say so under them, and what they set shows on a wider
+screen.
 
 A backdrop comes from one of two places: the story stages one (**Stage a backdrop**,
 below), or you choose one (**Choose a backdrop…**, further down).

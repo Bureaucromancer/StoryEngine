@@ -10,6 +10,7 @@ import { formatCount } from '../../format.js';
 import { Badge } from '../../ui/Badge.js';
 import { link, table } from '../../ui/classes.js';
 import { blockSourceAddress } from '../address.js';
+import { landAgain } from '../jump.js';
 import { labels } from '../../i18n/catalogue.js';
 
 /**
@@ -216,6 +217,20 @@ function BlockRow({
            * falling back to the head cost nothing visible; now the record is
            * right under the editor, and the turn the block was found in should
            * still be the one it shows.
+           *
+           * ***A press lands, whatever the address already says*** (2026-10-14,
+           * [P12A](../../../../../docs/design/workplan/35-p12a-the-look.md)'s
+           * final audit). Pressed a second time for the block already in the
+           * address — after scrolling down to the record, or closing and
+           * reopening the dock, which starts at its top — the link navigated to
+           * the address it was on, nothing changed that the route could hear,
+           * and the press looked dead, the editor a screen above in the same
+           * scroller. So the press itself says it is an arrival (`landAgain`,
+           * in `jump.ts`) before the router's own handler navigates; TanStack
+           * runs a given `onClick` first and does not cancel on it. *Only a
+           * plain press*, the router's own test for one it handles: a press
+           * that opens a new tab leaves this page, and its keyboard, where
+           * they are.
            */}
           {block.source.kind === 'preset' ? (
             <Link
@@ -225,6 +240,14 @@ function BlockRow({
                 ...(previous.turn === undefined ? {} : { turn: previous.turn }),
                 block: block.id,
               })}
+              onClick={(event) => {
+                if (
+                  event.button === 0 &&
+                  !(event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)
+                ) {
+                  landAgain(block.id);
+                }
+              }}
               className={link.inline}
             >
               Edit in the pack

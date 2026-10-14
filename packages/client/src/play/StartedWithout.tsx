@@ -32,6 +32,14 @@ import { Alert } from '../ui/Alert.js';
  * ***Small on purpose*** — one Alert above the transcript beside the health
  * banner. [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) moves
  * the play page's panels; this moves with them.
+ * *(2026-10-14: it did not move.
+ * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.5 sorted it
+ * onto Play, under* In these worlds*, since a standing warning about the whole
+ * session with nothing in it to set is not configuration, while P12A.4 had
+ * already made the health banner the HUD strip's first item. The two are no
+ * longer side by side: this line sits above the strip, and above* Set the
+ * scene *for a mode with a stage, still in the banner's register. P12A.5's
+ * table in §2 has the row.)*
  *
  * Each item a short phrase per kind, whole, from a labels table — a list of
  * things, so no sentence is built from fragments.

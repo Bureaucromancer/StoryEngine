@@ -265,13 +265,32 @@ const patchPrefs = vi.fn();
 let turns: TurnRecord[] = [TURN];
 /** What the prefs read waits on before it answers — open unless a test holds it. */
 let prefsRead: Promise<unknown> = Promise.resolve();
+/**
+ * What a Save in the Session section wrote, which the session read answers
+ * with from then on (2026-10-14) — the pack and the author's note, the two
+ * drafts the dock keeps past a close. Reset before each test.
+ */
+let written: {
+  preset?: Record<string, unknown>;
+  note?: { text: string; depth: number; every: number } | null;
+} = {};
 
 beforeEach(() => {
   prefsStore = {};
   patchPrefs.mockClear();
   turns = [TURN];
   prefsRead = Promise.resolve();
+  written = {};
 });
+
+/** The session read, with whatever a Save wrote. */
+function readNow() {
+  return {
+    ...READ,
+    session: { ...SESSION, ...(written.preset === undefined ? {} : { preset: written.preset }) },
+    chat: { ...READ.chat, ...('note' in written ? { note: written.note } : {}) },
+  };
+}
 
 vi.mock('../api.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../api.js')>();
@@ -302,7 +321,16 @@ vi.mock('../api.js', async (importOriginal) => {
         }),
     },
     listSessions: () => Promise.resolve({ sessions: [SESSION] }),
-    readSession: () => Promise.resolve(READ),
+    readSession: () => Promise.resolve(readNow()),
+    setSessionPreset: (_id: string, body: { preset?: Record<string, unknown> }) => {
+      if (body.preset !== undefined) written.preset = body.preset;
+      return Promise.resolve({ session: readNow().session });
+    },
+    setChatSettings: (_id: string, patch: { note?: typeof written.note }) => {
+      if ('note' in patch) written.note = patch.note;
+      const now = readNow();
+      return Promise.resolve({ session: now.session, chat: now.chat });
+    },
     readTranscript: () => Promise.resolve({ turns }),
     previewTurn: () => Promise.resolve({ preview: restingPreview() }),
     readRenditions: () => Promise.resolve({ renditions: [], selection: {} }),
@@ -488,7 +516,9 @@ const BEFORE: readonly { block: string; after: After; controls: readonly Control
       ['button', 'Place the harbour'],
       ['textbox', 'Place'],
       ['button', 'Save'],
-      ['button', 'Cast 1 of 1 here'],
+      // *(2026-10-14, P12A's final audit: the same control, named now for the
+      // face it draws as well — it was* Cast 1 of 1 here *at `5d01529d`.)*
+      ['button', 'Cast Vera 1 of 1 here'],
       ['combobox', 'You play'],
       ['button', 'Play as them'],
       ['checkbox', 'Muted'],
@@ -903,6 +933,49 @@ describe('the ?block= deep link', () => {
     expect(still).toBe(box);
     expect((still as HTMLTextAreaElement).value).toBe('Write better.');
   });
+
+  /**
+   * ***A second press lands again*** (2026-10-14, P12A's final audit). The
+   * address already names the block, so the router hears nothing and the
+   * editor is not drawn afresh; before the fix the press moved nothing, with
+   * the editor a screen above the record in the same scroller. The draft
+   * typed after the first press is still there after the second. Mutation:
+   * the link's `onClick` removed.
+   */
+  it('lands again when Edit in the pack is pressed a second time for the same block', async () => {
+    turns = [richTurn(), cancelledTurn()];
+    prefsStore = { 'ui.workbench-open': true };
+    renderApp();
+    await overPlay({ turn: 't-10' });
+
+    const dock = await screen.findByRole('complementary');
+    const record = within(dock).getByRole('region', { name: 'Turn record' });
+    await within(record).findByText('A turn the head has passed. Nothing here is live.');
+    const [edit] = within(record).getAllByRole('link', { name: 'Edit in the pack' });
+    if (edit === undefined) throw new Error('no Edit in the pack link');
+    await userEvent.click(edit);
+
+    const session = within(dock).getByRole('region', { name: 'Session' });
+    const box = await within(session).findByRole('textbox', { name: 'Block: se.instruction' });
+    await waitFor(() => {
+      expect(document.activeElement).toBe(box);
+    });
+    await userEvent.clear(box);
+    await userEvent.type(box, 'Write better.');
+
+    // Down to the record to compare, then the same link again.
+    record.focus();
+    expect(document.activeElement).toBe(record);
+    const [again] = within(record).getAllByRole('link', { name: 'Edit in the pack' });
+    if (again === undefined) throw new Error('no Edit in the pack link');
+    await userEvent.click(again);
+
+    await waitFor(() => {
+      expect(document.activeElement).toBe(box);
+    });
+    expect((box as HTMLTextAreaElement).value).toBe('Write better.');
+    expect(router.state.location.search).toEqual({ turn: 't-10', block: 'se.instruction' });
+  });
 });
 
 /**
@@ -945,5 +1018,143 @@ describe('Escape in the Session section', () => {
     await waitFor(() => {
       expect(screen.queryByRole('complementary')).toBeNull();
     });
+  });
+
+  /**
+   * ***A check box that builds a draft keeps it*** (2026-10-14, P12A's final
+   * audit). The lore panel's boxes write nothing until *Save selection*, so
+   * Escape on one, with a book ticked, is the panel's while the selection is
+   * unsaved — and the dock's again once nothing is. T3's own step: *change
+   * the lore selection*. Mutation: the panel's `onKeyDown` removed.
+   */
+  it('leaves the dock open, and the lore selection in it, while the selection is unsaved', async () => {
+    renderApp();
+    await overPlay();
+    await userEvent.click(within(column()).getByRole('button', { name: 'Session settings' }));
+    const dock = await screen.findByRole('complementary');
+    const session = within(dock).getByRole('region', { name: 'Session' });
+    await userEvent.click(await within(session).findByText('Retrieving from no lorebooks'));
+    const book = await within(session).findByRole('checkbox', { name: 'Rain City' });
+    await userEvent.click(book);
+    expect((book as HTMLInputElement).checked).toBe(true);
+
+    await userEvent.keyboard('{Escape}');
+
+    expect(screen.getByRole('complementary')).toBe(dock);
+    expect(within(session).getByRole('checkbox', { name: 'Rain City' })).toBe(book);
+    expect((book as HTMLInputElement).checked).toBe(true);
+
+    // Ticked back, nothing is unsaved, and Escape is the dock's again.
+    await userEvent.click(book);
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => {
+      expect(screen.queryByRole('complementary')).toBeNull();
+    });
+  });
+});
+
+/**
+ * ***What was typed in the Session section outlives a close*** (2026-10-14,
+ * P12A's final audit). The dock is unmounted when it closes, by *Close*, the
+ * header's *Workbench* and the chord as much as by Escape, and on a phone
+ * closing is the only way back to the story; the two drafts the section holds
+ * behind a Save — the pack's block and the author's note — are kept outside
+ * it (`kept.ts`) and are there again when it reopens, until a Save writes
+ * them. Mutations: `kept` not read when an editor is drawn, and `keep` not
+ * called when it changes — each fails both arms.
+ */
+describe('a close of the dock', () => {
+  const CHORD = '{Control>}`{/Control}';
+
+  async function closed(how: () => Promise<void>): Promise<void> {
+    await how();
+    await waitFor(() => {
+      expect(screen.queryByRole('complementary')).toBeNull();
+    });
+  }
+
+  it('keeps what was typed in the pack’s block, until it is saved', async () => {
+    renderApp();
+    await overPlay({ block: 'se.instruction' });
+    const first = await screen.findByRole('complementary');
+    const box = await within(first).findByRole('textbox', { name: 'Block: se.instruction' });
+    await userEvent.clear(box);
+    await userEvent.type(box, 'Write better.');
+
+    // Close, then the header's Workbench.
+    await closed(async () => {
+      await userEvent.click(within(first).getByRole('button', { name: 'Close' }));
+    });
+    await userEvent.click(screen.getByRole('button', { name: 'Workbench' }));
+    let dock = await screen.findByRole('complementary');
+    let again = await within(dock).findByRole('textbox', { name: 'Block: se.instruction' });
+    expect((again as HTMLTextAreaElement).value).toBe('Write better.');
+
+    // The chord from the Save button, which is not a text box, and back.
+    within(dock).getByRole('button', { name: 'Save this block' }).focus();
+    await closed(async () => {
+      await userEvent.keyboard(CHORD);
+    });
+    await userEvent.keyboard(CHORD);
+    dock = await screen.findByRole('complementary');
+    again = await within(dock).findByRole('textbox', { name: 'Block: se.instruction' });
+    expect((again as HTMLTextAreaElement).value).toBe('Write better.');
+
+    // Saved, the pack holds it, and a reopen shows what was stored.
+    await userEvent.click(within(dock).getByRole('button', { name: 'Save this block' }));
+    await waitFor(() => {
+      expect(written.preset).toBeDefined();
+    });
+    await waitFor(() => {
+      expect(
+        within(dock).getByRole('button', { name: 'Save this block' }).hasAttribute('disabled'),
+      ).toBe(true);
+    });
+    await closed(async () => {
+      await userEvent.click(within(dock).getByRole('button', { name: 'Close' }));
+    });
+    await userEvent.click(screen.getByRole('button', { name: 'Workbench' }));
+    dock = await screen.findByRole('complementary');
+    again = await within(dock).findByRole('textbox', { name: 'Block: se.instruction' });
+    expect((again as HTMLTextAreaElement).value).toBe('Write better.');
+    expect(
+      within(dock).getByRole('button', { name: 'Save this block' }).hasAttribute('disabled'),
+    ).toBe(true);
+  });
+
+  it('keeps what was typed in the author’s note, until it is saved', async () => {
+    renderApp();
+    await overPlay();
+
+    async function theNote(): Promise<HTMLTextAreaElement> {
+      await userEvent.click(within(column()).getByRole('button', { name: 'Session settings' }));
+      const dock = await screen.findByRole('complementary');
+      const session = within(dock).getByRole('region', { name: 'Session' });
+      await userEvent.click(await within(session).findByText('How this chat plays'));
+      return within(session).findByRole<HTMLTextAreaElement>('textbox', { name: 'Author’s note' });
+    }
+    async function close(): Promise<void> {
+      await closed(async () => {
+        await userEvent.click(
+          within(screen.getByRole('complementary')).getByRole('button', { name: 'Close' }),
+        );
+      });
+    }
+
+    const note = await theNote();
+    expect(note.value).toBe('');
+    await userEvent.type(note, 'Keep it short.');
+    await close();
+    expect((await theNote()).value).toBe('Keep it short.');
+
+    // Saved, the session holds it, and a reopen shows what was stored.
+    const dock = screen.getByRole('complementary');
+    await userEvent.click(within(dock).getByRole('button', { name: 'Save the note' }));
+    await waitFor(() => {
+      expect(written.note).toEqual({ text: 'Keep it short.', depth: 4, every: 1 });
+    });
+    await within(dock).findByRole('button', { name: 'Remove the note' });
+    await close();
+    expect((await theNote()).value).toBe('Keep it short.');
   });
 });

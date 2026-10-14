@@ -25,6 +25,7 @@ import { onPhone } from './ui/phone.js';
 import { useTheme } from './ui/useTheme.js';
 import { useLocale } from './i18n/useLocale.js';
 import { workbenchOpenFromPrefs, workbenchOpenPatch } from './workbench/prefs.js';
+import { takeSentFrom } from './workbench/jump.js';
 import { useToggleChord } from './workbench/useToggleChord.js';
 import { AssistantPanel } from './assistant/AssistantPanel.js';
 import { Workbench } from './workbench/Workbench.js';
@@ -69,6 +70,11 @@ import { Workbench } from './workbench/Workbench.js';
  */
 const veil =
   'sm:has-[>[data-veiled]]:bg-[linear-gradient(var(--color-veil),var(--color-veil))] sm:has-[>[data-veiled]]:bg-no-repeat sm:has-[>[data-veiled]]:bg-center sm:has-[>[data-veiled]]:bg-size-[min(100%,var(--container-reading))_100%]';
+
+/** Whether the keyboard is in the dock — asked as it closes (`handBack`, below). */
+function keyboardInDock(): boolean {
+  return document.getElementById('workbench')?.contains(document.activeElement) === true;
+}
 
 /** The signed-in frame: a header with the account and sign-out, and the page. */
 export function Shell(): JSX.Element {
@@ -129,6 +135,31 @@ export function Shell(): JSX.Element {
   const workbenchOpen = workbenchOpenFromPrefs(prefs.data?.prefs);
   const patchOpen = patchPrefs.mutate;
   /**
+   * ***A dock closed with the keyboard in it gives the keyboard back***
+   * (2026-10-14, [P12A](../../../docs/design/workplan/35-p12a-the-look.md)'s
+   * final audit).
+   *
+   * Closing unmounts the dock, and a focused element that leaves the document
+   * leaves the keyboard on `<body>`: the next Tab began again at *Skip to the
+   * page*, far from the composer and from whatever sent the keyboard in. That
+   * was always so for a dock entered by Tab, and P12A.5 made it the common
+   * case, since *Session settings* and the context meter now jump into the
+   * dock. So the close notes, at the moment it is asked for, whether the
+   * keyboard was inside — `handBack` — and once the commit has taken the
+   * aside away, and on a phone given `<main>` back its display, the keyboard
+   * goes to the control outside that sent it in (`takeSentFrom`, in
+   * `workbench/jump.ts`) or, when nothing did, to `<main>`, which takes focus
+   * already for *Skip to the page*.
+   *
+   * *Only when it was dropped*: a close whose keyboard already landed
+   * somewhere — a settings row on a phone closes the dock to jump into the
+   * page — is left where it went, the rule `PlayPage` and `Popover` keep.
+   * *A plain `focus()`*, so the control is scrolled into view, as `Popover`'s
+   * hand-back to its trigger is. Every close takes the opener, so a later
+   * close cannot hand the keyboard to an earlier press.
+   */
+  const handBack = useRef(false);
+  /**
    * ***On a phone, Workbench uncovers the dock*** (2026-10-13,
    * [P12A](../../../docs/design/workplan/35-p12a-the-look.md) P12A.8). Below
    * `sm` the assistant covers the dock rather than sharing the width with it —
@@ -146,14 +177,27 @@ export function Shell(): JSX.Element {
       if (!workbenchOpen) patchOpen(workbenchOpenPatch(true));
       return;
     }
+    if (workbenchOpen) handBack.current = keyboardInDock();
     patchOpen(workbenchOpenPatch(!workbenchOpen));
   }, [patchOpen, workbenchOpen, assistantOpen]);
   const closeWorkbench = useCallback(() => {
+    handBack.current = keyboardInDock();
     patchOpen(workbenchOpenPatch(false));
   }, [patchOpen]);
   useToggleChord(toggleWorkbench);
 
   const mainRef = useRef<HTMLElement | null>(null);
+  // The hand-back `handBack`'s docstring describes: after the commit that
+  // closed the dock, once nothing of it is left to hold the keyboard.
+  useEffect(() => {
+    if (workbenchOpen) return;
+    const from = takeSentFrom();
+    if (!handBack.current) return;
+    handBack.current = false;
+    const at = document.activeElement;
+    if (at !== null && at !== document.body) return;
+    (from ?? mainRef.current)?.focus();
+  }, [workbenchOpen]);
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const hash = useRouterState({ select: (state) => state.location.hash });
   /**

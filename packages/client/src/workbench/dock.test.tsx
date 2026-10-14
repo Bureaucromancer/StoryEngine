@@ -473,6 +473,60 @@ describe('the play subject’s sections', () => {
     expect(document.activeElement).toBe(session);
     expect(within(dock).getByRole('region', { name: 'Turn record' })).toBe(record);
   });
+
+  /**
+   * ***A dock closed with the keyboard in it gives the keyboard back***
+   * (2026-10-14, [P12A](../../../../docs/design/workplan/35-p12a-the-look.md)'s
+   * final audit). *Session settings* and the meter jump into the dock since
+   * P12A.5, and closing it unmounts what held the keyboard, which fell to
+   * `<body>`. Every close path, from an opener and from none. Mutations: the
+   * shell's effect removed fails every arm; `takeSentFrom` ignored — `<main>`
+   * always — fails the three with an opener.
+   */
+  it('hands the keyboard back when it closes', async () => {
+    renderApp();
+    await overPlay();
+    const main = document.querySelector('main');
+
+    async function sendIn(control: HTMLElement): Promise<HTMLElement> {
+      control.focus();
+      await userEvent.keyboard('{Enter}');
+      const dock = await screen.findByRole('complementary');
+      await waitFor(() => {
+        expect(dock.contains(document.activeElement)).toBe(true);
+      });
+      return dock;
+    }
+
+    // Session settings, then Escape: back on Session settings.
+    const settings = screen.getByRole('button', { name: 'Session settings' });
+    await sendIn(settings);
+    await userEvent.keyboard('{Escape}');
+    expect(screen.queryByRole('complementary')).toBeNull();
+    expect(document.activeElement).toBe(settings);
+
+    // The meter, then Close: back on the meter.
+    const meter = screen.getByRole('button', { name: /Context fill/ });
+    const dock = await sendIn(meter);
+    within(dock).getByRole('button', { name: 'Close' }).focus();
+    await userEvent.keyboard('{Enter}');
+    expect(screen.queryByRole('complementary')).toBeNull();
+    expect(document.activeElement).toBe(meter);
+
+    // Session settings, then the chord, which closes from the section.
+    await sendIn(settings);
+    await userEvent.keyboard(CHORD);
+    expect(screen.queryByRole('complementary')).toBeNull();
+    expect(document.activeElement).toBe(settings);
+
+    // Opened by the chord, which sends the keyboard nowhere, and Tabbed into
+    // by hand: nothing outside sent it in, so `<main>` has it.
+    await userEvent.keyboard(CHORD);
+    within(screen.getByRole('complementary')).getByRole('button', { name: 'Close' }).focus();
+    await userEvent.keyboard('{Escape}');
+    expect(screen.queryByRole('complementary')).toBeNull();
+    expect(document.activeElement).toBe(main);
+  });
 });
 
 /**

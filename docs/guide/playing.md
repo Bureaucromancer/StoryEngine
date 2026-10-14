@@ -388,6 +388,11 @@ a status list (**Alive**, **Dead**, **Departed**). These are part of the story's
 so a character can be dead on one branch and alive on another. Nothing in play
 changes them for you: they change when you change them.
 
+When the narrator writes someone dead or departed, the story does not take its word for
+it. The **Cast** item in the strip turns into a warning — *The narrator has Vera as dead.
+Rule on it* — and the panel asks you: **Confirm** makes it so, **Not so** keeps them as
+they were. Until you answer, they stay in the story.
+
 At the top, **You play** says which character you play. Choose another and press
 **Play as them** to play as them from your next move; choosing alone changes nothing.
 Choosing **Nobody in particular** keeps the panel, so you can choose somebody again.
@@ -463,7 +468,8 @@ workbench there too when it is shut. From the top:
   [Modes](modes.md#time-place-and-the-stage).
 
 On a phone-sized screen the workbench takes over the page, so **Close** brings the story
-back. In the assistant's panel the same settings are folded under **Session settings** at
+back. An author's note or a block you have typed and not yet saved is still there when you
+open the settings again, until you save it. In the assistant's panel the same settings are folded under **Session settings** at
 the top of the conversation instead, because the workbench there is about the page behind
 the panel.
 
@@ -512,7 +518,9 @@ The workbench is a panel beside the page that shows what a turn was made of. Ope
 from **Workbench** in the header, with **Ctrl+`** (when the keyboard is not in a text
 box), by clicking the context meter, or with **Session settings**; **Close** shuts it,
 and so does **Escape** while the keyboard is inside it — but not while you are typing in
-one of its boxes, so a block or a note you are writing is not lost. Its width can be
+one of its boxes, or while a lore selection is ticked and not yet saved, so what you are
+changing is not lost. Closed with the keyboard inside it, the workbench hands the keyboard
+back to **Session settings** or the context meter, whichever opened it. Its width can be
 dragged, and whether it is open is remembered for your account. On a phone-sized screen
 it takes over the page, and so does the assistant: opened over the workbench, the
 assistant covers it until you close the assistant or press **Workbench**.
@@ -636,7 +644,8 @@ is reloaded or refocused.
   the arrow keys move between them, **Home** and **End** jump to the ends.
 - **Ctrl+`** opens and closes the workbench when the keyboard is not in a text box —
   over a session it opens at the session settings; **Escape** closes it while the
-  keyboard is inside it and not in a text box.
+  keyboard is inside it and not in a text box or an unsaved lore selection. Closing it
+  from inside gives the keyboard back to the button that opened it.
 - **Skip to the page**, the first Tab stop on every page, jumps past the header.
 - The plot-hook questions put the focus on **Cancel**; **Delete this session** does
   not.

@@ -65,6 +65,15 @@ const TEXT_TYPES: ReadonlySet<string> = new Set([
  * user who has just ticked a switch is not left without the one key that gets
  * them out. (A select's own open list is the browser's to close, and the key
  * never reaches the page while it is open.)
+ *
+ * *(2026-10-14, [P12A](../../../../docs/design/workplan/35-p12a-the-look.md)'s
+ * final audit: **usually** keep no draft. Those controls mostly write as they
+ * are changed, which is what the sentence above was true of; the lore panel's
+ * check boxes and its Treatment select build a selection that *Save selection*
+ * writes, so this question cannot see that draft. `LorePanel` answers Escape
+ * itself while its selection is unsaved, and the dock leaves an Escape already
+ * answered alone — the guard stays this narrow, and a control that holds a
+ * draft says so where the draft is.)*
  */
 export function isTextEntry(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;

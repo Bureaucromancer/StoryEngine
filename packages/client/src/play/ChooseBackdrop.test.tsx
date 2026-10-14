@@ -233,4 +233,29 @@ describe('choosing a backdrop', () => {
     // *No backdrop* is still there: off is always a choice.
     expect(within(dialog).getByRole('button', { name: 'No backdrop' })).toBeTruthy();
   });
+
+  /**
+   * ***A phone is told there is no backdrop there*** (2026-10-14, P12A's final
+   * audit). The layer is `max-sm:hidden`, so below `sm` a pick or *Set the
+   * scene* changed nothing on the screen; the controls stay, since a pick
+   * holds on a wider one, and a sentence says so beside them and in the
+   * dialog. jsdom applies no stylesheet, so what is held is that each copy is
+   * there and carries `sm:hidden`. Mutations: either line removed, and
+   * `sm:hidden` dropped from either.
+   */
+  it('tells a phone there is no backdrop there, beside the control and in the dialog', async () => {
+    const PHONE =
+      'There is no backdrop on a phone-sized screen. What is set here shows on a wider one.';
+    const dialog = await opened();
+
+    const said = screen.getAllByText(PHONE);
+    expect(said).toHaveLength(2);
+    const [beside, inDialog] = [
+      said.find((one) => !dialog.contains(one)),
+      within(dialog).getByText(PHONE),
+    ];
+    expect(beside?.classList.contains('sm:hidden')).toBe(true);
+    expect(beside?.classList.contains('basis-full')).toBe(true);
+    expect(inDialog.classList.contains('sm:hidden')).toBe(true);
+  });
 });

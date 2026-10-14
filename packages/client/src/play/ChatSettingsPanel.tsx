@@ -10,6 +10,7 @@ import { Button } from '../ui/Button.js';
 import { CheckboxField, Field, NumberField, SelectField } from '../ui/Field.js';
 import { disclosure } from '../ui/classes.js';
 import { CardPrompts } from './CardPrompts.js';
+import { keep, kept, letGo } from './kept.js';
 import { ModeRegion } from './ModeRegion.js';
 import { WriteFailed } from './WriteFailed.js';
 
@@ -236,6 +237,7 @@ function Settings(props: {
         />
 
         <NoteEditor
+          sessionId={props.sessionId}
           note={chat.note}
           busy={write.isPending}
           onSave={(note) => {
@@ -274,21 +276,44 @@ function Settings(props: {
  * when the stored note changes underneath it (another tab, an import), so what
  * the box shows is never older than what the next turn will send unless
  * somebody is in the middle of typing it.
+ *
+ * ***And held past the dock's close*** (2026-10-14,
+ * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md)'s final audit).
+ * Since P12A.5 this is drawn in the workbench's Session section, which is
+ * unmounted when the dock closes — and on a phone closing the dock is the only
+ * way back to the story — so a note typed and not yet saved went with it, and
+ * reopening showed the stored one. What is typed is kept in `kept.ts` under the
+ * session, **beside the stored note it was typed against** (`from`): a draft
+ * comes back only while that note is still the stored one, and a stored note
+ * that changes — this box's own Save landing, another tab, an import — re-seeds
+ * the box as it always did and lets the kept draft go.
  */
 function NoteEditor(props: {
+  sessionId: string;
   note: ChatSettings['note'];
   busy: boolean;
   onSave: (note: ChatSettings['note']) => void;
 }): JSX.Element {
-  const stored = props.note ?? { text: '', depth: 4, every: 1 };
-  const [text, setText] = useState(stored.text);
-  const [depth, setDepth] = useState(String(stored.depth));
-  const [every, setEvery] = useState(String(stored.every));
+  const stored = props.note ?? NO_NOTE;
+  const key = `note:${props.sessionId}`;
+  // What the draft was typed against: the stored note's three values, whole.
+  const signature = JSON.stringify([stored.text, stored.depth, stored.every]);
+  const [held, setHeld] = useState<HeldNote>(() => {
+    const was = heldNote(kept(key));
+    return was?.from === signature ? was : seed(stored, signature);
+  });
   useEffect(() => {
-    setText(stored.text);
-    setDepth(String(stored.depth));
-    setEvery(String(stored.every));
-  }, [stored.text, stored.depth, stored.every]);
+    // A draft kept against a note that is no longer the stored one is let go
+    // — on a mount that found it stale as much as when a Save lands.
+    if (heldNote(kept(key))?.from !== signature) letGo(key);
+    if (held.from !== signature) setHeld(seed(stored, signature));
+  }, [held.from, signature, stored, key]);
+  const change = (patch: Partial<HeldNote>): void => {
+    const next = { ...held, ...patch };
+    setHeld(next);
+    keep(key, next);
+  };
+  const { text, depth, every } = held;
 
   const whole = (value: string, fallback: number): number => {
     const parsed = Number.parseInt(value, 10);
@@ -303,11 +328,27 @@ function NoteEditor(props: {
         multiline
         rows={3}
         value={text}
-        onChange={setText}
+        onChange={(next) => {
+          change({ text: next });
+        }}
       />
       <div className="flex flex-wrap gap-3">
-        <NumberField label={WORDS.depth} value={depth} min={0} onChange={setDepth} />
-        <NumberField label={WORDS.every} value={every} min={0} onChange={setEvery} />
+        <NumberField
+          label={WORDS.depth}
+          value={depth}
+          min={0}
+          onChange={(next) => {
+            change({ depth: next });
+          }}
+        />
+        <NumberField
+          label={WORDS.every}
+          value={every}
+          min={0}
+          onChange={(next) => {
+            change({ every: next });
+          }}
+        />
       </div>
       <div className="flex flex-wrap gap-2">
         <Button
@@ -338,6 +379,28 @@ function NoteEditor(props: {
       </div>
     </div>
   );
+}
+
+/** The note a session with none is edited from — one value, so it is stable. */
+const NO_NOTE = { text: '', depth: 4, every: 1 };
+
+/** The note's three boxes as typed, and the stored note they were typed against. */
+interface HeldNote {
+  text: string;
+  depth: string;
+  every: string;
+  from: string;
+}
+
+/** What `kept.ts` holds under a note's key, if it is one — only this editor writes there. */
+function heldNote(value: unknown): HeldNote | undefined {
+  return typeof value === 'object' && value !== null && 'from' in value
+    ? (value as HeldNote)
+    : undefined;
+}
+
+function seed(stored: { text: string; depth: number; every: number }, from: string): HeldNote {
+  return { text: stored.text, depth: String(stored.depth), every: String(stored.every), from };
 }
 
 /** A small whole-number setting, written when the box is left or Enter is pressed. */

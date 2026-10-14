@@ -45,9 +45,14 @@ import { WriteFailed } from './WriteFailed.js';
  * picture would go, and there should not be one."*
  *
  * ***The stage is not drawn here any more*** (2026-10-13,
- * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.2). Every
+ * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.2). ~~Every
  * region this component draws is a place in the column's flow, and the stage
- * is the one place that is not: a backdrop is behind the column, and drawing
+ * is the one place that is not:~~ *(2026-10-14, after review: since P12A.5 the
+ * `panel` region's switches and the `settings` region are drawn in the
+ * workbench's Session section — the dock, or the assistant's fold — and the
+ * `panel` region's readings in the strip; every region this component draws is
+ * still a place in some page's flow, and the stage is the one region that is a
+ * layer behind the window instead.)* A backdrop is behind the column, and drawing
  * it here made it a picture in the column, which is what 10 §2.3 says a
  * backdrop is not. `Backdrop.tsx` draws the stage region now — a layer behind
  * the window, decorative, crossfaded and gone on a phone — and `region` below
@@ -66,7 +71,8 @@ export function ModeRegion(props: {
    * moment this was written the other way. One read, many renderings.
    */
   surfaces: readonly ModeSurface[] | undefined;
-  /** A region in the column's flow — the stage is `Backdrop`'s (see above). */
+  /** A region drawn in a page's flow — Play's column, its strip, or the dock's
+   *  Session section (P12A.5); the stage is `Backdrop`'s layer (see above). */
   region: 'hud' | 'panel' | 'message' | 'settings';
   /**
    * Which scope key to show, for an actor-scoped channel — a sprite beside the

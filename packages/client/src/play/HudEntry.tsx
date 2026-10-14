@@ -22,6 +22,9 @@ const WORDS = labels('play.hud', {
   notSet: 'not set',
   readOnly:
     'This can’t be changed from here: the strip changes a line of text or a number, and this is neither.',
+  // For an entry sent with no edit at all, which may well be a line of text —
+  // the docstring's 2026-10-14 note says why it is not `readOnly`.
+  notHere: 'This can’t be changed from here.',
   save: 'Save',
   emptyIsNotSet: 'Leave it empty for not set.',
   number: 'That is not a number.',
@@ -55,7 +58,16 @@ export interface HudEntryShape {
  * entry carries its own edit: the server derives it from the channel's declared
  * schema (`hudEdit`), so a string is a line of text, a number is a number with
  * the bounds its schema gives, and anything else opens to a sentence saying it
- * is not changed here. There is no `if (channelId === 'se.location')` in this
+ * is not changed here. *(2026-10-14,
+ * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md)'s final audit:
+ * and an entry sent with **no edit at all** — a placement the server offers no
+ * edit for, which since P12A.5 is a mode's `panel` reading drawn in the strip,
+ * or an entry from an older server — says only that it is not changed here.
+ * The sentence for the rest says *the strip changes a line of text or a
+ * number, and this is neither*, which is true of a schema the strip cannot
+ * edit and false of a string a mode placed outside `hud`: only `hud`
+ * placements carry an edit, and the string on the trigger is a line of text.)*
+ * There is no `if (channelId === 'se.location')` in this
  * file, and the day one is wanted the vocabulary was too narrow.
  *
  * **The write is the ordinary channel write** — `PUT /sessions/:id/channels/
@@ -236,7 +248,7 @@ export function HudEntry(props: { sessionId: string; entry: HudEntryShape }): JS
         }
       >
         {edit === null ? (
-          <Fine>{WORDS.readOnly}</Fine>
+          <Fine>{entry.edit === undefined ? WORDS.notHere : WORDS.readOnly}</Fine>
         ) : (
           /**
            * `noValidate`: the bounds and the whole-number rule are said in

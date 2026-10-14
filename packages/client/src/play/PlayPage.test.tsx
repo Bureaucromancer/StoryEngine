@@ -693,6 +693,8 @@ describe('the worlds a session is in', () => {
  * **Start anyway** carries `startedWithout`, and its page says so in one
  * quiet line above the transcript, beside the health banner; every other
  * session's page says nothing. `StartedWithout.test.tsx` holds the words.
+ * *(2026-10-14: the banner is the strip's first item since P12A.4, and this
+ * line stays on Play above the strip.)*
  */
 describe('a session started without what it asked for', () => {
   it('says what it plays without, and says nothing for a session that lacked nothing', async () => {
@@ -2171,6 +2173,21 @@ describe('siblings and undo', () => {
     await waitFor(() => {
       expect(undoTurn).toHaveBeenCalledWith(SESSION.id, TURN.id);
     });
+  });
+
+  /**
+   * ***The row wraps*** (2026-10-14, P12A's final audit). A generated turn's
+   * controls are wider than a phone's column, and a row that did not wrap
+   * overflowed into the transcript's scroller, which then scrolled the whole
+   * story sideways. jsdom lays nothing out, so the class is what is held.
+   * Mutation: `flex-wrap` taken off the row.
+   */
+  it('wraps the row of a turn’s controls, which is wider than a phone', async () => {
+    renderPage();
+    await screen.findByText('I knock twice.');
+
+    const row = screen.getAllByRole('button', { name: 'Undo' })[0]?.parentElement;
+    expect(row?.classList.contains('flex-wrap')).toBe(true);
   });
 });
 

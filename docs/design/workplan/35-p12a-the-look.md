@@ -1823,6 +1823,13 @@ entry. Seven things, one of them on the server.
   who is present — four at most — and *n of m here*, drawn for exactly the
   sessions the panel is (`castPanelShows`). The face on the player's line opens
   the item and hands *You play* the keyboard through `HudStripHandle`.
+  *(2026-10-14, [the final audit](#the-final-audit-2026-10-14), after review of this stage: the faces were
+  `aria-hidden`, so who was present reached sight and not a screen reader; and
+  with the panel a press away, a death the engine refused was said nowhere on
+  the item, which read* n of m here *as before while a ruling waited — the
+  quiet treatment 10 §13.2 rules out. The faces are an image named for whom
+  they draw now, and a waiting ruling turns the item to the warning tone and
+  says itself; see the audit's play record.)*
 - **`ui/Popover` grew what the strip needed**: a second placement, `under` —
   flow content, drawn under the strip at its full width whichever item opened
   it, scrolling past 70% of the screen's height — that is **hidden while shut
@@ -2162,7 +2169,11 @@ moves to the workbench. The column as it stood at `5d01529d`, top to bottom:
   and focus, waiting a frame at a time for a dock just opened, and only ever an
   element inside `#workbench`), `useOpenDockAt` (open if shut, never toggle, write
   only when shut, then jump), and `useOpenDockFor` (an address that names a block
-  opens the dock once per arrival).
+  opens the dock once per arrival). *(2026-10-14, [the final audit](#the-final-audit-2026-10-14): the jump sent the
+  keyboard into the dock and nothing brought it back — a close unmounted what
+  held it and dropped it on `<body>`. `useOpenDockAt` records the control the
+  press came from, and the shell hands the keyboard back to it on close; see
+  the audit's play record.)*
 - **Play's heading row gains *Session settings***, `OpenDockButton` with an `at`
   and `aria-keyshortcuts="Control+\`"`, the chord shown beside the name and out of
   it, hidden on a phone. A second press with the dock open goes back to the
@@ -2333,8 +2344,14 @@ setting went the same way. The aside's handler now leaves an Escape alone when
 something inside already prevented its default, and when its target is
 somewhere text is typed: a text area, a contenteditable region, or an input of a
 type that takes text (`isTextEntry`). *Narrower than the chord's guard, on
-purpose*: a check box, a radio or a select keep no draft, so Escape on one
-still closes the dock — the chord is already inert on them, and a keyboard user
+purpose*: ~~a check box, a radio or a select keep no draft, so Escape on one
+still closes the dock~~ *(2026-10-14, [the final audit](#the-final-audit-2026-10-14): those controls **usually**
+write as they are changed, which is what the clause was true of; the lore
+panel's check boxes and its Treatment select hold a draft behind* Save
+selection*, and Escape on one threw it away — T3's own step,* change the lore
+selection*. `LorePanel` answers Escape itself while one is pending, which this
+guard reads as answered, and Escape on such a control still closes the dock
+when nothing is unsaved)* — the chord is already inert on them, and a keyboard user
 who has just ticked a switch is not left without the one key out. `isEditable`
 moved out of `useToggleChord.ts` into a new `workbench/editable.ts` beside
 `isTextEntry`, so the two questions are spelled in one place. `Workbench.tsx`'s
@@ -2342,6 +2359,11 @@ header has a dated note after its Escape paragraph; the guide's *The
 workbench* and *Keyboard* say Escape does not close it while you are typing in
 one of its boxes, edited in place as the guide's user prose always is — it
 carries no dated notes anywhere, and this stage edited it the same way.
+*(2026-10-14, [the final audit](#the-final-audit-2026-10-14): **Escape was one of four ways to close the dock with
+a draft in it**, and the other three — *Close*, the header's *Workbench* and the
+chord — still threw it away; on a phone, closing is the only way back to the
+story. The author's note and the pack's block keep what was typed outside the
+dock's lifetime now (`play/kept.ts`); see the audit's play record.)*
 
 **The record's turn picker dropped `?block=`.** *Edit in the pack* keeps
 `turn` because the editor and the record are read together, and that held one
@@ -2374,7 +2396,13 @@ read and the pack. A dock closed and reopened over the same address is the
 same arrival and starts at its top, which makes 10 §3.1's *a dock opened from
 shut starts at its top* and *once per arrival* true as written. `jump.ts`'s
 *Where it lands* paragraph is struck with a dated note, and the editor's comment
-has one.
+has one. *(2026-10-14, [the final audit](#the-final-audit-2026-10-14): and a press of* Edit in the pack *is an
+arrival too, even when the address already names its block. Pressed again for
+that block — after scrolling down to the record, or a reopen that starts at the
+top — it navigated to the address it was on, nothing was handed, and the press
+moved nothing, the editor a screen above it in the same scroller. The link
+hands the landing itself (`landAgain`), and a drawn editor listens for it; the
+turn picker and a reopen still do not land. See the audit's play record.)*
 
 **An address loaded with the dock already open wrote the preference anyway.**
 The route's opener ran on mount, before the preference had been read, and took
@@ -3174,6 +3202,14 @@ a phone. Six things.
   844px screen — as a desk window of that width always has. The fix is a stack
   wherever the dock, the assistant and a minimum page cannot all fit, with the
   matching query in `ui/phone.ts`; it is left for T4's answer.
+- *(2026-10-14, [the final audit](#the-final-audit-2026-10-14): two phone findings this stage's review did not
+  see. **The per-turn row did not wrap**, so a generated turn's controls, wider
+  than a phone's 327px column, scrolled the whole transcript sideways; it wraps
+  now. And **the backdrop's two controls said nothing on a phone**, where the
+  layer is never drawn, so a pick or* Set the scene *seemed to do nothing; a
+  sentence below `sm` says there is no backdrop at that size and that what is
+  set shows on a wider screen. See the audit's play record; T4's row is not
+  edited.)*
 
 **Tests, each checked against a mutation and restored.** In `theme.test.ts`'s
 new *the phone rules*: *reveals nothing on hover but through a recipe* fails
@@ -3493,6 +3529,185 @@ The stylesheet, compared rule by rule with the build before the change, gains
 the two `focus-visible` rules and changes the veil's six declarations — a mix
 and a fallback in each of three blocks, the fallback's alpha now `db` where it
 was `d1` — and nothing else.
+
+**Play: what moving the panels left behind.** Eleven findings, and most of them
+one seam: P12A.4 and P12A.5 moved the column's panels into a strip item a press
+away and into a dock that unmounts when it closes, and each stage's own review
+looked at the panel moved rather than at what had held it in place — a panel
+always in view, a page that kept the keyboard, a column that never closed.
+
+**The dock dropped the keyboard on the way out.** *Session settings* and the
+context meter jump into the dock since P12A.5, and the dock is not modal, so
+nothing returns the keyboard: closing unmounts what held it, focus fell to
+`<body>`, and the next Tab began again at *Skip to the page*, far from the
+composer and the button pressed — on a phone, too, when *Close* brings `<main>`
+back. `Popover` keeps the opposite rule for its trigger. *For a dock entered by
+Tab this is older than P12A.5*; the jump made it the common case. `useOpenDockAt`
+now records the control outside the dock whose press sent the keyboard in
+(`takeSentFrom`, in `jump.ts`, taken once and only while it is still in the
+document), and the shell notes at the moment of closing — by Escape, *Close*,
+the header's *Workbench* or the chord — whether the keyboard was inside, and
+after the commit gives it to that control, or to `<main>` when nothing outside
+sent it in. *Only when it was dropped*: a close whose keyboard already landed
+somewhere, such as a settings row on a phone jumping into the page, is left
+alone, the rule `Popover` and `PlayPage` keep. *One step past the finding*:
+every close takes the recorded opener, whether it hands back or not, so a later
+close cannot answer an earlier press.
+
+**A second press of *Edit in the pack* moved nothing.** Pressed for the block
+already in the address — after scrolling down to the record, or a reopen, which
+starts at the top by design — the link navigated to the address it was on, so
+nothing was handed and the editor, mounted once, never asked again; it sat a
+screen above in the same scroller, and the press looked dead. Before P12A.5 the
+editor was in the column beside the dock and stayed in view. The press now says
+it is an arrival (`landAgain`), before the router's own handler, and a drawn
+editor listens for it (`onLandAgain`) and takes the landing as it does on
+mount; a press naming another block gets the same landing from the route's
+layout effect a moment later, so the two paths agree. *Only a press*, not any
+navigation: the turn picker and a reopen still do not land, which keeps P12A.5's
+review's one notion of arrival, and a press that opens a new tab — the router's
+own modifier test — leaves this page's keyboard alone.
+
+**A close threw away what was typed, by three of its four paths, and Escape
+threw away a lore selection.** P12A.5's review stopped Escape closing the dock
+from a text box. *Close*, the header's *Workbench* and the chord still unmounted
+the author's note or the pack's block with the draft in it, and on a phone
+closing is the only way back to the story: a note half written, the dock closed
+to read the last turn, and the note gone without a word. The two drafts are
+kept outside the dock's lifetime now, in a new `play/kept.ts` — module state for
+the page load, as `landing` is — the block's under its session and block, let
+go when *Save this block* lands; the note's beside the stored note it was typed
+against, so it comes back only while that note is still the stored one and is
+let go when a Save, another tab or an import changes it. *Two shapes were
+refused*: the dock kept mounted while closed reverses P3.1's *closed is
+unmounted* and the remount P12A.5's *a dock opened from shut starts at its top*
+leans on; and a question on every close makes a phone choose between reading
+the story and keeping the note. Separately, **the Escape guard's reason was
+false for one panel**: *a check box, a radio or a select keep no draft* holds of
+controls that write as they change, and the lore panel's boxes and Treatment
+select hold a draft behind *Save selection* — two books ticked and an Escape
+out of habit, and the selection was gone. `LorePanel` answers Escape itself
+while its selection is unsaved, which the dock reads as answered; with nothing
+unsaved Escape still closes the dock. The dock's guard is unchanged.
+
+**Who is here reached sight only, and a refused death was said nowhere on the
+strip.** The Cast item's faces were `aria-hidden`, so a screen reader heard
+*Cast, 1 of 2 here* where a sighted reader saw who; the group of faces is an
+image now, named by the names it draws — the four drawn, the count carrying the
+rest as it does for sight — `PlayedAs`'s *named where nothing beside it names
+it*. And [10 §13.2](../10-ui-surfaces.md) owes a death the engine refused a
+prominent surface: the cast panel's `Alert` was it while the panel stood open
+in the column, and since P12A.4 the item read *3 of 3 here* exactly as before
+while a ruling waited, the next turns assembled with the character present and
+the prose saying otherwise. While a row is pending the item takes `strip.warn`
+and says the first ruling on the line — *The narrator has Vera Kohl as dead. Rule
+on it*, or *…, and 1 more. Rule on them* — with *Cast* in the warning's ink,
+since `warn-ink` on `warn-surface` is a measured pair and `ink-subtle` on it is
+not; and the sentence is copied into a live region beside the item, mounted
+empty, for `ChannelHealth`'s reason. *Confirm* and *Not so* stay in the panel.
+
+**A mode's panel text opened to a sentence that called a string neither text
+nor a number.** Since P12A.5 a `panel` reading is drawn in the strip as a
+`HudEntry`, and only `hud` placements carry an edit, so a `text` over a string
+channel opened to *the strip changes a line of text or a number, and this is
+neither*. An entry sent with no edit at all says *This can't be changed from
+here.* now; an edit of `null` or of a kind this build does not know keeps the
+longer sentence, which is true of it. No shipped mode places one; P12A.4's
+record's *the sentence* This can't be changed from here *when there is none* is
+true as written. Deriving an edit for `panel` texts too would reverse the
+recorded decision that only `hud` placements write, and is the owner's.
+
+**On a phone, a turn's controls ran off the screen, and the backdrop's changed
+nothing there without a word.** The per-turn row was `flex` without a wrap, and
+a generated turn's Redo, Redo with guidance, Continue from here, Make a setup
+from here and Undo alone are wider than a 375px phone's 327px column, so the
+row overflowed the transcript's `overflow-y-auto` — whose other axis is then
+`auto` — and the whole story scrolled sideways, prose and all; *Remember this*'s
+form was squeezed beside the buttons. It wraps now, as `ChatMessages`' rows
+always have. And the backdrop layer is `max-sm:hidden` — 10 §2.3's *first thing
+to go* — while *Set the scene* and *Choose a backdrop…* stayed and said nothing:
+a generation ran and nothing appeared, or a pick added two rows to the
+transcript and the page looked as it had. **The controls stay**, since a pick
+is a channel write that holds on a wider screen; a sentence below `sm`, beside
+them on a line of its own and again under the dialog's lead, says there is no
+backdrop at that size and that what is set shows on a wider screen.
+
+**And two comments said where things were.** `StartedWithout`'s docstring had
+it beside the health banner and moving with P12A's panels — it did neither, and
+the banner is the strip's first item — and `ModeRegion`'s P12A.2 note gave
+*every region here is in the column's flow* as the reason the stage arm went,
+which stopped being the code's shape when P12A.5 drew the `panel` region in the
+dock and the strip. Dated notes, with the stale clause struck in `ModeRegion`.
+
+*Tests, each checked against a mutation and restored.* In
+`workbench/dock.test.tsx`, *hands the keyboard back when it closes* walks
+*Session settings* then Escape, the meter then *Close*, *Session settings* then
+the chord, and a dock opened by the chord and Tabbed into, then Escape: it
+fails with the shell's effect removed (the keyboard on `<body>`) and with
+`takeSentFrom` ignored (`<main>` where *Session settings* was expected). In
+`play/reachability.test.tsx`: *lands again when Edit in the pack is pressed a
+second time for the same block* types a draft between the presses and fails
+with the link's `onClick` removed and with the editor's `onLandAgain` removed;
+*leaves the dock open, and the lore selection in it, while the selection is
+unsaved* ticks *Rain City*, presses Escape, and after ticking it back presses
+Escape again, and fails with the panel's `onKeyDown` removed; the new *a close
+of the dock* — *keeps what was typed in the pack's block, until it is saved*,
+closing by *Close* and by the chord from the Save button, and *keeps what was
+typed in the author's note, until it is saved* — fails in both with `kept`
+answering nothing and with `keep` a no-op, and each saves at the end and finds
+what was stored on a reopen; the file's mock now answers the session read with
+what a Save wrote. In `play/HudStrip.test.tsx`: *shows the faces of who is
+present* finds *Cast Vera Kohl 1 of 2 here* and one face inside the image named
+*Vera Kohl*, and fails with the group put back to `aria-hidden`; the new *says
+a ruling the narrator is waiting on without a press* and *names the first
+ruling and counts the rest, and is quiet with none* fail with the escalation
+removed — the item left `strip.item` with the count alone; *draws a text a mode
+placed in the strip* asks for the exact sentence and no *neither*, and fails
+with the read-only branch always saying the longer one. In `PlayPage.test.tsx`,
+*wraps the row of a turn's controls* fails with `flex-wrap` taken off. In
+`ChooseBackdrop.test.tsx`, *tells a phone there is no backdrop there* fails with
+either line removed and with `sm:hidden` dropped from either. *Tests that held
+the old answer*: the reachability list's *Cast 1 of 1 here* is *Cast Vera 1 of
+1 here*, the same control named for its face, with a dated comment beside it —
+the list is the column at `5d01529d`, and this is the one name in it the audit
+changed. The touched tests and their neighbours — the play column's, the
+strip's, the dock's, the shell's, the session panels' and the block table's —
+pass after the build, as do the `docs` and `release` projects. *Not looked at in
+a browser* — none is installed where this was built — so where the keyboard
+lands on a real close, the warning item over a backdrop, and the wrapped row
+and the phone sentence at 375px are T3's and T4's to see; 05's note to T4's
+walker says what changed, and no step of §3 is edited.
+
+*Dated notes, none a rewrite*: `Workbench.tsx`'s header, on non-modality and on
+Escape; `jumpInDock`'s *Focus follows the scroll* and the *Where it lands*
+paragraph in `jump.ts`; `editable.ts`'s `isTextEntry`; `StartedWithout.tsx` and
+the comment over it in `PlayPage.tsx`, with `PlayPage.test.tsx`'s describe;
+`ModeRegion.tsx`; `HudEntry.tsx`'s docstring; [10 §1.3](../10-ui-surfaces.md)'s
+strip note, §2.3's *On a phone*, §3.1's *it holds no state of its own* and
+§13.2's *Opened from the strip*; [manual testing](05-manual-testing.md)'s note
+to T4's walker; and in this document P12A.4's cast item, P12A.5's `jump.ts`
+bullet and three paragraphs of its review, and P12A.8's *Not done*. The guide
+is edited in place, as its user prose always is: *Cast* says what a waiting
+ruling looks like, *Session settings* that a draft survives a close, *The
+workbench* and *Keyboard* the lore selection and the hand-back, and
+*Backdrops* that the two controls work on a phone and say so.
+
+*Not done, and said*: **the lore panel's selection does not outlive a close** of
+the dock as the note and the block now do. It is seeded every time its own
+disclosure opens — the panel's docstring argues why — so it was never kept past
+its own fold either; Escape no longer drops it, and *Close*, the toggle and the
+chord still do. If T3 or T4 finds that matters, it is a third key in
+`kept.ts` and a change to that seeding rule.
+
+**Entry after: 321.89 kB, CSS 9.02** — **321.16 and 9.02 before**, at
+`2628b61d`, both measured here, gzip level 9 over the files `index.html` pulls,
+the budget test's method. **+0.73 kB**: the hand-back and its opener, the
+landing a press hands, `kept.ts` and the two editors' drafts, the lore panel's
+Escape, the cast item's named faces, its ruling and its live region, the
+entry's second sentence, and the phone's sentence. The stylesheet, compared
+rule by rule with the build before the change, gains `.sm\:hidden` and nothing
+else — `flex-wrap` and `basis-full` were emitted already. **3.11 kB is left**
+under the 325 ceiling, so no raise.
 
 ---
 

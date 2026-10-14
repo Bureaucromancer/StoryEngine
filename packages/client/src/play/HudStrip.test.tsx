@@ -2,7 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -491,7 +491,11 @@ describe('a mode’s placements in the strip', () => {
     });
 
     await userEvent.click(panels);
-    expect(within(strip).getByText(/^This can’t be changed from here/)).toBeTruthy();
+    // *(2026-10-14, P12A's final audit: the sentence for an entry sent with no
+    // edit, not the one that calls a string neither text nor a number.
+    // Mutation: the read-only branch always saying `readOnly`.)*
+    expect(within(strip).getByText('This can’t be changed from here.')).toBeTruthy();
+    expect(within(strip).queryByText(/and this is neither/)).toBeNull();
   });
 
   /**
@@ -608,6 +612,9 @@ describe('the strip’s items open in place', () => {
   /**
    * ***Who is here, at a glance***: the faces of the present, and how many of
    * the cast that is. Mutation: every row's face drawn, present or not.
+   * *(2026-10-14, P12A's final audit: and named, as an image whose name is
+   * who it draws, so a screen reader hears who is here as a sighted reader
+   * sees it. Mutation: the group put back to `aria-hidden`.)*
    */
   it('shows the faces of who is present, and how many of the cast that is', async () => {
     readSession.mockResolvedValue(
@@ -616,10 +623,67 @@ describe('the strip’s items open in place', () => {
     renderStrip();
     const strip = await theStrip();
 
-    const cast = await within(strip).findByRole('button', { name: 'Cast 1 of 2 here' });
-    // The faces are decoration on the item, whose count names them; the tile
-    // for Vera is drawn and Ned, who is elsewhere, has none.
-    expect(cast.querySelectorAll('[aria-hidden="true"] > *')).toHaveLength(1);
+    const cast = await within(strip).findByRole('button', { name: 'Cast Vera Kohl 1 of 2 here' });
+    // The tile for Vera is drawn and Ned, who is elsewhere, has none.
+    expect(within(cast).getByRole('img', { name: 'Vera Kohl' }).children).toHaveLength(1);
+  });
+
+  /**
+   * ***A death the engine refused is said on the strip*** (2026-10-14, P12A's
+   * final audit) — [06 §8.1]'s prominent surface, which the cast panel's
+   * `Alert` was until P12A.4 put the panel a press away. Said on the item, in
+   * the warning tone, and in a live region beside it, without a press; the
+   * ruling's two buttons are one press away. Mutation: the escalation removed
+   * — the item left as `strip.item` with the count alone.
+   */
+  it('says a ruling the narrator is waiting on without a press', async () => {
+    readSession.mockResolvedValue(sessionWith({ cast: [{ ...VERA, pending: 'dead' }] }));
+    renderStrip();
+    const strip = await theStrip();
+
+    const cast = await within(strip).findByRole('button', {
+      name: /^Cast Vera Kohl 1 of 1 here The narrator has Vera Kohl as dead\. Rule on it$/,
+    });
+    expect(cast.className.split(' ')).toContain('bg-warn-surface');
+    expect(within(strip).getByRole('status').textContent).toBe(
+      'The narrator has Vera Kohl as dead. Rule on it',
+    );
+
+    await userEvent.click(cast);
+    const panel = screen.getByRole('dialog', { name: 'Cast' });
+    expect(within(panel).getByRole('button', { name: 'Confirm' })).toBeTruthy();
+    expect(within(panel).getByRole('button', { name: 'Not so' })).toBeTruthy();
+  });
+
+  /**
+   * The first ruling named and the rest counted, in one sentence of its own —
+   * and with nobody pending the item is quiet and its live region mounted and
+   * empty, listening for the turn that brings one.
+   */
+  it('names the first ruling and counts the rest, and is quiet with none', async () => {
+    readSession.mockResolvedValue(
+      sessionWith({
+        cast: [
+          { ...VERA, pending: 'dead' },
+          { ...VERA, actorId: 'actor-ned', pending: 'dead' },
+        ],
+      }),
+    );
+    renderStrip();
+    let strip = await theStrip();
+    expect(
+      await within(strip).findByRole('button', {
+        name: /The narrator has Vera Kohl as dead, and 1 more\. Rule on them$/,
+      }),
+    ).toBeTruthy();
+    cleanup();
+
+    readSession.mockResolvedValue(sessionWith({ cast: [VERA] }));
+    renderStrip();
+    strip = await theStrip();
+    const cast = await within(strip).findByRole('button', { name: 'Cast Vera Kohl 1 of 1 here' });
+    expect(cast.className.split(' ')).not.toContain('bg-warn-surface');
+    expect(within(strip).getByRole('status').textContent).toBe('');
   });
 
   /**

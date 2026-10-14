@@ -20,6 +20,10 @@ const WORDS = labels('play.strip', {
   cast: 'Cast',
   here: '{here} of {all} here',
   nobody: 'nobody yet',
+  // A death the engine refused, waiting on a person — `CastItem` says why it
+  // is on the item (2026-10-14).
+  ruling: 'The narrator has {name} as {status}. Rule on it',
+  rulings: 'The narrator has {name} as {status}, and {more} more. Rule on them',
 });
 
 /** What the page may ask of the strip — see {@link HudStrip}. */
@@ -180,6 +184,38 @@ export function HudStrip(props: {
  * carries the rest. Drawn for exactly the sessions the panel is drawn for
  * (`castPanelShows`), so the item and the panel cannot disagree about whether
  * there is a cast.
+ *
+ * ***The faces are named for who they are*** (2026-10-14,
+ * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md)'s final audit),
+ * in the register of `PlayedAs`'s *named where nothing beside it names it*. A
+ * face is decorative when its name is beside it or on what holds it, and
+ * nothing on this item named who was present: the faces were `aria-hidden`, so
+ * a sighted reader saw at a glance who was in the scene and a screen reader
+ * heard *Cast, 1 of 2 here* — though identity is the one claim P12A.3's faces
+ * exist to make. So the group of faces is an image named by the people it
+ * draws, each face still hidden inside it. *The four drawn, not everyone
+ * present*: the count carries the rest, as it does for sight.
+ *
+ * ***A death the narrator proposed and the engine refused is said on the
+ * item*** (2026-10-14, P12A's final audit). [06 §8.1] and
+ * [10 §13.2](../../../../docs/design/10-ui-surfaces.md) owe a refused death a
+ * prominent surface — *"a false one silently removes someone from the
+ * story"* — and the cast panel's `Alert` was that surface while the panel
+ * stood open in the column. Since P12A.4 the panel is a press away, and the
+ * item said *3 of 3 here* exactly as before: nothing on Play said a ruling was
+ * waiting, the next turns were assembled with the character present while the
+ * prose had them dead, and *Confirm* and *Not so* were seen only by someone
+ * who happened to open the cast. So while a row is pending the item takes the
+ * strip's warning tone — `ChannelHealth`'s, and `GoalPanel`'s waiting
+ * completion outranking its statement is the same move — and says the first
+ * ruling on the line, with how many more; the rulings themselves stay in the
+ * panel, one press away. *"Cast" takes the warning's ink there*, not
+ * `strip.label`'s: `warn-ink` on `warn-surface` is a pair `contrast.test.ts`
+ * measures, `ink-subtle` on it is not. And the sentence is copied into a live
+ * region beside the item, mounted empty so it is listening when a finished
+ * turn brings the refusal — beside and not round the item, for
+ * `ChannelHealth`'s reason: round it, the panel would be read out on every
+ * open.
  */
 function CastItem(props: {
   sessionId: string;
@@ -196,49 +232,78 @@ function CastItem(props: {
 
   const here = rows.filter((row) => row.presence);
   const cards = actors.data?.objects ?? [];
+  // The name `CastPanel` gives a row: the card's, or the id when it has gone.
+  const nameOf = (actorId: string): string =>
+    cards.find((one) => one.id === actorId)?.name ?? actorId;
+  const drawn = here.slice(0, 4).map((row) => ({
+    row,
+    card: cards.find((one) => one.id === row.actorId),
+    name: nameOf(row.actorId),
+  }));
   const count =
     rows.length === 0
       ? WORDS.nobody
       : WORDS.here
           .replace('{here}', () => String(here.length))
           .replace('{all}', () => String(rows.length));
+  const pending = rows.filter((row) => row.pending !== null);
+  const ruling = pending[0];
+  const sentence =
+    ruling === undefined
+      ? null
+      : (pending.length === 1 ? WORDS.ruling : WORDS.rulings)
+          .replace('{name}', () => nameOf(ruling.actorId))
+          .replace('{status}', () => ruling.pending ?? '')
+          .replace('{more}', () => String(pending.length - 1));
 
   return (
-    <Popover
-      place="under"
-      label={WORDS.cast}
-      open={props.open}
-      onOpenChange={props.onOpenChange}
-      triggerClassName={strip.item}
-      trigger={
-        <>
-          <span className={strip.label}>{WORDS.cast}</span>{' '}
-          {here.length === 0 ? null : (
-            <span aria-hidden="true" className="flex gap-0.5">
-              {here.slice(0, 4).map((row) => {
-                const card = cards.find((one) => one.id === row.actorId);
-                return (
+    <div>
+      <span role="status" className="sr-only">
+        {sentence ?? ''}
+      </span>
+      <Popover
+        place="under"
+        label={WORDS.cast}
+        open={props.open}
+        onOpenChange={props.onOpenChange}
+        triggerClassName={sentence === null ? strip.item : strip.warn}
+        trigger={
+          <>
+            <span className={sentence === null ? strip.label : undefined}>{WORDS.cast}</span>{' '}
+            {drawn.length === 0 ? null : (
+              <span
+                role="img"
+                aria-label={drawn.map((one) => one.name).join(', ')}
+                className="flex gap-0.5"
+              >
+                {drawn.map((one) => (
                   <Portrait
-                    key={row.actorId}
-                    actorId={row.actorId}
-                    actor={card}
-                    name={card?.name ?? row.actorId}
+                    key={one.row.actorId}
+                    actorId={one.row.actorId}
+                    actor={one.card}
+                    name={one.name}
                     size="row"
                   />
-                );
-              })}
-            </span>
-          )}{' '}
-          <span>{count}</span>
-        </>
-      }
-    >
-      <CastPanel
-        sessionId={props.sessionId}
-        locale={props.locale}
-        busy={props.busy}
-        onSpeak={props.onSpeak}
-      />
-    </Popover>
+                ))}
+              </span>
+            )}{' '}
+            <span>{count}</span>
+            {sentence === null ? null : (
+              <>
+                {' '}
+                <strong>{sentence}</strong>
+              </>
+            )}
+          </>
+        }
+      >
+        <CastPanel
+          sessionId={props.sessionId}
+          locale={props.locale}
+          busy={props.busy}
+          onSpeak={props.onSpeak}
+        />
+      </Popover>
+    </div>
   );
 }

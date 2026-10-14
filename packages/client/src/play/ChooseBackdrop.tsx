@@ -50,6 +50,18 @@ import { WriteFailed } from './WriteFailed.js';
  * *Only for a mode that stages a backdrop*: the page draws this beside *Set
  * the scene*, under the same condition — `renditions.backdrop` on the session
  * read, absent for a mode with no such switch.
+ *
+ * ***On a phone it says there is no backdrop there*** (2026-10-14,
+ * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md)'s final audit).
+ * The layer is `max-sm:hidden` — [10 §2.3]'s *on a phone it is the first thing
+ * to go* — so below `sm` a pick closed the dialog, added two rows to the
+ * transcript and changed nothing on the screen, and *Set the scene* ran a
+ * generation whose picture never appeared. **The controls stay**, because a
+ * pick is a channel write that holds on every screen the session is opened
+ * on, and hiding them would take a real action away from the phone; what the
+ * phone is given is a sentence, beside the controls and again under the
+ * dialog's lead, saying that what is set here shows on a wider screen.
+ * `sm:hidden`, so a desk never reads it.
  */
 const WORDS = labels('play.backdrop', {
   open: 'Choose a backdrop…',
@@ -75,6 +87,9 @@ const WORDS = labels('play.backdrop', {
     'Nothing this session uses has a picture yet. Add one in the library to a lorebook this session uses — under the book’s Pictures, or on one of its entries — and it is offered here from then on. Pictures already on its treatment, setup, characters or Worlds, from an import, are offered too.',
   chooseFailed: 'That backdrop could not be chosen.',
   close: 'Close',
+  // 2026-10-14, P12A's final audit: said below `sm`, where the layer is never
+  // drawn, beside the two controls and in the dialog — the docstring says why.
+  phone: 'There is no backdrop on a phone-sized screen. What is set here shows on a wider one.',
 });
 
 /** The heading a group of pictures goes under, by whose pictures they are. */
@@ -140,6 +155,9 @@ export function ChooseBackdrop(props: { sessionId: string; busy: boolean }): JSX
       >
         {WORDS.open}
       </Button>
+      {/* On its own line in the page's wrapping row, under both controls,
+          since it is as true of *Set the scene* as of this. */}
+      <Note className="basis-full sm:hidden">{WORDS.phone}</Note>
       {open ? (
         <BackdropDialog
           sessionId={props.sessionId}
@@ -179,6 +197,8 @@ function BackdropDialog(props: { sessionId: string; onClose: () => void }): JSX.
         {WORDS.title}
       </SubsectionTitle>
       <Note>{WORDS.lead}</Note>
+      {/* So that *Showing now* is not read as a claim about this screen. */}
+      <Note className="sm:hidden">{WORDS.phone}</Note>
       <div className="flex flex-wrap items-center gap-2">
         <Button
           type="button"

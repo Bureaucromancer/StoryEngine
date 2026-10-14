@@ -89,6 +89,15 @@ const COVERED = 'max-sm:hidden';
  * dock is open, the exact opposite of §3's *left open while you work*. Tab
  * passes straight through; `dock.test.tsx` pins the inverse of the trap's
  * behaviour so the next person reaching for the hook meets a red test.
+ * *(2026-10-14, [P12A](../../../../docs/design/workplan/35-p12a-the-look.md)'s
+ * final audit: **and non-modal is not abandoning the keyboard.** Since
+ * P12A.5* Session settings *and the context
+ * meter jump into the dock, and closing it unmounts whatever held the
+ * keyboard, which then fell to `<body>` and began again at the shell's top. A
+ * close with the keyboard inside — Escape, Close, the header's* Workbench *or
+ * the chord — now hands it back to the control outside that sent it in, or
+ * to `<main>` when nothing did: `Shell.tsx` and `jump.ts`'s `takeSentFrom`.
+ * A dialog's trap holds the keyboard; this only returns it.)*
  *
  * **Escape is an element-scoped handler, not a document listener**, and the
  * scoping *is* the plan's "only when focus is inside it" guard: a keydown
@@ -110,8 +119,19 @@ const COVERED = 'max-sm:hidden';
  * dismiss an input method's candidates, or out of habit, closed the dock and
  * threw the draft away. So an Escape whose target is somewhere text is typed
  * (`isTextEntry`, in `editable.ts`) is the text's, and one something inside
- * already answered with `preventDefault` is that thing's; a check box, a radio
- * or a select keep no draft, and Escape on one still closes the dock.)*
+ * already answered with `preventDefault` is that thing's; ~~a check box, a radio
+ * or a select keep no draft, and Escape on one still closes the dock.~~)*
+ * *(2026-10-14, [P12A](../../../../docs/design/workplan/35-p12a-the-look.md)'s
+ * final audit: a check box, a radio or a select **usually** keep no draft —
+ * they write as they are changed — and Escape on one still closes the dock.
+ * `LorePanel`'s do keep one, behind* Save selection*, and that panel answers
+ * Escape itself while its selection is unsaved, which this handler reads as
+ * answered. And Escape was one of four ways to close the dock with a draft in
+ * it — Close, the header's* Workbench *and the chord are the others, and on a
+ * phone closing is the only way back to the story — so the two drafts the
+ * Session section holds behind a Save, the author's note and the pack's block,
+ * are kept outside the dock's lifetime (`play/kept.ts`) and are there again
+ * when it reopens.)*
  *
  * **The subject follows the route, not a stored selection.** §3 says the
  * panel is a reader with no state of its own; deriving the subject from the

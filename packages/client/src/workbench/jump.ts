@@ -52,6 +52,14 @@ export const DOCK_SECTIONS = {
  * a control on the page that is now a screen away. The target is
  * `tabIndex={-1}` — focusable and out of the tab order — so the ring shows
  * only for a keyboard jump.
+ * *(2026-10-14, [P12A](../../../../docs/design/workplan/35-p12a-the-look.md)'s
+ * final audit: **and the keyboard sent in is handed back on close.** A jump
+ * moves it a screen away from the control that sent it, and closing the dock
+ * unmounts whatever held it, so it fell to `<body>` and the next Tab began
+ * again at the shell's* Skip to the page*. `useOpenDockAt` records the control
+ * the press came from ({@link takeSentFrom}), and the shell gives it the
+ * keyboard back when the dock closes with the keyboard inside — `<main>` when
+ * nothing outside sent it in.)*
  */
 export function jumpInDock(anchor: string, frames = 60): void {
   const target =
@@ -86,10 +94,55 @@ export function useOpenDockAt(): (anchor?: string) => void {
   return useCallback(
     (anchor?: string) => {
       if (!open) patch(workbenchOpenPatch(true));
-      if (anchor !== undefined) jumpInDock(anchor);
+      if (anchor !== undefined) {
+        // The control the keyboard is leaving for the dock, when it is outside
+        // the dock: a jump chip inside it moves the keyboard within the dock,
+        // and has nothing to hand back to.
+        const at = document.activeElement;
+        sentFrom =
+          at instanceof HTMLElement &&
+          at !== document.body &&
+          document.getElementById('workbench')?.contains(at) !== true
+            ? at
+            : null;
+        jumpInDock(anchor);
+      }
     },
     [open, patch],
   );
+}
+
+/**
+ * ***The control outside the dock whose press last sent the keyboard into
+ * it*** (2026-10-14, [P12A](../../../../docs/design/workplan/35-p12a-the-look.md)'s
+ * final audit) — Play's *Session settings*, or the context meter.
+ *
+ * P12A.5 made those two presses jumps: each puts the keyboard in a section of
+ * the dock, a screen from where it was. The dock is not modal, so nothing
+ * returns it — and closing unmounts the dock, so a keyboard still inside was
+ * dropped on `<body>`, and the next Tab began again at the top of the shell,
+ * far from the composer and from the button that was pressed. `Popover` holds
+ * the opposite rule for its own trigger (*a close that strands the keyboard
+ * hands it to the trigger*), and this is that rule for the dock: the shell
+ * hands the keyboard back here when the dock closes with it inside.
+ *
+ * *Module state*, as `landing` below is, and for the same reason: what it
+ * outlives is the dock, and the opener and the closer are different
+ * components. *Only presses that jump*: an arrival at `?block=` goes through
+ * no anchor and starts inside the dock, and a dock entered by Tab or by the
+ * chord was sent by nobody, so the shell falls back to `<main>`.
+ */
+let sentFrom: HTMLElement | null = null;
+
+/**
+ * The opener recorded above, once — every close takes it, whether it hands the
+ * keyboard back or not, so a later close cannot answer an earlier press — and
+ * only while it is still in the document.
+ */
+export function takeSentFrom(): HTMLElement | null {
+  const from = sentFrom;
+  sentFrom = null;
+  return from?.isConnected === true ? from : null;
 }
 
 /**
@@ -119,7 +172,14 @@ export function useOpenDockAt(): (anchor?: string) => void {
  * (`landing`, below), and the editor takes it when it is drawn — still the
  * moment certain to come after the dock, the read and the pack. A dock closed
  * and reopened over the same address is the same arrival, and starts at its
- * top.)*
+ * top.)* *(2026-10-14, [P12A](../../../../docs/design/workplan/35-p12a-the-look.md)'s
+ * final audit: **and a press of* Edit in the pack *is an arrival too**, even
+ * when the address already names its block. The router hears no change then,
+ * so nothing was handed and nothing moved, while the editor sat a screen above
+ * the block table in the same scroller — the press looked dead. The link calls
+ * {@link landAgain}, which hands the landing and tells an editor already drawn;
+ * only the press does, so the turn picker's navigations and a reopen still do
+ * not land.)*
  *
  * ***It waits for the preference to be read*** (2026-10-14, after review). An
  * opener called before the read answers takes *unknown* for *shut*: its patch
@@ -176,4 +236,41 @@ export function landOnce(block: string): boolean {
   if (landing !== block) return false;
   landing = undefined;
   return true;
+}
+
+/**
+ * ***The editors drawn now, told when a press asks them to land again***
+ * (2026-10-14, [P12A](../../../../docs/design/workplan/35-p12a-the-look.md)'s
+ * final audit).
+ *
+ * Before P12A.5 the editor stood in the play column beside the dock, so a
+ * second press of *Edit in the pack* for the block already in the address
+ * found it where it was, in view. Since then both ends of the link share the
+ * dock's one scroller — the editor in Session, the block table in the record a
+ * screen below — and the second press, an address identical to the one already
+ * there, changed nothing the router could hear: no landing was handed, and the
+ * editor, mounted once for the first, never asked again. So the press says it
+ * here, and an editor that is drawn listens.
+ */
+const landers = new Set<() => void>();
+
+/**
+ * A press of *Edit in the pack* for `block`: an arrival even when the address
+ * already names the block. It hands the landing, as an arrival through the
+ * address does, and tells every editor drawn to ask for it — the one keyed by
+ * that block takes it, and any other declines. When the press names a
+ * different block, the router's layout effect hands the same landing a moment
+ * later and the editor drawn for it takes it on mount, so the two paths agree.
+ */
+export function landAgain(block: string): void {
+  landing = block;
+  for (const land of [...landers]) land();
+}
+
+/** An editor's subscription to {@link landAgain}; the returned function ends it. */
+export function onLandAgain(land: () => void): () => void {
+  landers.add(land);
+  return () => {
+    landers.delete(land);
+  };
 }

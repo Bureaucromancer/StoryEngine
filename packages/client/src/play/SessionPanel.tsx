@@ -29,7 +29,8 @@ import { Button } from '../ui/Button.js';
 import { NumberField, SelectField } from '../ui/Field.js';
 import { Field } from '../ui/Field.js';
 import { Fine, Note } from '../ui/Text.js';
-import { landOnce } from '../workbench/jump.js';
+import { landOnce, onLandAgain } from '../workbench/jump.js';
+import { keep, kept, letGo } from './kept.js';
 import { MemorySection } from './MemoryPanel.js';
 import { RenditionSection } from './Rendition.js';
 
@@ -174,6 +175,7 @@ export function SessionPanel(props: {
             // live — and saving it wrote the first block's prose over the
             // second's, in the session's only copy of its pack.
             key={props.block}
+            sessionId={props.sessionId}
             pack={pack}
             blockId={props.block}
             onSave={(next, saved) => {
@@ -659,7 +661,24 @@ function ParamField(props: {
   );
 }
 
+/**
+ * ***One block of the session's pack, edited*** — [P7B.4]'s *Edit in the
+ * pack*, held locally until *Save this block*.
+ *
+ * ***The draft outlives the dock*** (2026-10-14,
+ * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md)'s final audit).
+ * Since P12A.5 this editor is in the workbench's Session section, which is
+ * unmounted when the dock closes — by *Close*, the header's *Workbench* or the
+ * chord as much as by Escape, and on a phone closing is the only way back to
+ * the story — so what was typed and not saved went with it, and reopening
+ * showed the pack's text. It is kept in `kept.ts` under the session and the
+ * block, comes back when the editor is drawn again, and is let go once the
+ * pack holding it is written. *The landing is not kept*: a reopen still starts
+ * at the top of Session, and the draft is simply there when the editor is
+ * reached.
+ */
 function BlockEditor(props: {
+  sessionId: string;
   pack: Record<string, unknown>;
   blockId: string;
   /** The pack with this block changed, and what to do once it is written. */
@@ -670,7 +689,11 @@ function BlockEditor(props: {
     : [];
   const block = blocks.find((one) => one['id'] === props.blockId);
   const template = typeof block?.['template'] === 'string' ? block['template'] : null;
-  const [draft, setDraft] = useState<string | null>(null);
+  const key = `block:${props.sessionId}:${props.blockId}`;
+  const [draft, setDraft] = useState<string | null>(() => {
+    const was = kept(key);
+    return typeof was === 'string' ? was : null;
+  });
   const held = useRef<HTMLDivElement | null>(null);
 
   /**
@@ -700,11 +723,25 @@ function BlockEditor(props: {
    * The arrival that opened the dock hands over one landing (`landOnce`, in
    * `workbench/jump.ts`), and a reopen over the same address has none. Mount
    * is still when it is taken, for the reason above.)*
+   *
+   * *(2026-10-14, [P12A](../../../../docs/design/workplan/35-p12a-the-look.md)'s
+   * final audit: **and again when* Edit in the pack *is pressed for this block
+   * while it is drawn.** The address is then the one already there, so the
+   * router hears nothing and the editor is not mounted afresh, and the press —
+   * the editor a screen above the block table in the same scroller — moved
+   * nothing. The link says it through `landAgain`, and the editor listens for
+   * as long as it is drawn (`onLandAgain`); the landing is the same one, taken
+   * the same way, so a reopen still starts at the top of Session. Under
+   * StrictMode the first run takes the landing and the second only listens.)*
    */
   useEffect(() => {
-    if (!landOnce(props.blockId)) return;
-    held.current?.scrollIntoView({ block: 'start' });
-    held.current?.querySelector('textarea')?.focus({ preventScroll: true });
+    function land(): void {
+      if (!landOnce(props.blockId)) return;
+      held.current?.scrollIntoView({ block: 'start' });
+      held.current?.querySelector('textarea')?.focus({ preventScroll: true });
+    }
+    land();
+    return onLandAgain(land);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once per mount: the editor is keyed by its block
   }, []);
 
@@ -731,7 +768,10 @@ function BlockEditor(props: {
       <Field
         label={`Block: ${props.blockId}`}
         value={value}
-        onChange={setDraft}
+        onChange={(next) => {
+          setDraft(next);
+          keep(key, next);
+        }}
         multiline
         rows={5}
         hint="Changes the next turn, not the ones already taken. Reroll to see the difference."
@@ -754,6 +794,7 @@ function BlockEditor(props: {
               },
               () => {
                 setDraft(null);
+                letGo(key);
               },
             );
           }}
