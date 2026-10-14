@@ -100,11 +100,11 @@ service refused this one.*
 the page. The story's column is drawn over it on a pale veil (dark in the dark theme),
 so the story's text stays clearly readable whatever the picture. The faintest small
 print on the page — figures and hints around the story, and the placeholder in an empty
-box — is harder to read over a bright picture; the session settings, with most of the
-page's small print, are in the workbench, away from the picture. With no backdrop the page is
-exactly as it is without the feature. A new backdrop fades in over the old one — or
-simply appears, if your system is set to reduce motion. On a phone-sized window there
-is no backdrop at all.
+box — is harder to read over a dark picture in the light theme; the session settings,
+with most of the page's small print, are in the workbench, away from the picture. With no
+backdrop the page is exactly as it is without the feature. A new backdrop fades in over
+the old one — or simply appears, if your system is set to reduce motion. On a
+phone-sized window there is no backdrop at all.
 
 A backdrop comes from one of two places: the story stages one (**Stage a backdrop**,
 below), or you choose one (**Choose a backdrop…**, further down).

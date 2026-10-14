@@ -1087,10 +1087,40 @@ describe("the story's measure", () => {
  * strings, and the class lists of the two files that draw the strip and its
  * entries. A mode's panel text, in `ModeRegion`, is not the strip's and is not
  * read.
+ *
+ * *(2026-10-14, P12A's final audit: the veil is 86% now, set by the
+ * keyboard's ring and `warn-ink` rather than by `ink-subtle`, which is 5.24 to
+ * 1 on it and `ink-faint` 3.30 — `index.css` says why. **And the last
+ * sentence above stopped being true at P12A.5**, which draws a `panel`
+ * region's readings in the strip: a panel's `text` placed there is a
+ * `HudEntry`, which this reads, and the stack's `text` arm, whose label is
+ * `ink-faint`, is never in the strip. What was in the strip and not read was
+ * a `meter`'s label, `ink-faint` in `RecordCard`'s `Meter` until this audit;
+ * it is handed `strip.label` at run time, which no scan of class lists can
+ * see, so `ModeRegion.test.tsx` holds it. `ModeRegion.tsx` and
+ * `RecordCard.tsx` are not added here: each spells `ink-faint` rightly, on a
+ * card or in a stack, and would fail this for the wrong reason.)*
  */
 describe('the HUD strip', () => {
   const ROOT = fileURLToPath(new URL('.', import.meta.url));
   const FAINT = 'text-ink-faint';
+
+  /**
+   * ***The ground comes with the keyboard as with the pointer*** (2026-10-14,
+   * P12A's final audit). `strip`'s docstring has said since P12A.4 that a
+   * pointer over an item, the keyboard on it or its panel open gives it a
+   * ground, and the recipe gave it to the first and the third: a focused item
+   * had a ring and nothing else, and on the veil over a dark picture that
+   * ring was the only mark of where the keyboard was. Read token by token, so
+   * the three states are held to the one ground and the one ink.
+   */
+  it('gives an item its ground under the keyboard, as under the pointer and while open', () => {
+    const item = stripItem.item.split(/\s+/);
+    for (const state of ['hover', 'focus-visible', 'aria-expanded']) {
+      expect(item, state).toContain(`${state}:bg-surface-muted`);
+      expect(item, state).toContain(`${state}:text-ink`);
+    }
+  });
 
   it('spends no ink fainter than ink-subtle, in its recipe or where it is drawn', () => {
     for (const [name, classes] of Object.entries(stripItem)) {

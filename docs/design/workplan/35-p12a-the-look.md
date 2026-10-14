@@ -337,7 +337,10 @@ decision is the lead's, and the stage that carries it says so in its record in
   is computed for **`ink-subtle`**, not only `ink`, because the player's line is
   set in it — about 0.81 opacity in both themes by the audit's arithmetic — and
   `contrast.test.ts` learns to composite a `color-mix()` token over the worst
-  pixel.
+  pixel. *(2026-10-14, [the final audit](#the-final-audit-2026-10-14):
+  `ink-subtle` was not the highest floor. The keyboard's ring and the column's
+  `warn-ink` failure lines stand on the veil too, and need 0.8375 and 0.8224 in
+  light, so the veil is 86% — see that record.)*
 
 **P12A.3 — faces.**
 
@@ -663,7 +666,8 @@ there, and 50% in both dark blocks. **A motion set**: `--transition-duration-res
 (150ms, the default `reveal` spends) and `--transition-duration-arrive` (300ms),
 `--ease-arrive` (Tailwind's `ease-out`) and `--ease-swap` (its `ease-in-out`,
 the default curve). **The backdrop's scrim**, `--color-veil`, each theme's canvas
-step at 82%. After the dark theme, **one** `@media (prefers-reduced-motion: reduce)`
+step at 82% *(2026-10-14, [the final audit](#the-final-audit-2026-10-14):
+86% — the next bullet's note says why)*. After the dark theme, **one** `@media (prefers-reduced-motion: reduce)`
 block zeroes both durations and `--default-transition-duration`. The 21 raw
 `rounded-md`s moved onto the token their element is — twelve panels (the history
 section, the actor editor's two kinds of fieldset, the two kinds of revision
@@ -698,7 +702,17 @@ overlays spend `shadow-overlay`. 10 §1.2 has a dated note.
   0.800 and 0.804, to its 0.001 step), `ink-muted` 0.6846 and 0.6556, `ink`
   0.5115 and 0.5614; `ink-faint` needs 0.9945 in light, so it can never sit on
   the veil. **82%** in both themes leaves `ink-subtle` at 4.745 and 4.786 over
-  its worst pixel.
+  its worst pixel. *(2026-10-14, [the final audit](#the-final-audit-2026-10-14):
+  the bisection was run for the inks a turn is set in, and the veil carries two
+  more things. The
+  column's failure lines are set on it bare in `warn-ink`, which needs
+  **0.8224** in light — at 82% a failed turn's note was 4.47 to 1 over black —
+  and a refusal in `danger-ink` (0.6944); and the keyboard's ring, `focus`, a
+  mark held to 3 to 1, needs **0.8375** in light, where 82% left it at 2.87.
+  Dark's are all lower, the ring's 0.7423. The ring's is the higher floor, so
+  by this bullet's own rule the veil is two points over it, rounded up:
+  **86%** in both themes, where `ink-subtle` is 5.240 and 5.505, `warn-ink`
+  4.941 and the ring 3.171 over their worst pixels.)*
 - *Found by building it, and not in any plan*: the veil was first written
   `color-mix(in oklab, var(--color-canvas) 82%, transparent)`, so that it could
   not drift from the canvas. The build writes a plain fallback beside every
@@ -1165,7 +1179,13 @@ backdrop*.
   review: the HUD strip is the part of the column that does not leave with
   P12A.5 — it is what stays over the picture — and its labels and its* not set
   *were set in `ink-faint`. They are `ink-subtle` now; see that stage's* After
-  review.)*
+  review.)* *(2026-10-14, [the final audit](#the-final-audit-2026-10-14): and
+  the column is set in more than `ink`'s three steps over the picture. Its
+  failure lines are `warn-ink`,
+  4.47 to 1 over a black pixel at the veil's first 82%, and the keyboard's
+  ring, 2.87 to a mark's 3, is drawn straight onto the veil; both are measured
+  now, and the veil is 86%. `ink-faint` is where this bullet left it, about 3.3
+  to 1, and in light it falls short over a **dark** picture, not a bright one.)*
 - *"Choose-an-image … an uploaded image, or one already in the library"* (§1.2)
   is **chosen from what the session uses**, §0.4's narrowing: an upload goes
   into a library object first, through the galleries that exist. So
@@ -1963,7 +1983,16 @@ site. A mode's group heading in the strip and a record's or a picture's item
 follow through `strip.label`; a panel's `text` widget (`ModeRegion`'s other
 arm) is not in the strip, takes no hover ground, and is left. `strip`'s
 docstring keeps its *a label in the faintest ink* with a dated note after it,
-and `label`'s own docstring says why.
+and `label`'s own docstring says why. *(2026-10-14,
+[the final audit](#the-final-audit-2026-10-14): a bar drawn in the strip — a `meter` placed in the `hud` region, or in the `panel`
+region since P12A.5 — fell through to the stack's arm and kept `Meter`'s
+`ink-faint` label; it takes `strip.label` now, through a `meter` arm of the
+strip's own. And since P12A.5 a panel's `text` *is* in the strip, drawn as a
+`HudEntry` in `strip.label` and `strip.unset`; the stack's `text` arm, the one
+this sentence leaves, is never there. The veil the 4.745 was measured on is
+86% now, where `ink-subtle` is 5.24. And an item took its ground while hovered
+or open but not while focused, whatever this paragraph's second sentence says;
+it does now.)*
 
 **A docstring claimed a pair the contrast test did not measure.** `strip`
 justified wearing `Alert`'s warning tone at rest on a story surface by *"whose
@@ -3320,6 +3349,7 @@ confirmation — so a press on either card, where it lay over the page, went to
 the page. That half is older than this phase; [P12A.2](#p12a2--the-backdrop-becomes-a-backdrop)'s
 veil is what made it seen, since the veil is `<main>`'s own background: with a
 picture staged, a band of 82% canvas the column's width lay across the card.
+*(86% since the appearance record below.)*
 
 **The scrim is `z-40`.** That is over every `z-10` — the popover in both its
 places and its phone sheet, `TokenField`'s list, the field assist, and the
@@ -3365,6 +3395,104 @@ nothing else, compared rule by rule with a build made before the change: the
 build reads test files for class names, and the new test spells no layer that
 nothing spends — its comments name them as numbers, and its mutations were
 made in the components and undone.
+
+**Appearance: a veil worked out for a turn's inks, under a column that sets
+more than turns on it.** Four findings, three of them one cause.
+[P12A.0](#p12a0--the-tokens-every-other-stage-spends) bisected the veil's floor
+for `ink`, `ink-muted` and `ink-subtle`, and the column draws two more things
+on it. **Its failure lines** stand bare on the veil, with no box of their own:
+a turn that did not finish, a stream that stopped, an impersonation, a picture
+or a memory that would not save, and *No model is set up* are `warn-ink`
+(`FailedTurnNote`, `StreamStatus`, `Impersonate`, `NoModelYet`, `Pictures`,
+`RememberThis`), and a refusal is `danger-ink`, `AlertNote`'s default. In the
+light theme at 82%, `warn-ink` was **4.47 to 1** over a black pixel — the line
+saying a turn failed was the one line under the floor the veil exists to hold —
+and no row measured it. **The keyboard's ring**, `focus`, is drawn straight
+onto the veil round a strip item, a mention and a quiet button, and was **2.87
+to 1** there in light, under the 3 to 1 (WCAG 1.4.11) `GRAPHICS` holds it to
+on every surface. Two findings proposed two remedies for the first: the veil at
+85%, two points over `warn-ink`'s floor of 82.24%, and light's `warn-ink`
+moved from `amber-800` to `amber-900` with the veil left alone. **Neither is
+taken as proposed**, because the ring's floor, **83.75%**, is the higher one:
+at 85% it would clear by 1.25 points, under the two that `index.css`'s rule
+asks against the browser rounding a composite to eight bits, and a darker
+`warn-ink` leaves the ring where it was and changes every warning in the app.
+So **the veil is 86% in all three blocks**, two points over the ring's floor
+and rounded up, one value for both themes as before — dark's floors are all
+lower, its ring's at 74.2%. There `ink-subtle` is **5.24** and **5.51** over
+its worst pixel, `warn-ink` **4.94**, `danger-ink` **6.97** and the ring
+**3.17**; the price is that 14% of a picture shows through where 18% did.
+`warn-ink` did not move, so P12A.4's **6.88** for it on `warn-surface` stands.
+`ink-faint` is left as P12A.2 decided — about 3.3 to 1 on the veil now — and
+in light it is a **dark** picture that it falls short over, not a bright one,
+which the guide's *Backdrops* said the other way round and is corrected in
+place, as its user prose always is.
+
+**A bar in the strip kept the faintest ink.** P12A.4's review moved every label
+in the strip to `strip.label`, but a `meter` placed in the `hud` region — or,
+since P12A.5, in the `panel` region, whose readings the strip draws — had no
+arm of the strip's own and fell through to the stack's, which draws
+`RecordCard`'s `Meter` with its label in `ink-faint`: about 3 to 1 on the veil
+over a dark picture, in light, where `strip.label`'s docstring said the strip
+now clears its floor. No built-in mode declares one; the SDK offers it. `Meter`
+takes an optional label class now, defaulting to `ink-faint` so a card's rows,
+which stand on the popover's surface, are unchanged; `stripWidgetFor` gains a
+`meter` arm that hands it `strip.label`. `theme.test.ts`'s scan of the strip
+cannot see a class handed down at run time, and `ModeRegion.tsx` and
+`RecordCard.tsx` both spell `ink-faint` rightly elsewhere, so the check is in
+`ModeRegion.test.tsx` rather than the scan.
+
+**A focused item had no ground.** `strip`'s docstring has said since P12A.4
+that the pointer, the keyboard or an open panel gives an item `surface-muted`,
+and the recipe gave it to the pointer and the panel only; over a dark picture
+the ring was then the one mark of where the keyboard was. `strip.item` takes the
+ground and `ink` under `focus-visible` as well.
+
+*Dated notes, none a rewrite*: `index.css`'s veil note and the dark block's
+line, `strip` and `strip.label` in `ui/classes.ts`, `Backdrop.tsx`'s *still
+P12A.0's* sentence, `theme.test.ts`'s strip describe — whose *a mode's panel
+text … is not read* stopped being true at P12A.5, when a panel's `text` in the
+strip became a `HudEntry`, which it reads — and `contrast.test.ts`'s
+*over a picture*; [10 §2.3](../10-ui-surfaces.md)'s *the prose wins*;
+[manual testing](05-manual-testing.md)'s note to T1's walker, which sent them
+to the bright picture; and in this document §0.4's *about 0.81*, P12A.0's
+two statements of 82%, P12A.2's `ink-faint` bullet, P12A.4's review paragraph
+on the strip's labels, and the band of 82% canvas in the record above. *Not
+done, and said*: a `text` a mode placed in the `message` region would be drawn
+beside a turn, on the veil, by the stack's arm with its label in `ink-faint` —
+no built-in mode places one, and it is P12A.2's fine-print finding rather than
+a new one, so it is left with `ink-faint` itself.
+
+*Tests, each checked against a mutation and restored.* In `ui/contrast.test.ts`,
+*over a picture* gains `warn-ink` and `danger-ink`, and a new *draws the
+keyboard's ring at 3 to 1 over any picture* holds `focus` on the veil over both
+pixels, outside the span as the inks are. The veil set back to 82% fails both
+(*warn-ink on veil over black (light)* at 4.473, *focus …* at 2.871); at 83% the
+ring alone fails, at 2.944; 84% and 85% pass, since the two points are the
+note's rule and not the test's. Light's `danger-ink` pointed at `red-600` fails
+its row at 3.30, and one dark block's `focus` at `indigo-600` fails the ring
+over white at 2.25 (with the surface row and the blocks' agreement). In
+`play/ModeRegion.test.tsx`, the new *labels a bar drawn in the strip in the
+strip's ink, not the faintest* draws a `panel` reading in the line and a `hud`
+placement, and fails with the arm's `labelClassName` dropped and with `Meter`
+ignoring it (*expected [ 'text-ink-faint' ] to include 'text-ink-subtle'*). In
+`theme.test.ts`'s strip describe, the new *gives an item its ground under the
+keyboard, as under the pointer and while open* fails with the `focus-visible`
+pair taken off `strip.item`. The touched tests and their neighbours — the play
+column's, the strip's, the shell's, `ui/`'s and `i18n/`'s, thirty-one files,
+and the workbench's and the assistant's, where the Session section draws the
+`panel` region's switches — pass after the build, as do the `docs` and
+`release` projects. *Not looked at in a browser* — none is installed where
+this was built — so the ring and a failure line over the dark half of a picture
+are T1's to see, which 05's note now asks for; no step of §3 is edited for it.
+
+**Entry after: 321.16 kB, CSS 9.02** — **321.12 and 8.99 before**, at
+`08d634a2`, gzip level 9 over the files `index.html` pulls, the budget test's
+method. JavaScript is **+0.04**: the strip's `meter` arm and `Meter`'s prop.
+The stylesheet, compared rule by rule with the build before the change, gains
+the two `focus-visible` rules and changes the veil's six declarations — a mix
+and a fallback in each of three blocks, the fallback's alpha now `db` where it
+was `d1` — and nothing else.
 
 ---
 

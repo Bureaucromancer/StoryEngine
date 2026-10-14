@@ -1304,6 +1304,16 @@ scrollbar, at the window's edge. The mouse wheel and **Page Down** over the
 picture beside the column scroll the page, and the place you were reading at
 stays put when a picture arrives or **No backdrop** is chosen.)*
 
+*(2026-10-14, [P12A](35-p12a-the-look.md)'s final audit — for T1's walker, and
+not an edit to the row: in the light theme the column's fine print falls short
+over a **dark** picture, not a bright one — a pale veil over black is what
+brings the ground nearest a grey ink — so look at it over the darkest part of
+the picture as well as the busiest. And the veil is 86% now, not 82%: a failed
+turn's *This turn did not finish*, the other failure lines and the keyboard's
+ring stand on it too, and at 82% they fell under their floors over a dark
+picture, so a failure line and the ring round a strip item, over the dark part
+of the picture, are worth a look while T1 is walked.)*
+
 *(2026-10-13, [P12A](35-p12a-the-look.md) P12A.3 — for T2's walker, and not an
 edit to the row: what a face is and where it leads, as built. T0's actor with no
 portrait has a drawn tile — two initials, a colour — wherever a face is drawn,

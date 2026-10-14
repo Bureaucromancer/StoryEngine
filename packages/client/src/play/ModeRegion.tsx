@@ -335,6 +335,8 @@ function headingOf(
  * ([10 §8.0](../../../../docs/design/10-ui-surfaces.md)), so it is drawn by the
  * same `HudEntry` and edited the same way, from the edit the server sends with
  * it. An arm this build does not know is skipped, as in every region.
+ * *(2026-10-14, P12A's final audit: a bar is drawn as anywhere but for its
+ * label, which takes the strip's ink — the `meter` arm below says why.)*
  */
 function stripWidgetFor(
   surface: ModeSurface,
@@ -353,6 +355,30 @@ function stripWidgetFor(
             ...(surface.edit === undefined ? {} : { edit: surface.edit }),
             ...(surface.value === undefined ? {} : { value: surface.value }),
           }}
+        />
+      );
+
+    /**
+     * ***A bar, drawn in the line with the strip's label*** (2026-10-14,
+     * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md)'s final
+     * audit). It fell through to the stack's arm below until then, which drew
+     * the same bar with `Meter`'s own label in `ink-faint` — the ink P12A.4's
+     * review took out of every other label in the strip, because the strip
+     * stands on the veil when a backdrop is staged and `ink-faint` there is
+     * about 3 to 1 in the light theme. The bar's label is the strip's label
+     * and stands on the veil like the rest, so it spends `strip.label`; the
+     * figures beside it are `ink-muted`, which clears the veil already.
+     * `ModeRegion.test.tsx` holds it, since the label's ink is handed down at
+     * run time and `theme.test.ts`'s scan of the strip's files cannot read it.
+     */
+    case 'meter':
+      return surface.meter === undefined ? null : (
+        <Meter
+          label={surface.label}
+          value={surface.meter.value}
+          min={surface.meter.min}
+          max={surface.meter.max}
+          labelClassName={strip.label}
         />
       );
 

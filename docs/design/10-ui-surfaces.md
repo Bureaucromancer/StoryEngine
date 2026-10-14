@@ -773,11 +773,20 @@ is not. What each sentence above became:
 
 - **The prose wins.** The picture is a layer behind the window — `fixed`, drawn
   into the document's body so no box the page owns can capture it — and the
-  reading column is drawn over it on the **veil**, each theme's canvas at 82%
+  reading column is drawn over it on the **veil**, each theme's canvas at ~~82%~~
   ([P12A](workplan/35-p12a-the-look.md) P12A.0's token). `contrast.test.ts`
   holds `ink`, `ink-muted` and `ink-subtle` (the player's line) to 4.5:1 over
   the veil composited over black and over white, which is every picture there
-  is. ~~While a picture is behind it the column scrolls itself, so nothing in it
+  is. *(2026-10-14, [P12A](workplan/35-p12a-the-look.md)'s final audit: at
+  **86%**. The column is not set in a turn's inks alone: a failed turn, a
+  stopped stream and the column's other failure lines stand bare on the veil
+  in `warn-ink`, a refusal in `danger-ink`, and the keyboard's ring is drawn
+  straight onto it. At 82% light's `warn-ink` was 4.47:1 over a black pixel
+  and the ring 2.87:1, under WCAG 1.4.11's 3:1 for a mark; the ring's floor,
+  83.75%, is the higher one now, and the veil is two points over it, rounded
+  up. The test holds both inks to 4.5:1 and the ring to 3:1 over both pixels
+  as well.)*
+  ~~While a picture is behind it the column scrolls itself, so nothing in it
   runs past the veil on a short window.~~ *(2026-10-13, after review: the
   column does not scroll itself — as a second scroller it made two
   scrollbars, slid off its own veil and threw the reader's place away whenever

@@ -257,12 +257,46 @@ const GRAPHICS: [mark: string, on: string[]][] = [
  * `ink-subtle` is here because it is the quietest ink a turn is set in — the
  * player's own line — and it is what the veil's opacity was worked out for.
  * `ink-faint` is not, and cannot be: in light it needs the veil at 99.5%.
+ *
+ * ***And the column's failure lines*** (2026-10-14, [P12A]'s final audit).
+ * A turn is not all the column sets on the veil: when something goes wrong it
+ * says so bare on it, with no box of its own — in `warn-ink` for a turn that
+ * did not finish, a stream that stopped, an impersonation that failed, a
+ * picture or a memory that would not save, and the sentence that no model is
+ * set up (`FailedTurnNote`, `StreamStatus`, `Impersonate`, `NoModelYet`,
+ * `Pictures`, `RememberThis`), and in `danger-ink` for a refusal, which is
+ * `AlertNote`'s default tone. Neither was measured here, and light's
+ * `warn-ink` was 4.47 to 1 over a black pixel at the veil's first 82% — the
+ * line saying a turn failed was the one line under the floor the veil exists
+ * to hold. Both are rows now, held as the prose is, to 4.5 over every picture,
+ * and the veil is 86% since — set by the ring below rather than by
+ * `ink-subtle`, which the paragraph above names as what it was worked out for.
  */
 const OVER_A_PICTURE: [ink: string, veil: string][] = [
   ['ink', 'veil'],
   ['ink-muted', 'veil'],
   ['ink-subtle', 'veil'],
+  ['warn-ink', 'veil'],
+  ['danger-ink', 'veil'],
 ];
+
+/**
+ * ***The keyboard's ring over a picture*** (2026-10-14, [P12A]'s final audit)
+ * — WCAG 1.4.11's 3 to 1, which `GRAPHICS` holds the ring to on every
+ * surface, and which nothing held it to on the veil.
+ *
+ * On Play's column the ring is drawn straight onto the veil: round a strip
+ * item, a mention in the story, a quiet button, each of which is the column's
+ * ground at rest and has an outline with no offset ground of its own. In the
+ * light theme the ring was 2.87 to 1 there over a black pixel at 82%, so a
+ * keyboard user tabbing through the strip over a dark picture lost the mark
+ * that says where they are; it needs the veil at 83.75%, which made it the
+ * floor `index.css`'s note now derives the veil from. *Two pixels are enough
+ * for the inks' reason*: the ring is darker than the whole span in light and
+ * lighter than it in dark, so the nearer end is the worst case, and the test
+ * asks that it is outside the span as the inks' does.
+ */
+const MARKS_OVER_A_PICTURE: [mark: string, veil: string][] = [['focus', 'veil']];
 const WORST_PIXELS: [name: string, pixel: Rgb][] = [
   ['black', { r: 0, g: 0, b: 0 }],
   ['white', { r: 1, g: 1, b: 1 }],
@@ -352,6 +386,24 @@ describe('the palette is legible', () => {
           const measured = ratio(colour, over(block, veil, pixel));
           expect(measured, `${ink} on ${veil} over ${name} (${theme})`).toBeGreaterThanOrEqual(
             FLOOR,
+          );
+        }
+      }
+    }
+  });
+
+  it('draws the keyboard’s ring at 3 to 1 over any picture, in both themes', () => {
+    for (const [theme, block] of themes) {
+      for (const [mark, veil] of MARKS_OVER_A_PICTURE) {
+        const colour = resolve(block, mark);
+        const [darkest, lightest] = WORST_PIXELS.map(([, pixel]) => over(block, veil, pixel));
+        const [low, high] = [relativeLuminance(darkest!), relativeLuminance(lightest!)];
+        const inside = relativeLuminance(colour) > low && relativeLuminance(colour) < high;
+        expect(inside, `${mark} matches some picture under the ${veil} (${theme})`).toBe(false);
+        for (const [name, pixel] of WORST_PIXELS) {
+          const measured = ratio(colour, over(block, veil, pixel));
+          expect(measured, `${mark} on ${veil} over ${name} (${theme})`).toBeGreaterThanOrEqual(
+            GRAPHIC_FLOOR,
           );
         }
       }

@@ -461,6 +461,60 @@ describe('a record, a meter and a group', () => {
   });
 
   /**
+   * ***A bar in the strip is labelled in the strip's ink*** (2026-10-14,
+   * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md)'s final
+   * audit). The strip stands on the backdrop's veil, where `ink-faint` is
+   * about 3 to 1 in the light theme, so P12A.4's review set every label in it
+   * in `ink-subtle` — and a `meter` drawn in the line fell through to the
+   * stack's arm and kept `Meter`'s own `ink-faint`. Both ways a bar reaches
+   * the line are read: a `panel` reading, drawn there since P12A.5, and a
+   * `hud` placement. *Here and not in `theme.test.ts`'s scan of the strip*,
+   * because the ink is handed to `Meter` at run time and both files spell
+   * `ink-faint` rightly elsewhere — on a card's rows, which stand on the
+   * popover's surface. Mutation: the `labelClassName` dropped, and both
+   * labels are `ink-faint` again.
+   */
+  it('labels a bar drawn in the strip in the strip’s ink, not the faintest', () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const bar = (region: string, key: string, label: string): Record<string, unknown> =>
+      surface({
+        region,
+        key,
+        channelId: key,
+        kind: 'meter',
+        label,
+        image: undefined,
+        meter: { value: 7, min: 0, max: 10 },
+      });
+    render(
+      <QueryClientProvider client={client}>
+        <ModeRegion
+          sessionId={SESSION_ID}
+          surfaces={[bar('panel', 'x.health', 'Health')] as unknown as ModeSurface[]}
+          region="panel"
+          drawn="line"
+        />
+        <ModeRegion
+          sessionId={SESSION_ID}
+          surfaces={[bar('hud', 'x.nerve', 'Nerve')] as unknown as ModeSurface[]}
+          region="hud"
+        />
+      </QueryClientProvider>,
+    );
+
+    // Drawn in the line, as a bar — not opened in place like a card.
+    expect(screen.getAllByRole('meter').map((one) => one.getAttribute('aria-label'))).toEqual([
+      'Health',
+      'Nerve',
+    ]);
+    for (const label of ['Health', 'Nerve']) {
+      const classes = screen.getByText(label).className.split(/\s+/);
+      expect(classes, label).toContain('text-ink-subtle');
+      expect(classes, label).not.toContain('text-ink-faint');
+    }
+  });
+
+  /**
    * ***A row lock is shown and cleared*** (2026-09-29, the review) — the grain
    * the step writes back and the Marinara import writes, and a path the card
    * cannot place is listed with a way to clear it rather than held invisibly.

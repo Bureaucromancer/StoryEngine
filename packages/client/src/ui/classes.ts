@@ -362,9 +362,20 @@ export const press =
  * health item, an entry, a mode's picture or record, the cast, the goal and
  * the hooks are drawn in six files — so that the strip is one register and not
  * six spellings of it.
+ *
+ * *(2026-10-14, P12A's final audit: **the keyboard on it gives it a ground
+ * now**, as the second paragraph has said since P12A.4 and the class list did
+ * not — an item took the pointer's ground and the open panel's, and only a
+ * ring for the keyboard. The ring is drawn outside the item, on the column's
+ * ground, so a focused item standing on the veil over a dark picture had a
+ * ring of 2.87 to 1 in light and nothing else to say *this is the one you
+ * are on*; the veil's raise to 86% brings the ring to 3.17, and the ground
+ * says it inside the ring as well. It is the pointer's ground, `surface-muted`,
+ * on which contrast.test.ts measures the item's `ink` and its label's
+ * `ink-subtle`.)*
  */
 export const strip = {
-  item: 'flex cursor-pointer items-center gap-1 rounded-control px-1.5 py-0.5 text-start text-ink-muted hover:bg-surface-muted hover:text-ink focus-visible:outline-2 focus-visible:outline-focus aria-expanded:bg-surface-muted aria-expanded:text-ink',
+  item: 'flex cursor-pointer items-center gap-1 rounded-control px-1.5 py-0.5 text-start text-ink-muted hover:bg-surface-muted hover:text-ink focus-visible:bg-surface-muted focus-visible:text-ink focus-visible:outline-2 focus-visible:outline-focus aria-expanded:bg-surface-muted aria-expanded:text-ink',
   warn: 'flex cursor-pointer items-center gap-1 rounded-control border border-warn-line bg-warn-surface px-1.5 py-0.5 text-start text-warn-ink focus-visible:outline-2 focus-visible:outline-focus',
   /**
    * The faint word before an item's value — *Time*, *Place*, *Cast*.
@@ -382,6 +393,17 @@ export const strip = {
    * 1 there. contrast.test.ts measures `ink-subtle` on `surface-muted` for
    * this, and on the veil already; theme.test.ts refuses `ink-faint` in the
    * strip.
+   *
+   * *(2026-10-14, P12A's final audit: **86% now** — `index.css`'s note on the
+   * veil says why: the keyboard's ring and `warn-ink` needed more than
+   * `ink-subtle` did — and `ink-subtle` is 5.24 to 1 there, `ink-faint` 3.30.
+   * **And theme.test.ts refuses `ink-faint` in less than all of the strip**:
+   * in this recipe and in the class lists of `HudStrip.tsx` and
+   * `HudEntry.tsx`, which is not every file that draws in the line. A
+   * `meter` placed in the strip is drawn by `ModeRegion` through
+   * `RecordCard`'s `Meter`, and kept `Meter`'s own `ink-faint` label until
+   * this audit — it is handed this recipe now, at run time, where a scan of
+   * class lists cannot see it, so `ModeRegion.test.tsx` holds it instead.)*
    */
   label: 'text-ink-subtle',
   /**

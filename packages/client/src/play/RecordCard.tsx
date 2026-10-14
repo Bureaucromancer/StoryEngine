@@ -612,13 +612,28 @@ export function Meter(props: {
   value: number;
   min: number;
   max: number;
+  /**
+   * ***The label's ink, where the bar stands on something other than a
+   * card*** (2026-10-14, [P12A](../../../../docs/design/workplan/35-p12a-the-look.md)'s
+   * final audit).
+   *
+   * A card's `meters` rows and a bar in a panel's stack sit on a surface, and
+   * `ink-faint` clears its floor there, so that stays the default and none of
+   * them changes. **A bar drawn in the HUD strip does not**: the strip is the
+   * part of Play's column that stays over a backdrop, on the veil, where
+   * `ink-faint` is about 3 to 1 in the light theme — the reason P12A.4's
+   * review moved every other label in the strip to `strip.label`. The bar's
+   * label is the strip's label, so `ModeRegion` hands that recipe down here
+   * rather than this file learning where it is drawn.
+   */
+  labelClassName?: string;
 }): JSX.Element | null {
   if (!Number.isFinite(props.value) || !Number.isFinite(props.max) || props.max <= props.min) {
     return null;
   }
   return (
     <span className="flex items-center gap-2 text-sm">
-      <span className="text-ink-faint">{props.label}</span>
+      <span className={props.labelClassName ?? 'text-ink-faint'}>{props.label}</span>
       <meter
         className="h-2 min-w-16 flex-1"
         min={props.min}

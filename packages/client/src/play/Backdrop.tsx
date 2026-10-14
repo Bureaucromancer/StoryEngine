@@ -155,8 +155,11 @@ export function stagePicture(surfaces: readonly ModeSurface[] | undefined): stri
  * the strip is under the column on every screenful and the column scrolls
  * over it; nothing else moves when it comes and goes, and `<main>`'s
  * `scrollTop` survives every arrival, failure and switch-off. The veil is
- * still P12A.0's — `--color-veil`, each theme's canvas at 82% — and is now
- * painted only from `sm` up, where the layer is drawn.
+ * still P12A.0's — `--color-veil`, each theme's canvas at ~~82%~~ — and is now
+ * painted only from `sm` up, where the layer is drawn. *(2026-10-14, P12A's
+ * final audit: at 86% — the keyboard's ring and the column's `warn-ink`
+ * failure lines needed more than the turn's inks did, and `index.css` says
+ * how much.)*
  *
  * *An attribute rather than a class*, because it says a state of the page
  * rather than how anything looks, and because Tailwind would read an unknown

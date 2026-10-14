@@ -54,8 +54,9 @@
      always*, and this is the number that makes that a property of the token
      rather than of whichever picture is staged.
 
-     **82%, from a floor worked out rather than chosen.** A picture can put
-     any pixel under the prose, so the floor is computed against the worst
+     **~~82%~~ *86%, by the dated note below*, from a floor worked out
+     rather than chosen.** A picture can put any pixel under the prose, so
+     the floor is computed against the worst
      one: black under the light theme's dark ink, white under the dark
      theme's light ink. The quietest ink a turn is set in is `ink-subtle` —
      the player's own line — and it clears 4.5 to 1 over a black pixel from
@@ -66,6 +67,28 @@
      this token over both pixels in every theme and holds `ink`, `ink-muted`
      and `ink-subtle` to 4.5. **`ink-faint` cannot be set on it**: in light it
      needs 99.5%, which is no longer a veil.
+
+     *(2026-10-14, [P12A](../../../docs/design/workplan/35-p12a-the-look.md)'s
+     final audit: **the floor was worked out for the inks a turn is set in,
+     and the column draws more than turns on the veil.** Its failure lines
+     stand bare on it in `warn-ink` — a turn that did not finish, a stream
+     that stopped, an impersonation that failed, a picture or a memory that
+     would not save, the sentence that no model is set up — and a refusal in
+     `danger-ink`, `AlertNote`'s default; and the keyboard's ring, `focus`,
+     is drawn straight onto it round a strip item, a mention and a quiet
+     button, a mark held to 3 to 1 (WCAG 1.4.11) everywhere else in the app.
+     At 82% light's `warn-ink` was 4.47 to 1 over a black pixel, needing
+     82.24%, and its ring 2.87, needing **83.75%** — the higher floor now,
+     every dark one being lower (dark's ring needs 74.2%). So the veil is two
+     points over it by the rule above, rounded up, in both themes: `ink-subtle`
+     is 5.24 and 5.51 there, `warn-ink` 4.94, `danger-ink` 6.97 and the ring
+     3.17. `contrast.test.ts` holds the two inks to 4.5 and the ring to 3 over
+     both pixels now. *Raised rather than re-inked*: light's `warn-ink` moved
+     a step darker would have cleared its own floor at 82%, but the ring
+     needed the veil raised anyway, and one token moved is not every warning
+     in the app changing colour. The price is that 14% of the picture shows
+     through where 18% did. `ink-faint` is where it was: about 3.3 to 1
+     here, still tooling rather than prose.)*
 
      **The canvas's colour**, because what the prose sits on with no picture
      behind it is the canvas, and the veil has to be the same colour or the
@@ -83,7 +106,7 @@
      **Named for its role, not `scrim`.** The overlay above is the modal's
      scrim, and two tokens called by one word would leave the next reader to
      choose between them by comment. */
-  --color-veil: color-mix(in oklab, var(--color-slate-50) 82%, transparent);
+  --color-veil: color-mix(in oklab, var(--color-slate-50) 86%, transparent);
 
   /* The colour of every shadow, and the only part of one a theme can reach —
      the elevation steps below say why. Tailwind's own `#0000001a`, spelled as
@@ -486,7 +509,7 @@ summary > :is(h1, h2, h3, h4, h5, h6) {
     --color-surface-sunken: var(--color-slate-950);
     --color-surface-muted: var(--color-slate-800);
     --color-overlay: color-mix(in oklab, var(--color-black) 65%, transparent);
-    --color-veil: color-mix(in oklab, var(--color-slate-950) 82%, transparent);
+    --color-veil: color-mix(in oklab, var(--color-slate-950) 86%, transparent);
     --color-shadow: color-mix(in oklab, var(--color-black) 50%, transparent);
     --color-ink: var(--color-slate-50);
     --color-ink-muted: var(--color-slate-300);
@@ -560,9 +583,14 @@ summary > :is(h1, h2, h3, h4, h5, h6) {
      contrast to work with, so 45% would leave the modal barely separated. */
   --color-overlay: color-mix(in oklab, var(--color-black) 65%, transparent);
 
-  /* The veil as in light: the same 82%, of this theme's canvas step, worked
-     against a white pixel rather than a black one (2026-10-13). */
-  --color-veil: color-mix(in oklab, var(--color-slate-950) 82%, transparent);
+  /* The veil as in light: the same ~~82%~~, of this theme's canvas step, worked
+     against a white pixel rather than a black one (2026-10-13).
+     *(2026-10-14, P12A's final audit: the same 86% — light's ring and
+     `warn-ink` set the floor now, and the light block's note says how. Every
+     floor this theme has is lower — its highest is still `ink-subtle`'s
+     80.3%, and its ring needs 74.2% — and it moves with light's so that one
+     value still serves both.)* */
+  --color-veil: color-mix(in oklab, var(--color-slate-950) 86%, transparent);
 
   /* Five times the light shadow, for the overlay's reason: the canvas is
      already most of the way to black, so a shadow over it has little left to
