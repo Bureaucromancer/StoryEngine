@@ -2762,7 +2762,9 @@ explicit case rather than an empty one.
 
 `health` is the channels that are quarantined and why ([06 §4.2]); `hud` is the
 channels declaring a `surface`, already rendered through their own `render`
-template; `cast` is one row per person this story is about — presence, status,
+template *(2026-10-13, [P12A](design/workplan/35-p12a-the-look.md) P12A.4: a
+string value is sent as itself, since `render` is how a value reads to a
+model; anything else is still rendered — see the note below)*; `cast` is one row per person this story is about — presence, status,
 an unanswered terminal proposal, whether they have been introduced, and who
 authors them if they are travelling with you
 ([06 §8](design/06-modes-and-turn-pipeline.md) for the last,
@@ -2772,6 +2774,27 @@ session's roster and everyone the channels name, which is the same set the
 prompt is assembled around. All three are reconstructed at the
 session's head, so they are the state a panel should be showing rather than a
 summary of the file.
+
+***A `hud` entry says how it is edited*** (2026-10-13,
+[P12A](design/workplan/35-p12a-the-look.md) P12A.4). Each entry is
+`{ key, channelId, scopeKey, kind, label, text, edit, value? }`. `edit` is
+derived from the schema the channel declares — the one its writes are judged
+against — so a client can offer a control without knowing the channel:
+`{ kind: 'text', nullable }` for a string, `{ kind: 'number', integer, nullable,
+min, max }` for a number (`min` and `max` the schema's `minimum` and `maximum`,
+`null` where it gives none), and **`null` for anything else** — an object, an
+`enum`, a `const` or a union — which the strip says it cannot change. `value`
+is the raw value the edit starts from, **sent only beside an edit**: the
+rendered `text` is not the value (a clock's is a sentence its template wrote),
+and a readout still carries a label and a string and nothing more. *An entry
+with an edit is sent even with nothing to show* — `text` empty and `value`
+`null` — because *not set* is the state a person corrects; a readout with
+nothing to show is still left out. The write is `PUT …/channels/:key` below,
+with the value the person typed. A `text` a mode places in the `hud` region of
+`surfaces` carries the same two fields, by the same rule, and a `text` in any
+other region carries neither. A client from before this sends neither and reads
+nothing from them, and one that meets an `edit.kind` it does not know reads it
+as `null`.
 
 `chat` is how the session plays as a chat
 ([P14 §1.2](design/workplan/31-p14-scene-and-session-import.md), added at

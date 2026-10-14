@@ -14,6 +14,8 @@ import {
   channelDefinition,
   channelKey,
   channelSurfaces,
+  editableValue,
+  hudEdit,
   initialValue,
   keyBelongsTo,
   registerChannel,
@@ -21,6 +23,7 @@ import {
   splitChannelKey,
   stateEnabled,
   type ChannelSurface,
+  type HudEdit,
 } from './sessions/channels.js';
 import type { ChannelState } from './sessions/types.js';
 import type { TurnPlan } from './turns/steps.js';
@@ -482,6 +485,21 @@ export interface ModeSurface {
   label: string;
   /** `text`: the rendered value. */
   text?: string;
+  /**
+   * ***A `text` placed in the `hud` region: how it is edited, and the value it
+   * starts from*** (2026-10-13,
+   * [P12A](../../../docs/design/workplan/35-p12a-the-look.md) P12A.4).
+   *
+   * [10 §8.0] defines a channel's own `surface` as *exactly* `{ region: 'hud',
+   * channelId: <itself>, widget: <that spec> }` — *"the shorthand for the
+   * common case, not a rival mechanism"*. So a mode's `text` placed in the
+   * strip is the same strip entry, and is edited the way the shorthand's is:
+   * the same `hudEdit` over the same schema, with the value beside it only
+   * where there is an edit. Elsewhere — a panel's line of text — nothing is
+   * typed into, and neither field is sent.
+   */
+  edit?: HudEdit | null;
+  value?: string | number | null;
   /** `image`: where the picture is, and what it is of. */
   image?: { url: string; alt: string };
   /** `toggle`: what the switch is currently on. */
@@ -597,9 +615,32 @@ export function modeSurfaces(
         : held.length === 0
           ? [definition.id]
           : held;
+    // A strip entry is edited as a channel's own surface is (`edit` above).
+    const edit =
+      contribution.region === 'hud' && contribution.widget.kind === 'text'
+        ? hudEdit(definition.schema)
+        : undefined;
     for (const key of [...keys].sort()) {
       const value = channels[key]?.value ?? initialValue(definition.id);
-      const rendered = renderSurface(contribution.widget, value, sessionId, channels);
+      const shown = renderSurface(contribution.widget, value, sessionId, channels);
+      /**
+       * ***An entry that can be filled in is shown empty*** (2026-10-13,
+       * P12A.4), for `channelSurfaces`' reason: *not set* is the state a person
+       * corrects, so a strip entry with an edit stands with no text where any
+       * other widget with nothing to show is left out.
+       */
+      const rendered =
+        edit === undefined
+          ? shown
+          : edit === null
+            ? shown === null
+              ? null
+              : { ...shown, edit }
+            : {
+                text: shown?.text ?? (typeof value === 'number' ? String(value) : ''),
+                edit,
+                value: editableValue(value),
+              };
       // Nothing to show is not shown — the same answer `omitWhenEmpty` gives a
       // preset slot, and the one [10 §2.3] insists on for a backdrop: *"with
       // the backdrop off Play is the surface it was before, not a surface with

@@ -57,6 +57,12 @@ const YOU_PLAY = 'cast-you-play';
  * Hands *You play* the keyboard, which scrolls it into view: the face on a
  * player's line, pressed. A no-op when the panel is not drawn, which
  * {@link castPanelShows} lets the page know before it offers the press.
+ *
+ * *(2026-10-13, [P12A](../../../../docs/design/workplan/35-p12a-the-look.md)
+ * P12A.4: the panel is drawn inside the HUD strip's cast item, hidden while
+ * the item is shut, and a hidden control takes no focus — so the face asks the
+ * strip, `HudStrip`'s `whoYouPlay`, which opens the item and then calls this.
+ * Called alone with the item shut, it moves nothing.)*
  */
 export function focusWhoYouPlay(): void {
   document.getElementById(YOU_PLAY)?.focus();

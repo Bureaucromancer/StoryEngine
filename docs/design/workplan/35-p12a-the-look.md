@@ -1745,6 +1745,195 @@ focus leaves it, as a press outside does, so a widget here that holds a value
 not yet written has to commit it on blur, as `TokenField` does, or Tabbing out
 of the popover drops what was typed.)*
 
+***Built 2026-10-13***, under [§0.4](#04-what-the-audit-of-2026-10-13-found-and-what-each-finding-decides)'s
+decisions for this stage, which were binding on it. **§1.4's audit answered
+first, and §0.4 had already written the answer**: the channel route is complete
+and appends a person's effect to the record, so the stage is presentation plus
+two fields on what the server sends — no new route and no new kind of record
+entry. Seven things, one of them on the server.
+
+- **A HUD entry carries its value and how it is edited.** `ChannelSurface`
+  (`sessions/channels.ts`) gains `edit` and, beside an edit and only there,
+  `value`. `hudEdit` derives the edit from the schema the channel declares —
+  the one its writes are judged against — so a string is `{ kind: 'text',
+  nullable }`, a number `{ kind: 'number', integer, nullable, min, max }` from
+  the schema's `minimum` and `maximum`, and anything else `null`: an object, an
+  `enum`, a `const`, a union. `editableValue` sends a string or a number as it
+  stands and `null` for a value a quarantine left in the wrong shape. **An entry
+  with an edit stands even with nothing in it**, where a readout with nothing
+  to say is still left out. A mode's `text` placed in the `hud` region carries
+  the same two fields by the same rule (`modeSurfaces`), since
+  [10 §8.0](../10-ui-surfaces.md) defines a channel's `surface` as exactly that
+  placement; a `text` in any other region carries neither. The client's
+  `ChannelSurface` and `ModeSurface` spell the fields optional, so an entry from
+  an older server reads as not editable here. [The API reference](../../api.md)
+  and [P7](23-p7-implementation.md) have dated notes.
+- **The entry, `play/HudEntry.tsx`**, knows no channel: a strip item showing
+  the label and the value, opening in place to a line of text or a number box
+  from the edit, or to the sentence *This can't be changed from here* when there
+  is none. The write is `useWriteChannel` — `PUT …/channels/:key`, a turn with
+  a person's effect. **What was typed is committed on every close but
+  Escape** — Save, Enter, Tab away, a press outside, the trigger again — which
+  is the sentence [P12A.3](#p12a3--faces)'s review left this stage; Escape drops
+  it and hands the keyboard back. A number is held to the whole-number rule and
+  its bounds at the box, in the entry's words, before anything is sent; the form
+  is `noValidate` so a browser's own bubble does not say it first. A refusal —
+  a `200` with the effect unapplied — is said by its class, *Place was not
+  changed. That doesn't fit what Place holds.*, in the panel and, once it has
+  closed, in the strip after the entry, so a write that did not land never
+  looks as though it did.
+- **The strip, `play/HudStrip.tsx`**: a region named *The story now*, one
+  wrapping line, **directly over the transcript**, holding in order a channel
+  that could not be loaded, the channels' entries and a mode's placements, the
+  cast, the goal and the hooks. Each opens in place. It is hidden while the
+  session loads rather than left out — see below.
+- **The four story-now panels moved into it, reused.** `GoalPanel` and
+  `HookPanel` were `<details>`; each is a strip item now whose trigger is the
+  line its summary showed — *Working toward: …*, *Plot hooks — 1 of 2
+  eligible* — and whose panel is what the disclosure held, unchanged.
+  `ChannelHealth`'s banner is the strip's first item, in `Alert`'s warning
+  tone, its headline and *Your story is unaffected.* said on the item without
+  a press, its rows and their two recoveries opened in place. `CastPanel` is
+  unchanged and opens from the strip's **Cast** item, which shows the faces of
+  who is present — four at most — and *n of m here*, drawn for exactly the
+  sessions the panel is (`castPanelShows`). The face on the player's line opens
+  the item and hands *You play* the keyboard through `HudStripHandle`.
+- **`ui/Popover` grew what the strip needed**: a second placement, `under` —
+  flow content, drawn under the strip at its full width whichever item opened
+  it, scrolling past 70% of the screen's height — that is **hidden while shut
+  rather than unmade**; a controlled form, `open` with `onOpenChange` told which
+  of the four ways a close came; and **a stranded keyboard handed back**: a
+  close the holder made, or the trigger, that leaves focus inside the hidden
+  panel or nowhere gives it to the trigger. A press outside and focus leaving
+  still leave it where it went.
+- **`ModeRegion` draws the `hud` region**, which the session route has promised
+  since [P7](23-p7-implementation.md) and nothing drew: a `text` is a
+  `HudEntry`, a `record` or an `image` opens in place under its label, a switch
+  and a bar are drawn in the line, all bare, a group's heading inline and
+  faint.
+- **One spelling of a strip item**, `strip` in `ui/classes.ts`: a line of muted
+  text at rest that takes a ground on hover, on the keyboard and while its panel
+  is open, and a warning variant for the health item.
+
+**What the stage text said and what turned out different:**
+
+- *"Audit first"* — the audit is §0.4's, and its split answer decided the size:
+  *if the route is complete, the stage is presentation*. It was, and it is.
+- *"Each writing through a real state effect that lands on the record"* — true
+  of every HUD entry, and of the panels' channel writes (presence, status, a
+  goal's offers, a hook's Commit), which are what they were. **Four of the
+  panels' controls were never channel writes and still are not**: *Add to the
+  cast* and *You play* are `PUT /cast`, *Set an objective* is a goal written to
+  the session file, adding a hook is the pool's, and *Save this to…* writes the
+  library. Reused, not rewritten; none of them is a fact a HUD shows.
+- *§1.3's proposal*, which moved the hooks to the workbench — **10 §10.1 won**,
+  §0.4's decision: the hooks are the strip's item. The configuration panels are
+  left in the column above the strip, [P12A.5](#p12a5--the-column-that-grew-seven-disclosures)'s
+  to move; the strip sits where it will be once they have gone, which leaves
+  the two dials a line from the pacing dial in the hook panel rather than beside
+  it until then (`PlayPage.tsx` says so).
+- *Decided inside the stage*: **a string is shown as itself.** The entry's text
+  was the prompt's sentence, so Scene's place read *Place — Where this is
+  happening: the harbour*, and a box typed into would have shown a different
+  string from the one typed. `render` is how a value reads to a model; the clock,
+  an object, still reads through it as *Day 3, 09:05*. 10 §1.3's note says so.
+- *Decided inside the stage*: **an entry with an edit stands empty**, *Place
+  not set*, where it was left out — the strip would otherwise be read-only
+  exactly when the place is unknown. Every Scene session shows *Place* from
+  now on.
+- *Decided inside the stage*: **a strip item's panel is hidden while shut, not
+  unmade.** Unmade, the add-a-hook form dropped its half-typed title on a press
+  outside, *You play* forgot a choice not yet pressed, and every open mounted
+  the panel's own read of the session against a stale cache — a refetch per
+  open. Hidden, it is the `<details>` it replaced. The mention's card is still
+  unmade, since a transcript holds one per mark.
+- *Decided inside the stage*: **a close does not send again what was just
+  refused**, and nothing is sent while a write is out. Committing on every close
+  would otherwise record one refusal per close, and a Save followed by a quick
+  Tab would write the same value twice.
+- *Found by an existing test*: drawn only once the session had arrived, the
+  strip's items mounted their reads against a stale cache and fetched the
+  session a second time on every load — `PlayPage.test.tsx`'s *does not keep
+  refetching afterwards* counted three reads. The strip is drawn from the first
+  render and hidden while there is nothing in it.
+- *[06 §4.2](../06-modes-and-turn-pipeline.md)'s persistent banner* is an item
+  of the strip rather than a box over the column, and keeps what that section
+  asks of it: there from the load for as long as anything is degraded, not a
+  modal, and both of its sentences said without a press. Its rows — which
+  channel, why, and the two recoveries — are behind the press. 06 is not edited:
+  none of its sentences stopped being true.
+- *Not done, and said*: the strip can change **a line of text or a number and
+  nothing else**. Scene's clock is `{ day, hour, minute }` and opens to the
+  sentence saying it is not changed here; a `choice` arm for an `enum` is
+  [10 §8.0](../10-ui-surfaces.md)'s obvious next one and is not built. *Not
+  looked at in a browser* — none is installed where this was built — so the
+  line's wrapping and where its panel lands over the story are T2's and T3's to
+  look at.
+- *Tests that held the old answer*: `channels.test.ts`'s *renders a declared
+  widget from the declaration* expected no `edit` and nothing else surfaced, and
+  now says the clock has `edit: null` and Scene's unset place stands beside it.
+  `GoalPanel.test.tsx`, `HookPanel.test.tsx` and `ChannelHealth.test.tsx` opened
+  a `<details>` by attribute or found a banner's rows unopened; each presses the
+  strip item now, through its helper, and finds every control by role and name
+  as before — the goal's summary test reads the item's line where it read the
+  `<summary>`. Two `PlayPage.test.tsx` tests found *You play* and *Set an
+  objective* in the column, and press the **Cast** and goal items first. No
+  assertion was deleted.
+
+**Tests, each checked against a mutation and restored.** In
+`sessions/channels.test.ts`'s new *a strip entry says how it is changed*: *gives
+a string a line of text, its value, and its own words* fails with the edit taken
+from a fixed schema rather than the channel's, with the value left off, and with
+the string rendered through its template; *stands an editable entry with nothing
+in it* fails with the old skip of an empty text; *gives a number its bounds and
+its value* fails with `integer` read as `number`, with the maximum dropped, and
+with the value sent as its rendered text; *offers nothing for an object, a
+vocabulary or a union* fails with the vocabulary check removed. In
+`mode-registry.test.ts`: *gives a text placed in the strip its edit and value,
+and a panel's neither* fails with the edit offered in every region, with the
+value left off, with an empty entry skipped, and with a number left unshown. In
+the new `play/HudStrip.test.tsx`: *writes Place through the channel, and then
+shows the new place* fails with the panel left open after a Save and with the
+popover's hand-back of a stranded keyboard removed; *writes what was typed when
+the keyboard leaves it* fails with a close dropping the draft; *drops what was
+typed on Escape, and gives the keyboard back* fails with Escape committing, with
+Escape keeping the draft, and with the refocus removed both ways; *says a
+refusal in its own words, in the panel and after it has closed* fails with
+`applied` not read, with the strip's note removed, and with a close re-sending
+the refused words; *holds a number to its bounds at the box* fails with the
+bound check removed, with the whole-number check removed, and with the number
+sent as its string; *opens an entry it cannot change to a sentence* fails with a
+text box offered whatever the edit; *shows an unset place as not set, and
+clears a place to nothing* fails with an empty box sent as `""`; *draws a text a
+mode placed in the strip* fails with the region undrawn and with the text drawn
+as a panel's read-only line; *opens a picture placed in the strip under its
+label* fails with the picture drawn in the line; *opens the cast, the goal, the
+hooks and the health to their controls* fails with the cast item drawn without
+its panel, with the health item's rows left out, and with the refocus on Escape
+removed both ways; *shows the faces of who is present* fails with every row's
+face drawn; *keeps what was typed into a panel when it closes* fails with the
+panel unmade on close. In `PlayPage.test.tsx`: the new *stands directly over the
+transcript, holding what the column held* fails with the strip drawn back at
+the column's top and with the cast panel drawn open in the column; *does not
+keep refetching afterwards* fails with the strip drawn only once the session has
+arrived; *draws the face its record names, and opens who you play from it* and
+the chat page's *opens who you play from the face* fail with the face not
+opening the cast item. **Two mutations survived and are equivalent**: removing
+Escape's own refocus, because the stranded keyboard's hand-back gives the
+trigger the keyboard on that close too, and the reverse — so both are removed
+together above; and dropping `HudStrip`'s focus on *You play* after it opens the
+cast item, because the popover hands the keyboard to the first control inside,
+which is *You play* today. `i18n/catalogue.test.ts` exempts the `strip` table, a
+table of classes.
+
+**Entry after: 317.70 kB, CSS 8.42** — **315.57 and 8.39 before**, at
+`91f146a6`, both measured here — gzip level 9 over the files `index.html`
+pulls, the budget test's method. **+2.13 kB**: the strip and its cast item, the
+entry with its parse and its words, the popover's second placement and its
+holder, and the `hud` region's arms. **Under the 320 ceiling, with 2.30 kB
+left** for [P12A.5](#p12a5--the-column-that-grew-seven-disclosures) onward, so
+no raise; CSS gained the strip's few new classes.
+
 ### P12A.5 — The column that grew seven disclosures
 
 §1.3's move, and the largest stage in the phase. Play becomes the HUD strip, the

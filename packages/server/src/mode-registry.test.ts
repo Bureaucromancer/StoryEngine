@@ -492,6 +492,85 @@ describe('a mode’s contributed surfaces', () => {
   });
 
   /**
+   * ***A text placed in the strip is the strip's entry, edited the same way***
+   * (2026-10-13, [P12A](../../../docs/design/workplan/35-p12a-the-look.md)
+   * P12A.4). [10 §8.0] defines a channel's own `surface` as exactly a `hud`
+   * placement of itself, so a mode's `text` placed there carries what the
+   * channel's own entry carries — the edit its schema allows and, beside it,
+   * the value — and stands empty to be filled in. *The same text in a panel
+   * carries neither*: nothing is typed into a panel's line, and the value
+   * crosses only where a person is about to write it. Mutations: the edit
+   * offered in every region, the value left off, an empty entry skipped as a
+   * readout's would be, a number left unshown.
+   */
+  it('gives a text placed in the strip its edit and value, and a panel’s neither', async () => {
+    const registry = await freshRegistry();
+    const mode = fakeMode('example.quiet');
+    const channel = (id: string, schema: object, init: unknown) =>
+      ({
+        id,
+        owner: 'example.quiet',
+        version: 1,
+        scope: 'session',
+        update: 'model-proposed',
+        visibility: 'player',
+        budget: null,
+        schema,
+        init: { kind: 'literal', value: init },
+      }) as const;
+    registry.registerMode({
+      ...mode,
+      definition: {
+        ...mode.definition,
+        channels: [
+          channel('example.weather', { type: ['string', 'null'] }, null),
+          channel('example.round', { type: 'integer', minimum: 1 }, 1),
+          channel('example.tone', { type: 'string', enum: ['dry', 'wet'] }, 'dry'),
+        ],
+        surfaces: [
+          { region: 'hud', channelId: 'example.weather', widget: { kind: 'text', label: 'Sky' } },
+          { region: 'panel', channelId: 'example.weather', widget: { kind: 'text', label: 'Sky' } },
+          { region: 'hud', channelId: 'example.round', widget: { kind: 'text', label: 'Round' } },
+          { region: 'hud', channelId: 'example.tone', widget: { kind: 'text', label: 'Tone' } },
+        ],
+      },
+    });
+
+    const surfaces = registry.modeSurfaces(
+      { 'example.round': { version: 1, value: 3 } },
+      'example.quiet',
+      's-1',
+    );
+    const at = (region: string, key: string) =>
+      surfaces.find((one) => one.region === region && one.key === key);
+
+    expect(at('hud', 'example.weather')).toMatchObject({
+      text: '',
+      edit: { kind: 'text', nullable: true },
+      value: null,
+    });
+    // Unset and in a panel, it is a readout with nothing to say.
+    expect(at('panel', 'example.weather')).toBeUndefined();
+    expect(at('hud', 'example.round')).toMatchObject({
+      text: '3',
+      edit: { kind: 'number', integer: true, nullable: false, min: 1, max: null },
+      value: 3,
+    });
+    expect(at('hud', 'example.tone')).toMatchObject({ text: 'dry', edit: null });
+    expect(at('hud', 'example.tone')).not.toHaveProperty('value');
+
+    const set = registry.modeSurfaces(
+      { 'example.weather': { version: 1, value: 'rain' } },
+      'example.quiet',
+      's-1',
+    );
+    const panel = set.find((one) => one.region === 'panel');
+    expect(panel).toMatchObject({ text: 'rain' });
+    expect(panel).not.toHaveProperty('edit');
+    expect(panel).not.toHaveProperty('value');
+  });
+
+  /**
    * *A hidden channel has no surface*, whatever a mode declares — `visibility`
    * governs what may be shown and a contribution does not override it. The
    * alternative would make `hidden` mean *unless somebody asks*.

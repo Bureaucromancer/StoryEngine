@@ -25,9 +25,16 @@ import { Button } from '../ui/Button.js';
 import { TwoStep } from '../ui/TwoStep.js';
 import { Field } from '../ui/Field.js';
 import { Fine } from '../ui/Text.js';
+import { labels } from '../i18n/catalogue.js';
 import { hookState, hookWords } from './hookWords.js';
-import { disclosure } from '../ui/classes.js';
+import { strip } from '../ui/classes.js';
+import { Popover } from '../ui/Popover.js';
 import { WriteFailed } from './WriteFailed.js';
+
+/** The panel's name, as the strip's popover is announced (2026-10-13, P12A.4). */
+const WORDS = labels('play.hooks', {
+  panel: 'Plot hooks',
+});
 
 /**
  * The hook panel — [10 §10.1](../../../../docs/design/10-ui-surfaces.md),
@@ -76,11 +83,26 @@ export function HookPanel(props: { sessionId: string }): JSX.Element | null {
    */
   if (session.data === undefined) return null;
 
+  /**
+   * ***An item of the strip, opened in place*** (2026-10-13,
+   * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.4, under
+   * its §0.4). That plan's §1.3 proposed moving the hooks to the workbench
+   * with the configuration panels; its audit found that [10 §10.1] puts
+   * *Commit* and *Save this to…* on the play surface, and **10 §10.1 won** — it
+   * is the design authority, and §1.3 called itself a proposal. So the hooks
+   * stay on the play surface, as the strip's item: the line the disclosure
+   * showed closed — how many are eligible now — is the trigger, and the panel
+   * it opens in place is what the disclosure held, the dial, the rows and the
+   * add form, unchanged. *Present with an empty pool* for the reason above.
+   */
   return (
-    <details className="rounded-control border border-line bg-surface px-3 py-2">
-      <summary className={`${disclosure.quiet} text-sm`}>{waitingLine(rows)}</summary>
-
-      <div className="mt-3 flex flex-col gap-3">
+    <Popover
+      place="under"
+      label={WORDS.panel}
+      triggerClassName={strip.item}
+      trigger={<span>{waitingLine(rows)}</span>}
+    >
+      <div className="flex flex-col gap-3">
         {rows.length === 0 ? null : (
           <Pacing sessionId={props.sessionId} level={hooks?.pacing ?? 'normal'} />
         )}
@@ -100,7 +122,7 @@ export function HookPanel(props: { sessionId: string }): JSX.Element | null {
         </div>
         <AddHook sessionId={props.sessionId} />
       </div>
-    </details>
+    </Popover>
   );
 }
 

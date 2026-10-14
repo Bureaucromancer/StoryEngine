@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import type { JSX } from 'react';
+import { Fragment, type JSX } from 'react';
 
 import type { ModeAction, ModeSurface } from '../api.js';
 import { useRunStep, useWriteChannel } from '../queries.js';
 import { Button } from '../ui/Button.js';
 import { labels } from '../i18n/catalogue.js';
+import { strip } from '../ui/classes.js';
+import { Popover } from '../ui/Popover.js';
+import { HudEntry } from './HudEntry.js';
 import { Meter, RecordCard } from './RecordCard.js';
 import { WriteFailed } from './WriteFailed.js';
 
@@ -89,7 +92,13 @@ export function ModeRegion(props: {
   if (surfaces.length === 0) return null;
 
   const rendered = surfaces
-    .map((surface) => ({ surface, node: widgetFor(surface, props.sessionId, props.nameOf) }))
+    .map((surface) => ({
+      surface,
+      node:
+        props.region === 'hud'
+          ? stripWidgetFor(surface, props.sessionId, props.nameOf)
+          : widgetFor(surface, props.sessionId, props.nameOf),
+    }))
     .filter((one) => one.node !== null);
 
   // Every widget in the region was a kind this build does not know. Rendering
@@ -111,6 +120,34 @@ export function ModeRegion(props: {
   }
   const loose = groups.get(undefined) ?? [];
   groups.delete(undefined);
+
+  /**
+   * ***In the strip, a line rather than a stack*** (2026-10-13,
+   * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.4). The
+   * other regions stack their widgets, each in a box of its own; the `hud`
+   * region's widgets are items of a wrapping line that the caller lays out,
+   * so they are drawn bare — no box round each, which would stop an item's
+   * refusal note taking the line's full width — and a group is its heading
+   * and its items run on in the same line, the heading as faint as an item's
+   * own label.
+   */
+  if (props.region === 'hud') {
+    return (
+      <div className={props.className ?? 'flex flex-wrap items-center gap-x-3 gap-y-1'}>
+        {loose.map((one) => (
+          <Fragment key={one.surface.key}>{one.node}</Fragment>
+        ))}
+        {[...groups].map(([group, members]) => (
+          <section key={group} aria-label={group} className="flex flex-wrap items-center gap-x-3">
+            <h3 className={strip.label}>{group}</h3>
+            {members.map((one) => (
+              <Fragment key={one.surface.key}>{one.node}</Fragment>
+            ))}
+          </section>
+        ))}
+      </div>
+    );
+  }
 
   return (
     <div className={props.className ?? 'flex flex-col gap-2'}>
@@ -231,6 +268,63 @@ function widgetFor(
 
     default:
       return null;
+  }
+}
+
+/**
+ * ***One widget, as the strip draws it*** (2026-10-13,
+ * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.4) — the
+ * `hud` region, which the session route has said *"appends to the strip"* since
+ * [P7.11] and nothing drew.
+ *
+ * **Where a widget goes and how big it is are the region's business**, the
+ * SDK's own rule for a picture, and the strip's business is one line of facts
+ * that each open in place. So the arms a line can hold are drawn in it — a
+ * switch and a bar, as anywhere — and the two that cannot are **opened in place
+ * like every other item**: a record's card and a picture, under the label, in
+ * the strip's popover. *A `text` is a channel's own entry*, because a channel
+ * declaring `surface` is defined as exactly this placement
+ * ([10 §8.0](../../../../docs/design/10-ui-surfaces.md)), so it is drawn by the
+ * same `HudEntry` and edited the same way, from the edit the server sends with
+ * it. An arm this build does not know is skipped, as in every region.
+ */
+function stripWidgetFor(
+  surface: ModeSurface,
+  sessionId: string,
+  nameOf: ((scopeKey: string) => string) | undefined,
+): JSX.Element | null {
+  switch (surface.kind) {
+    case 'text':
+      return surface.text === undefined ? null : (
+        <HudEntry
+          sessionId={sessionId}
+          entry={{
+            key: surface.key,
+            label: surface.label,
+            text: surface.text,
+            ...(surface.edit === undefined ? {} : { edit: surface.edit }),
+            ...(surface.value === undefined ? {} : { value: surface.value }),
+          }}
+        />
+      );
+
+    case 'record':
+    case 'image': {
+      const widget = widgetFor(surface, sessionId, nameOf);
+      return widget === null ? null : (
+        <Popover
+          place="under"
+          label={surface.label}
+          triggerClassName={strip.item}
+          trigger={<span className={strip.label}>{surface.label}</span>}
+        >
+          {widget}
+        </Popover>
+      );
+    }
+
+    default:
+      return widgetFor(surface, sessionId, nameOf);
   }
 }
 

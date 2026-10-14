@@ -4,10 +4,17 @@
 import { useState, type JSX } from 'react';
 
 import type { DegradedChannel } from '../api.js';
+import { labels } from '../i18n/catalogue.js';
 import { useSession, useWriteChannel } from '../queries.js';
-import { Alert } from '../ui/Alert.js';
 import { Button } from '../ui/Button.js';
+import { strip } from '../ui/classes.js';
+import { Popover } from '../ui/Popover.js';
 import { Fine } from '../ui/Text.js';
+
+const WORDS = labels('play.health', {
+  unaffected: 'Your story is unaffected.',
+  panel: 'Channels that could not be loaded',
+});
 
 /**
  * The banner a degraded channel raises —
@@ -43,6 +50,22 @@ import { Fine } from '../ui/Text.js';
  * keeps what is standing and clears the marker. Neither can put the session back
  * in the state it was rescued from, because both go through the engine's own
  * refusal path — which is what makes offering them safe.
+ *
+ * ***A banner no longer: the first item of the strip*** (2026-10-13,
+ * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.4). The HUD
+ * strip holds the facts about now, and *a channel could not be loaded* is the
+ * most urgent of them, so it is the strip's first item where it was a box above
+ * the column's panels. **What 06 §4.2 asks of a banner it still is**: it is
+ * there from the moment the page loads and for as long as anything is
+ * degraded, not a modal and not a log line; it wears the warning tone at rest,
+ * the one item of the strip that does; and **it says both sentences without
+ * being opened** — the headline and the reassurance are the item's own words,
+ * because the reassurance is the part 4.2 calls load-bearing and a fact that
+ * waited behind a press would be the *disclosure* this paragraph's first rule
+ * keeps it out of. *What it opens in place* is the recovery, one row per
+ * channel with its two offers, which is the part that was always an action
+ * rather than a fact. Still `role="status"`, round the item, for the reason
+ * above.
  */
 export function ChannelHealth(props: { sessionId: string }): JSX.Element | null {
   const session = useSession(props.sessionId);
@@ -51,14 +74,22 @@ export function ChannelHealth(props: { sessionId: string }): JSX.Element | null 
   if (degraded.length === 0) return null;
 
   return (
-    <Alert tone="warning" role="status" className="flex flex-col gap-3">
-      <p>
-        <strong>{headline(degraded.length)}</strong> Your story is unaffected.
-      </p>
-      {degraded.map((channel) => (
-        <DegradedRow key={channel.key} sessionId={props.sessionId} channel={channel} />
-      ))}
-    </Alert>
+    <div role="status">
+      <Popover
+        place="under"
+        label={WORDS.panel}
+        triggerClassName={strip.warn}
+        trigger={
+          <span>
+            <strong>{headline(degraded.length)}</strong> {WORDS.unaffected}
+          </span>
+        }
+      >
+        {degraded.map((channel) => (
+          <DegradedRow key={channel.key} sessionId={props.sessionId} channel={channel} />
+        ))}
+      </Popover>
+    </div>
   );
 }
 

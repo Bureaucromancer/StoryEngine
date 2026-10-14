@@ -137,6 +137,36 @@ export const crossfade = {
   shown: 'opacity-100',
 } as const;
 
+/**
+ * ***An item of the HUD strip*** (2026-10-13) —
+ * [10 §1.3](../../../../docs/design/10-ui-surfaces.md)'s *"a strip of widgets
+ * you can edit in place"*, built at
+ * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.4.
+ *
+ * **A fact first and a control second**, which is the register the strip
+ * keeps above the prose: at rest an item reads as a line of muted text — a
+ * label in the faintest ink, the value beside it — and only a pointer over it,
+ * the keyboard on it or its panel open gives it a ground. A button that looked
+ * like a button eight times in a row would be the instrument panel
+ * [10 §1.1](../../../../docs/design/10-ui-surfaces.md) keeps off a story
+ * surface; a line of text that is not obviously pressable is why the ground
+ * comes on hover and stays while the panel it opened is open.
+ *
+ * *`warn` is the one item allowed a ground at rest*: a channel that could not
+ * be loaded is the sentence [06 §4.2](../../../../docs/design/06-modes-and-turn-pipeline.md)
+ * says must not be missed, so it wears `Alert`'s warning tone, whose pairs the
+ * contrast test already measures. Here rather than at the call sites — the
+ * health item, an entry, a mode's picture or record, the cast, the goal and
+ * the hooks are drawn in six files — so that the strip is one register and not
+ * six spellings of it.
+ */
+export const strip = {
+  item: 'flex cursor-pointer items-center gap-1 rounded-control px-1.5 py-0.5 text-start text-ink-muted hover:bg-surface-muted hover:text-ink focus-visible:outline-2 focus-visible:outline-focus aria-expanded:bg-surface-muted aria-expanded:text-ink',
+  warn: 'flex cursor-pointer items-center gap-1 rounded-control border border-warn-line bg-warn-surface px-1.5 py-0.5 text-start text-warn-ink focus-visible:outline-2 focus-visible:outline-focus',
+  /** The faint word before an item's value — *Time*, *Place*, *Cast*. */
+  label: 'text-ink-faint',
+} as const;
+
 export const navLink = {
   base: 'rounded-control px-3 py-1 text-sm focus-visible:outline-2 focus-visible:outline-focus',
   idle: 'text-ink-muted hover:bg-surface-muted',

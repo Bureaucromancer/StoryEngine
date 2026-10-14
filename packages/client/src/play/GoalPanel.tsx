@@ -10,8 +10,9 @@ import { Alert, AlertNote } from '../ui/Alert.js';
 import { Badge } from '../ui/Badge.js';
 import { Button } from '../ui/Button.js';
 import { Field } from '../ui/Field.js';
+import { Popover } from '../ui/Popover.js';
 import { Fine } from '../ui/Text.js';
-import { disclosure } from '../ui/classes.js';
+import { strip } from '../ui/classes.js';
 
 /**
  * What this session is trying to do, and what happens when it gets there —
@@ -38,6 +39,17 @@ import { disclosure } from '../ui/classes.js';
  *
  * **A disclosure, like the hook panel beside it**, and always present once the
  * session loads: the control that writes a goal at Advance is inside it.
+ *
+ * ***An item of the strip, opened in place*** (2026-10-13,
+ * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.4). The
+ * goal is a fact about the story now — §1.3 of that plan puts it in the HUD
+ * strip beside the cast and the hooks — so the `<details>` became a strip
+ * item: its trigger is the line the closed disclosure showed, *the sentence
+ * being played toward*, and its panel is what the disclosure held, unchanged,
+ * hidden while shut as the disclosure's contents were. The line is still
+ * outranked by a waiting completion, which is the moment the panel needs
+ * opening. *The paragraph above still holds*: always present once the session
+ * loads, for the same reason.
  */
 /**
  * ***What went wrong, said where it went wrong*** (2026-09-28). Every write on
@@ -47,6 +59,7 @@ import { disclosure } from '../ui/classes.js';
  */
 const WORDS = labels('play.goals', {
   failed: 'That could not be saved.',
+  panel: 'Objective',
   setFailed: 'The objective could not be set.',
   pointFailed: 'The objective was saved, but play could not be pointed at it.',
   retry: 'Try again',
@@ -72,12 +85,13 @@ export function GoalPanel(props: {
   const concluded = goals?.concluded ?? false;
 
   return (
-    <details className="rounded-control border border-line bg-surface px-3 py-2">
-      <summary className={`${disclosure.quiet} text-sm`}>
-        {summaryLine(rows, current, concluded)}
-      </summary>
-
-      <div className="mt-3 flex flex-col gap-3">
+    <Popover
+      place="under"
+      label={WORDS.panel}
+      triggerClassName={strip.item}
+      trigger={<span>{summaryLine(rows, current, concluded)}</span>}
+    >
+      <div className="flex flex-col gap-3">
         {rows.length === 0 ? (
           <Fine>
             This story has no objective. That is a choice an author makes, not a gap — but you can
@@ -104,7 +118,7 @@ export function GoalPanel(props: {
           <SetGoal sessionId={props.sessionId} busy={props.busy === true} />
         )}
       </div>
-    </details>
+    </Popover>
   );
 }
 

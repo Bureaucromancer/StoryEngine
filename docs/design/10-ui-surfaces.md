@@ -320,6 +320,28 @@ project already committed to:
   roleplay HUD shows location, time and stats along the top, each opening an
   editable popover. That is [00 §3.6](00-stance.md)'s *shown and correctable* in
   the right form, and it is what §13's affordances were reaching for.
+  *(2026-10-13, [P12A](workplan/35-p12a-the-look.md) P12A.4, under its §0.4:
+  built, as one line directly over the transcript. It holds the facts about the
+  story now — a channel that could not be loaded, first; the channels' own
+  entries and anything a mode placed in the `hud` region (Scene's **Time** and
+  **Place**); the cast as the faces of who is present and how many of them that
+  is; the goal as the sentence being played toward; and how many plot hooks are
+  eligible — and each opens in place, under the strip at the column's width,
+  over the story rather than pushing it down. **An entry writes**: the server
+  sends each one its value and how it is edited beside its text, derived from
+  the schema the channel declares — a string is a line of text, a number a
+  number within the bounds its schema gives, anything else opens to a sentence
+  saying it is not changed here — and the write is the channel route's, a
+  person's effect on the record, a refusal said in the entry's words. The other
+  four open the panels they replace, unchanged: the cast panel (§13.2), the
+  goal's offers and its form, the hook panel (§10.1, which keeps* Commit *and*
+  Save this to… *on the play surface — so the hooks are here and not in the
+  workbench, the decision P12A §0.4 records), and the health record's two
+  recoveries. A place nobody has named stands as* not set *rather than being
+  left out, since that is the state a person corrects; and a string is shown as
+  itself — Scene's place read* Where this is happening: the harbour*, the
+  prompt's sentence, until then. The configuration panels above the strip are
+  [P12A.5](workplan/35-p12a-the-look.md)'s move.)*
 - **Atmosphere behind the prose, with the prose always winning.** Crossfade,
   vignette, scrim. §2.3 already decides the policy; what Marinara supplies is
   the *mechanism*, and its own **Reading Surface Rule** — never heavy blur
@@ -1865,6 +1887,19 @@ description of what it is.** `toggle` is its first *writable* arm, and a write
 goes through the ordinary channel route: a mode gains a control and gains no new
 authority.
 
+***The `hud` region is drawn, 2026-10-13*** —
+[P12A](workplan/35-p12a-the-look.md) P12A.4. The route had said since P7.11 that
+a contribution naming it *appends to the strip*, and no client drew one. The
+strip draws it now, after the channels' own entries, and a `text` placed there
+is edited exactly as a channel's own entry is — which is this section's *defined
+in terms of the first* taken at its word. **How it is edited is not a new arm or
+a new field of the vocabulary**: the server derives it from the schema the
+channel already declares, and sends it with the entry beside the value, so the
+strip gains a control and the vocabulary gains nothing — the paragraph above's
+*no min or max* still describes `WidgetSpec`, and a number's bounds reach the
+strip from its schema's `minimum` and `maximum`. A `record` or an `image` placed
+there opens in place under its label, since neither is a line.
+
 ***Two of the six slots still have no consumer at all*** — **input-bar actions**
 and **library columns** — and naming them here is cheaper than discovering later
 that a list of six was read as a list of six shipped things. The remaining two
@@ -2019,7 +2054,11 @@ the player's instruction on one side and the author's waiting pool on the other.
 It is not the cast panel's neighbour ([§13](#13-showing-what-the-engine-understands)),
 which was the other candidate. That section is two views of one observation about
 identity resolution, and a hook panel shares neither the observation nor the
-subject.
+subject. *(2026-10-13, [P12A](workplan/35-p12a-the-look.md) P12A.4: it is an
+item of the HUD strip now (§1.3), the line it showed shut — how many hooks are
+eligible — opening in place to the panel this section describes, unchanged. In
+the strip it does sit beside the cast, as one fact about now beside another;
+the two panels they open stay apart, which is what this paragraph decided.)*
 
 **What it shows**, which is [06 §6.1](06-modes-and-turn-pipeline.md)'s list made
 concrete: which hooks have fired and when, which are eligible right now, and
@@ -2973,6 +3012,16 @@ panel is drawn for any session with a roster, even with nobody in it. It was
 drawn only for a cast or a chat, so choosing* Nobody in particular *in a session
 whose one row was its persona took the panel away, and* You play *with it, and
 left nothing that could set a persona there again.)*
+
+***Opened from the strip, 2026-10-13*** — [P12A](workplan/35-p12a-the-look.md)
+P12A.4. The panel is no longer a block in the column above the story; it is
+what the HUD strip's **Cast** item opens in place (§1.3), and the item is the
+glance this section's *"confirming the software is following along"* wants:
+the faces of who is present — four at most, since a line has only so much room —
+and how many of the cast that is. Drawn for exactly the sessions the panel is
+drawn for, and the face on the player's line opens the item and hands *You
+play* the keyboard, as it handed it the panel's before. Nothing in the panel
+changed.
 
 ---
 

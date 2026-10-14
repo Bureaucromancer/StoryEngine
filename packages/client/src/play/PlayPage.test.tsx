@@ -288,6 +288,61 @@ describe('the transcript', () => {
 });
 
 /**
+ * ***The HUD strip, directly over the story*** (2026-10-13,
+ * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.4). The
+ * facts about now — the channels' entries, the cast, the goal and the hooks —
+ * are one line over the transcript, each opening in place, where four of them
+ * were panels stacked in the column. *Where the strip sits* is the claim this
+ * file can hold: the strip's own behaviour is `HudStrip.test.tsx`'s. Mutations:
+ * the strip drawn back at the column's top, above the configuration panels,
+ * and the cast panel drawn open in the column beside it.
+ */
+describe('the HUD strip', () => {
+  it('stands directly over the transcript, holding what the column held', async () => {
+    readSession.mockResolvedValue({
+      session: { ...SESSION, cast: { persona: null, actors: ['actor-vera'] } },
+      activeJob: null,
+      health: [],
+      hud: [
+        {
+          key: 'se.location',
+          channelId: 'se.location',
+          scopeKey: null,
+          kind: 'text',
+          label: 'Place',
+          text: 'the harbour',
+          edit: { kind: 'text', nullable: true },
+          value: 'the harbour',
+        },
+      ],
+      cast: [
+        {
+          actorId: 'actor-vera',
+          presence: true,
+          status: 'alive',
+          pending: null,
+          introduced: true,
+          party: null,
+        },
+      ],
+      hooks: { pacing: 'normal', rows: [] },
+      goals: { rows: [], concluded: false },
+    });
+    renderPage();
+
+    const strip = await screen.findByRole('region', { name: 'The story now' });
+    expect(strip.nextElementSibling).toBe(screen.getByRole('list', { name: 'Transcript' }));
+    for (const item of [/^Place the harbour$/, /^Cast\b/, /^No objective$/, /^Plot hooks/]) {
+      expect(within(strip).getByRole('button', { name: item })).toBeTruthy();
+    }
+    // The cast panel is the cast item's, shut until it is asked for.
+    expect(screen.queryByRole('region', { name: 'Cast' })).toBeNull();
+    await userEvent.click(within(strip).getByRole('button', { name: /^Cast\b/ }));
+    expect(screen.getByRole('region', { name: 'Cast' })).toBeTruthy();
+  });
+});
+
+/**
  * ***The prose at its measure, and the column left to the rest*** (2026-10-13,
  * P12A.1). The story's measure is about seventy characters of its own face,
  * held in `ch`, and a `ch` counts the face of the element it is spent on —
@@ -720,12 +775,16 @@ describe('the player’s own line', () => {
    * refetch, so a move sent in that window was recorded — for good — as the
    * persona just put down. The refetch is held here. Mutation: the cast the
    * `PUT` answered not written into the cache, and the move goes as Vera.
+   *
+   * *(2026-10-13, P12A.4: the cast panel opens from the HUD strip's cast item,
+   * so the test opens it first; nothing else here changed.)*
    */
   it('sends a move as the persona just chosen, before the session is read again', async () => {
     setSessionCast.mockResolvedValue({
       session: { ...SESSION, headTurnId: 'turn-2', cast: { persona: 'actor-ned', actors: [] } },
     });
     renderPage();
+    await userEvent.click(await screen.findByRole('button', { name: /^Cast\b/ }));
     const choice = await screen.findByRole('combobox', { name: 'You play' });
     await within(choice).findByRole('option', { name: 'Ned' });
     readSession.mockReturnValue(new Promise<never>(() => undefined));
@@ -1102,6 +1161,8 @@ describe('the context meter', () => {
     // ***And the goal panel waits for it*** (2026-09-28): its writes move the
     // head, which the server refuses while the turn runs. The page tells it —
     // with an objective typed, so that the turn is the only reason left.
+    // *(2026-10-13, P12A.4: opened from the HUD strip's goal item first.)*
+    await userEvent.click(screen.getByRole('button', { name: 'No objective' }));
     await userEvent.type(
       screen.getByRole('textbox', { name: 'Set an objective' }),
       'Find the fixer.',

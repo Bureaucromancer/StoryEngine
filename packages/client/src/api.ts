@@ -2194,6 +2194,9 @@ export interface ModeSurface {
   kind: string;
   label: string;
   text?: string;
+  /** `text` in the `hud` region: its edit and value, as a channel's own entry's ([P12A] P12A.4). */
+  edit?: HudEdit | null;
+  value?: string | number | null;
   image?: { url: string; alt: string };
   on?: boolean;
   /** The contribution's heading within its region — [P14.5a]. */
@@ -2451,7 +2454,35 @@ export interface ChannelSurface {
   kind: string;
   label: string;
   text: string;
+  /**
+   * ***How the strip edits it, or `null` for not here*** (2026-10-13,
+   * [P12A](../../../docs/design/workplan/35-p12a-the-look.md) P12A.4) —
+   * derived on the server from the channel's declared schema, so the strip
+   * writes with no code that knows a channel. *Optional on the wire*, because a
+   * server from before P12A.4 sends neither field, and its entries read as not
+   * editable here rather than breaking.
+   */
+  edit?: HudEdit | null;
+  /** The value the edit starts from — sent only beside an edit. */
+  value?: string | number | null;
 }
+
+/**
+ * ***A strip entry's edit*** — `HudEdit` in the server's `sessions/channels.ts`,
+ * spelled here because this package does not import the server's types. A
+ * string is a line of text, a number a number with the bounds its schema
+ * gives, and anything else has no edit at all. A `kind` this build does not
+ * know is read as no edit, as an unknown widget arm is skipped.
+ */
+export type HudEdit =
+  | { kind: 'text'; nullable: boolean }
+  | {
+      kind: 'number';
+      integer: boolean;
+      nullable: boolean;
+      min: number | null;
+      max: number | null;
+    };
 
 /**
  * One channel this session could not load — [06 §4.2]'s health record, [P7.1].

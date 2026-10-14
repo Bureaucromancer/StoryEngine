@@ -2324,6 +2324,13 @@ client rendering this itself would need the registry, the declarations, the
 template engine and `splitChannelKey`. What crosses is a label and text. The
 component knows no channel and skips a `kind` it does not recognise, which is
 what makes widening the vocabulary additive rather than breaking.*
+*(2026-10-13, [P12A](35-p12a-the-look.md) P12A.4: and, for an entry a person can
+change from the strip, how it is changed and the value it starts from — `edit`,
+derived from the channel's declared schema, and `value` beside it and only
+there ([api.md](../../api.md)'s `GET /api/sessions/:sessionId`). Still composed
+here and still no channel known to the component: the client reads an edit, not
+a channel id. A string is now shown as itself rather than through `render`,
+which says how a value reads to a model.)*
 
 **Next:** P7.1's remaining piece is the reveal affordance, and the argument above
 is for leaving it to P7.6 — so what is left of this stage is the walk of gate

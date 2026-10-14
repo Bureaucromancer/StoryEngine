@@ -83,25 +83,36 @@ beforeEach(() => {
  * Returns the render container so a test can read the **summary** — the
  * disclosure's closed line is queried off this rather than off `screen`,
  * because `getByText` would match the statement in the body too.
+ *
+ * *(2026-10-13, [P12A](../../../../docs/design/workplan/35-p12a-the-look.md)
+ * P12A.4: the panel is an item of the HUD strip, so "open" is a press on its
+ * trigger — the strip item, whose text is the line the summary was — and
+ * `trigger` is returned where a test read the `<summary>`. `opened: false`
+ * leaves it shut, for the test about what it says without being opened.)*
  */
-async function renderPanel(busy = false): Promise<{ container: HTMLElement }> {
+async function renderPanel(
+  busy = false,
+  opened = true,
+): Promise<{ container: HTMLElement; trigger: HTMLElement }> {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const { container } = render(
     <QueryClientProvider client={client}>
       <GoalPanel sessionId={SESSION_ID} busy={busy} />
     </QueryClientProvider>,
   );
-  await waitFor(() => {
-    expect(container.querySelector('details')).not.toBeNull();
+  const trigger = await waitFor(() => {
+    const found = container.querySelector<HTMLElement>('button[aria-haspopup="dialog"]');
+    expect(found).not.toBeNull();
+    return found!;
   });
-  container.querySelector('details')?.setAttribute('open', '');
-  return { container };
+  if (opened) await userEvent.click(trigger);
+  return { container, trigger };
 }
 
 describe('the goal panel', () => {
   it('says what the session is working toward without being opened', async () => {
     answerWith([LEDGER]);
-    await renderPanel();
+    await renderPanel(false, false);
 
     expect(screen.getByText('Working toward: Get the ledger out of the Foundry.')).toBeTruthy();
   });
@@ -404,11 +415,11 @@ describe('the goal panel', () => {
      */
     it('says so on the summary line, over the statement it would otherwise show', async () => {
       answerWith([{ ...LEDGER, proposed: true }]);
-      const { container } = await renderPanel();
+      const { trigger } = await renderPanel();
 
-      const summary = container.querySelector('summary');
-      expect(summary?.textContent).toContain('The narrator thinks so');
-      expect(summary?.textContent).not.toContain('Working toward');
+      // The strip item's line, which was the `<summary>`'s (P12A.4).
+      expect(trigger.textContent).toContain('The narrator thinks so');
+      expect(trigger.textContent).not.toContain('Working toward');
     });
   });
 });

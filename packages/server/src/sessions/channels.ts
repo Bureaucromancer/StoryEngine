@@ -742,6 +742,106 @@ export interface ChannelSurface {
   kind: 'text';
   label: string;
   text: string;
+  /**
+   * ***How a person changes it from the strip, or `null` for not here*** —
+   * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.4, under
+   * its §0.4. See {@link HudEdit}.
+   */
+  edit: HudEdit | null;
+  /**
+   * ***The value itself, beside an edit and only there*** (2026-10-13, P12A.4).
+   *
+   * An editor needs the value it is editing, and the rendered text is not it:
+   * a clock's text is a sentence its template wrote, and a text box filled
+   * from that would write the sentence back as the value. So an entry that
+   * can be edited carries its raw value, the way a mode's `record` arm
+   * already does (`mode-registry.ts`), and one that cannot carries none —
+   * what crosses for a readout is still a label and a string, the posture the
+   * paragraph above describes, and raw JSON crosses only where a person is
+   * about to write it.
+   */
+  value?: string | number | null;
+}
+
+/**
+ * ***How a strip entry is edited*** — [P12A](../../../../docs/design/workplan/35-p12a-the-look.md)
+ * P12A.4, under its §0.4: *"a HUD entry carries its value and how it is
+ * edited, beside its text, so the strip can write without per-channel code in
+ * the client."*
+ *
+ * **Derived from the schema the channel already declares**, which is the only
+ * description of the value a mode gives and the one the write is judged
+ * against. A second, presentational declaration — `editable: true` on the
+ * widget — would be a field a mode could set wrong, and a client could not
+ * check it against anything. The schema cannot be wrong about what it admits.
+ *
+ * - **A string is a line of text.** `nullable` when the schema admits `null`
+ *   too, so clearing the box writes `null` — *not set* — rather than `""`,
+ *   which is a different value and one the prompt would render.
+ * - **A number is a number**, `integer` when the schema says so, with the
+ *   `minimum` and `maximum` it gives — the bounds the write is refused
+ *   outside, said where the typing happens. `null` for a bound it does not
+ *   give, rather than an absent key, so the shape is one shape.
+ * - **Anything else is not editable here, and the strip says so.** An object —
+ *   the clock is `{ day, hour, minute }` — wants a form of its own, and an
+ *   `enum`, a `oneOf` or a `const` is a choice the strip has no control for;
+ *   [10 §8.0](../../../../docs/design/10-ui-surfaces.md) names a `choice` arm as
+ *   the obvious next one, and it would arrive here as a third kind. A text box
+ *   over any of them would be a control that produces recorded refusals.
+ *
+ * *The `update` policy is not consulted, and does not need to be*: a person's
+ * write is admitted by all three (`engine-computed` refuses a model and a step,
+ * `user-only` everyone but a person), so whether a person may write is never
+ * the question — only whether the strip can say the value.
+ */
+export type HudEdit =
+  | { kind: 'text'; nullable: boolean }
+  | {
+      kind: 'number';
+      integer: boolean;
+      nullable: boolean;
+      min: number | null;
+      max: number | null;
+    };
+
+/**
+ * The edit a declared schema allows the strip, or `null` — see {@link HudEdit}.
+ * Exported for `mode-registry.ts`, whose `hud`-region `text` arm is the same
+ * entry placed the other way ([10 §8.0]: *"defined in terms of the first"*).
+ */
+export function hudEdit(schema: object): HudEdit | null {
+  const declared = schema as Record<string, unknown>;
+  // Narrower than a type: a vocabulary or a shape the strip has no control for.
+  for (const word of ['enum', 'const', 'oneOf', 'anyOf', 'allOf', 'not', 'if']) {
+    if (word in declared) return null;
+  }
+  const type = declared['type'];
+  const types = typeof type === 'string' ? [type] : Array.isArray(type) ? type : [];
+  const nullable = types.includes('null');
+  const kinds = types.filter((one) => one !== 'null');
+  if (kinds.length !== 1) return null;
+  if (kinds[0] === 'string') return { kind: 'text', nullable };
+  if (kinds[0] !== 'number' && kinds[0] !== 'integer') return null;
+  const bound = (key: string): number | null => {
+    const value = declared[key];
+    return typeof value === 'number' && Number.isFinite(value) ? value : null;
+  };
+  return {
+    kind: 'number',
+    integer: kinds[0] === 'integer',
+    nullable,
+    min: bound('minimum'),
+    max: bound('maximum'),
+  };
+}
+
+/**
+ * ***The value an edit starts from*** — a string or a number as it stands,
+ * `null` for anything else, so a value a quarantine left standing in the wrong
+ * shape opens an empty box rather than a box holding `[object Object]`.
+ */
+export function editableValue(value: unknown): string | number | null {
+  return typeof value === 'string' || typeof value === 'number' ? value : null;
 }
 
 /**
@@ -795,15 +895,41 @@ export function channelSurfaces(
     const keys = Object.keys(channels).filter((key) => keyBelongsTo(key, definition.id));
     // An untouched channel still has a value — its declared `init` — and a HUD
     // that waited for the first effect would disagree with the prompt.
+    const edit = hudEdit(definition.schema);
     for (const key of keys.length === 0 ? [definition.id] : keys.sort()) {
-      const rendered = renderChannelValue(
-        definition.render,
-        channels[key]?.value ?? initialValue(definition.id),
-      );
+      const value = channels[key]?.value ?? initialValue(definition.id);
+      /**
+       * ***A string is shown as itself*** (2026-10-13,
+       * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.4).
+       * The text was always the prompt's sentence, so Scene's place read
+       * *Place — Where this is happening: the harbour*, a label and then the
+       * sentence the narrator is told. The SDK draws the line this crosses:
+       * `render` is how a value reads **to a model**, `surface` how it reads
+       * **to a person** — and a strip whose entry is now typed into would show
+       * a different string from the one just typed. A string needs no
+       * template to be read; anything else still has one, which is how the
+       * clock reads *Day 3, 09:05*. The `text` arm of a mode's contribution
+       * has always shown a string as itself (`mode-registry.ts`), so this is
+       * the channel's own surface agreeing with it.
+       */
+      const rendered =
+        typeof value === 'string'
+          ? { ok: true as const, text: value }
+          : renderChannelValue(definition.render, value);
       // A template that will not compile is the author's mistake, answered the
       // way the collector answers it: a refusal is a value, and a HUD that threw
       // would take the session down over a label.
-      if (!rendered.ok || rendered.text.trim() === '') continue;
+      if (!rendered.ok) continue;
+      /**
+       * ***Nothing to say is not shown — unless it can be said here***
+       * (2026-10-13, P12A.4). An entry with no text was skipped, for the
+       * reason this function's docstring gives. An entry a person can fill in
+       * is the exception the toggle and the record arms already make: *not
+       * set* is the state a person corrects, and a place nobody has named yet
+       * with nowhere to name it would make the strip read-only exactly when
+       * it is empty.
+       */
+      if (rendered.text.trim() === '' && edit === null) continue;
       const { channelId, scopeKey } = splitChannelKey(key);
       out.push({
         key,
@@ -812,6 +938,8 @@ export function channelSurfaces(
         kind: surface.kind,
         label: surface.label,
         text: rendered.text.trim(),
+        edit,
+        ...(edit === null ? {} : { value: editableValue(value) }),
       });
     }
   }

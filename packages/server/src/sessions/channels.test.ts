@@ -17,6 +17,7 @@ import {
   channelSurfaces,
   clockStart,
   divergenceEffects,
+  hudEdit,
   initialValue,
   keyBelongsTo,
   readClock,
@@ -333,10 +334,16 @@ describe('the channels a person sees', () => {
       kind: 'text',
       label: 'Time',
       text: 'Day 3, 09:05',
+      // *(2026-10-13, P12A.4: the clock is `{ day, hour, minute }`, which the
+      // strip has no control for, so it says so — and sends no value, since
+      // nothing is about to write one.)*
+      edit: null,
     });
     // Lore timing is registered and hidden, which is the next assertion's
-    // subject; nothing else ships a surface.
-    expect(rest).toEqual([]);
+    // subject; ~~nothing else ships a surface~~ *Scene's place does too, and
+    // is the next describe's (2026-10-13, P12A.4: unset, it stands empty to be
+    // filled in, where it used to be left out)*.
+    expect(rest.map((each) => each.channelId)).toEqual(['se.location']);
   });
 
   it('shows the declared init before anything has touched the channel', () => {
@@ -421,6 +428,125 @@ describe('the channels a person sees', () => {
     });
 
     expect(channelSurfaces({}).map((each) => each.channelId)).not.toContain('example.bad-widget');
+  });
+});
+
+/**
+ * ***A strip entry carries how it is edited, and the value it starts from*** —
+ * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.4, under its
+ * §0.4: *"a HUD entry carries its value and how it is edited, beside its text,
+ * so the strip can write without per-channel code in the client."*
+ *
+ * **The claim is that the edit is the schema's**, read off the declaration the
+ * write is judged against, so these register channels by their schemas alone
+ * and ask what the strip may offer. A client that guessed — a text box over
+ * every entry — would write the clock's rendered sentence back as its value.
+ */
+describe('a strip entry says how it is changed', () => {
+  beforeEach(async () => {
+    await installBuiltIns();
+  });
+
+  /** One surfaced channel, by its schema — the only thing these tests vary. */
+  function surfaced(id: string, schema: object, init: unknown, render = '{{ value }}'): void {
+    registerChannel({
+      id,
+      owner: 'example.mode',
+      version: 1,
+      scope: 'session',
+      update: 'model-proposed',
+      visibility: 'player',
+      budget: 10,
+      render,
+      schema,
+      init: { kind: 'literal', value: init },
+      surface: { kind: 'text', label: id },
+    });
+  }
+
+  function entryOf(id: string, channels: Record<string, ChannelState>) {
+    return channelSurfaces(channels).find((each) => each.channelId === id);
+  }
+
+  /**
+   * ***Scene's place: a line of text, its value beside it, shown as itself.***
+   * The text was the prompt's sentence — *Where this is happening: the
+   * harbour* — which is how the value reads to a model, and a box filled from
+   * that would write the sentence back. Mutations: the edit taken from
+   * anything but the schema, the value left off, the text rendered through
+   * the template.
+   */
+  it('gives a string a line of text, its value, and its own words', () => {
+    expect(entryOf('se.location', { 'se.location': { version: 1, value: 'the harbour' } })).toEqual(
+      {
+        key: 'se.location',
+        channelId: 'se.location',
+        scopeKey: null,
+        kind: 'text',
+        label: 'Place',
+        text: 'the harbour',
+        edit: { kind: 'text', nullable: true },
+        value: 'the harbour',
+      },
+    );
+  });
+
+  /**
+   * ***Unset, it stands empty***, where a readout with nothing to say is left
+   * out: *not set* is the state a person corrects, and a place nobody has named
+   * yet with nowhere to name it would make the strip read-only exactly when it
+   * is empty. Mutation: the old skip on empty text, and the entry goes.
+   */
+  it('stands an editable entry with nothing in it, and leaves out a readout with nothing', () => {
+    expect(entryOf('se.location', {})).toMatchObject({ text: '', value: null });
+
+    surfaced('example.mute', { type: 'object' }, {}, '');
+    expect(entryOf('example.mute', {})).toBeUndefined();
+  });
+
+  /**
+   * ***A number: its bounds, said where the typing happens***, and whole when
+   * the schema says `integer`. A bound the schema does not give is `null`, so
+   * the shape is one shape. Mutations: `integer` read as `number`, a bound
+   * dropped, the value sent as its rendered text.
+   */
+  it('gives a number its bounds and its value, and renders the text as declared', () => {
+    surfaced('example.hp', { type: 'integer', minimum: 0, maximum: 10 }, 10, 'HP {{ value }}');
+    surfaced('example.heat', { type: ['number', 'null'], minimum: -5 }, null);
+
+    expect(entryOf('example.hp', { 'example.hp': { version: 1, value: 7 } })).toMatchObject({
+      text: 'HP 7',
+      edit: { kind: 'number', integer: true, nullable: false, min: 0, max: 10 },
+      value: 7,
+    });
+    expect(entryOf('example.heat', { 'example.heat': { version: 1, value: 0.5 } })?.edit).toEqual({
+      kind: 'number',
+      integer: false,
+      nullable: true,
+      min: -5,
+      max: null,
+    });
+  });
+
+  /**
+   * ***Anything else is not editable here, and carries no value.*** An object
+   * wants a form of its own; a vocabulary — `enum`, `const`, a union — is a
+   * choice the strip has no control for. Mutation: the vocabulary check
+   * removed, and the enum gets a text box that writes refusals.
+   */
+  it('offers nothing for an object, a vocabulary or a union, and sends no value', () => {
+    surfaced('example.temper', { type: 'string', enum: ['calm', 'tense'] }, 'calm');
+
+    const temper = entryOf('example.temper', {});
+    expect(temper).toMatchObject({ text: 'calm', edit: null });
+    expect(temper).not.toHaveProperty('value');
+    expect(entryOf(SE_CLOCK, {})).not.toHaveProperty('value');
+
+    expect(hudEdit({ type: 'object' })).toBeNull();
+    expect(hudEdit({ type: 'string', const: 'x' })).toBeNull();
+    expect(hudEdit({ anyOf: [{ type: 'string' }, { type: 'null' }] })).toBeNull();
+    expect(hudEdit({ type: ['string', 'number'] })).toBeNull();
+    expect(hudEdit({})).toBeNull();
   });
 });
 

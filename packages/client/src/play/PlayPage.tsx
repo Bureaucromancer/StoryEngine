@@ -51,10 +51,8 @@ import { Button } from '../ui/Button.js';
 import { ContextMeter } from './ContextMeter.js';
 import { remedySentence } from '../failures.js';
 import { GuidanceBox } from './GuidanceBox.js';
-import { ChannelHealth } from './ChannelHealth.js';
 import { StartedWithout } from './StartedWithout.js';
-import { ChannelHud } from './ChannelHud.js';
-import { CastPanel, castPanelShows, focusWhoYouPlay } from './CastPanel.js';
+import { castPanelShows } from './CastPanel.js';
 import {
   AutoMode,
   PushStory,
@@ -70,7 +68,6 @@ import { PlayedAs, Portrait } from './Portrait.js';
 import { liveMessages } from './reducer.js';
 import { AUTO_MODE_DEFAULT_SECONDS, useAutoMode } from './useAutoMode.js';
 import { DialPanel } from './DialPanel.js';
-import { GoalPanel } from './GoalPanel.js';
 import { InputKind, promptFor } from './InputKind.js';
 import {
   attachProblem,
@@ -85,7 +82,7 @@ import { ChooseBackdrop } from './ChooseBackdrop.js';
 import { ModeActions, ModeRegion } from './ModeRegion.js';
 import { Starters, Suggestions } from './Suggestions.js';
 import { MentionOverlay } from './MentionOverlay.js';
-import { HookPanel } from './HookPanel.js';
+import { HudStrip, type HudStripHandle } from './HudStrip.js';
 import { LorePanel } from './LorePanel.js';
 import { SessionPanel } from './SessionPanel.js';
 import { anchorOffset, RenditionChooser, RenditionView } from './Rendition.js';
@@ -353,6 +350,11 @@ export function PlayPage({
    */
   const chat = session.data?.chat;
   const roster = session.data?.session.cast;
+  /** The strip, so the player's face on a line can open its cast — P12A.4. */
+  const strip = useRef<HudStripHandle>(null);
+  const whoYouPlay = useCallback(() => {
+    strip.current?.whoYouPlay();
+  }, []);
   const library = useLibrary('actors');
   const actorObjects = library.data?.objects ?? [];
   /** Who speaks next — force-talk from the composer, one-shot (see `WhoSpeaksNext`). */
@@ -1144,8 +1146,10 @@ export function PlayPage({
           A persistent banner on the session, not a modal and not a log line: it
           is a fact about the whole session, it renders nothing when there is
           nothing wrong, and it must not be somewhere a person has to open a
-          disclosure to find. */}
-      <ChannelHealth sessionId={sessionId} />
+          disclosure to find.
+          *(2026-10-13, P12A.4: no longer here — the first item of the HUD
+          strip over the transcript, still saying both of its sentences without
+          being opened. `ChannelHealth` says what it kept.)* */}
 
       {/* ***What it was started without*** (2026-10-13) — a session started
           with *Start anyway* says what its World or Setup asked for that this
@@ -1158,26 +1162,21 @@ export function PlayPage({
           [10 §8], [P7.1]. Above the transcript because it is state rather than
           narration, and below the health banner because a channel that could not
           be loaded is the more urgent sentence. Renders nothing when no declared
-          channel has a surface. */}
-      <ChannelHud sessionId={sessionId} />
+          channel has a surface.
 
-      {/* **Who is in the story, and what the software thinks is true of them** —
+          **Who is in the story, and what the software thinks is true of them** —
           [10 §13.2], [P7.2]. Below the HUD because a cast is a list and the HUD
           is a line, and above the transcript for the reason both are: state
           rather than narration. Renders nothing for a session with no cast.
           *(2026-10-14, P12A.3, after review: and no roster — a session that
           has one keeps the panel with nobody in it, because* You play *is
           inside and is the only way to seat a persona again; see
-          `castPanelShows`.)* */}
-      <CastPanel
-        sessionId={sessionId}
-        locale={locale}
-        busy={running || gesture.isPending || send.isPending}
-        onSpeak={(actorId) => {
-          // *Speak* is force-talk with no input — let them talk, aimed.
-          gesture.mutate({ speakers: [actorId] });
-        }}
-      />
+          `castPanelShows`.)*
+
+          *(2026-10-13, P12A.4: neither is here now. The channels' entries and
+          the cast are items of the HUD strip over the transcript — `HudStrip`
+          — the entries opening to a way to change them and the cast to its
+          panel, in place.)* */}
 
       {/* **How this chat plays** — [P14 §1.8]'s session settings, [P14.5].
           Beside the cast because the two are the chat's configuration: who is
@@ -1203,17 +1202,21 @@ export function PlayPage({
           is something that might happen along the way — and because the three
           offers at a completion are the most consequential control on the page.
           A disclosure like its neighbours, present even with no chain because
-          the control that sets one is inside it. */}
-      <GoalPanel sessionId={sessionId} busy={running || gesture.isPending || send.isPending} />
+          the control that sets one is inside it.
 
-      {/* **The authored plot waiting to happen** — [10 §10.1], [P7.5]. Beside
+          **The authored plot waiting to happen** — [10 §10.1], [P7.5]. Beside
           the lore panel rather than beside the cast, which 10 §10.1 chose
           deliberately: the cast panel is *"two views of one observation about
           identity resolution"* and a hook shares neither the observation nor the
           subject. A disclosure like its neighbour, and present even with an
           empty pool because the control that adds one is inside it — [03 §4.1]
-          calls adding a hook to a running session *the primary path*. */}
-      <HookPanel sessionId={sessionId} />
+          calls adding a hook to a running session *the primary path*.
+
+          *(2026-10-13, P12A.4: both are items of the HUD strip now, the goal and
+          then the hooks, after the cast — the order the column had them in.
+          The hooks stay on the play surface because 10 §10.1 keeps* Commit
+          *and* Save this to… *there; P12A §0.4 recorded that it wins over the
+          plan's proposal to move them to the workbench.)* */}
 
       {/* **The two dials** — [06 §7.3.1], [06 §7.3.2], [P7.8]. Not a disclosure,
           unlike its three neighbours, and the difference is deliberate: those
@@ -1223,7 +1226,11 @@ export function PlayPage({
           reading order puts the two axes next to the control that is the third,
           where somebody wondering why the story keeps pulling can see all three
           at once. Renders nothing for a mode that declares no difficulty, which
-          is [04 §7]'s explicit case. */}
+          is [04 §7]'s explicit case.
+          *(2026-10-13, P12A.4: the hook panel is the strip's item now, below
+          this, and the pacing dial with it, so the three are a line apart
+          rather than side by side — until P12A.5 moves the dials to the
+          workbench, which decides where they meet again.)* */}
       <DialPanel sessionId={sessionId} />
 
       {/* **Whatever else this mode's declaration asked for** — [06 §9], [P7.11].
@@ -1294,6 +1301,24 @@ export function PlayPage({
         </div>
       )}
 
+      {/* ***The HUD strip*** (2026-10-13, [P12A] P12A.4) — the facts about
+          now, one line, each opening in place: a channel that could not be
+          loaded, the channels' entries and a mode's placements, the cast, the
+          goal and the hooks. **Directly over the transcript**, since that is
+          where it stays once P12A.5 has moved the configuration panels above
+          it to the workbench; its items open over the top of the story rather
+          than pushing it down. `HudStrip` says what each item opens. */}
+      <HudStrip
+        ref={strip}
+        sessionId={sessionId}
+        locale={locale}
+        busy={running || gesture.isPending || send.isPending}
+        onSpeak={(actorId) => {
+          // *Speak* is force-talk with no input — let them talk, aimed.
+          gesture.mutate({ speakers: [actorId] });
+        }}
+      />
+
       {/*
         ***The story keeps room of its own*** (2026-10-01). `flex-1` with
         `overflow-y-auto` lets a flex item shrink to nothing, and since P14 put
@@ -1352,8 +1377,11 @@ export function PlayPage({
               // renders for any roster (2026-10-14, P12A.3, after review) this
               // comes to `roster !== undefined`; the call stays so that a change
               // to when the panel is drawn reaches the faces too.
+              // *(2026-10-13, P12A.4: the panel opens from the strip's cast
+              // item now, so the face asks the strip to open it there and hand
+              // *You play* the keyboard — `HudStripHandle`.)*
               castPanelShows(session.data?.cast ?? [], chat, roster) && roster !== undefined
-                ? focusWhoYouPlay
+                ? whoYouPlay
                 : undefined
             }
             gestures={chatGestures}

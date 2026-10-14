@@ -70,6 +70,18 @@ function renderBanner() {
   );
 }
 
+/**
+ * ***Opens the recovery*** (2026-10-13,
+ * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.4). The
+ * banner is the HUD strip's first item now: its two sentences are the item's
+ * own words, said without a press, and the rows with their offers open in place
+ * under it — so a test about an offer presses the item first, and finds the
+ * offer by its role and name as before.
+ */
+async function openBanner(): Promise<void> {
+  await userEvent.click(await screen.findByRole('button', { name: /could not be loaded/ }));
+}
+
 describe('the channel health banner', () => {
   it('says what failed and that the story is unaffected', async () => {
     // **The reassurance is not padding.** 06 §4.2: *"'2 channels could not be
@@ -80,6 +92,8 @@ describe('the channel health banner', () => {
 
     expect(await screen.findByText(/1 channel could not be loaded/)).toBeTruthy();
     expect(screen.getByText(/Your story is unaffected/)).toBeTruthy();
+    // *Which*, and why, is the recovery's, opened in place (P12A.4).
+    await openBanner();
     expect(screen.getByText(/must be equal to one of the allowed values/)).toBeTruthy();
   });
 
@@ -109,6 +123,7 @@ describe('the channel health banner', () => {
     // One of 06 §4.2's three offers, and the one that only works after an author
     // ships a fix — which is why it is a button rather than something automatic.
     renderBanner();
+    await openBanner();
 
     await userEvent.click(await screen.findByRole('button', { name: 'Try again' }));
 
@@ -121,6 +136,7 @@ describe('the channel health banner', () => {
     // Writing the current value clears the marker, because a degraded state is
     // only ever written by an effect carrying a reason.
     renderBanner();
+    await openBanner();
 
     await userEvent.click(await screen.findByRole('button', { name: 'Accept the reset' }));
 
@@ -140,6 +156,7 @@ describe('the channel health banner', () => {
       health: [CLOCK],
     });
     renderBanner();
+    await openBanner();
 
     await userEvent.click(await screen.findByRole('button', { name: 'Try again' }));
 

@@ -1,7 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { useEffect, useId, useRef, useState, type JSX, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type FocusEvent as ReactFocusEvent,
+  type JSX,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
+} from 'react';
 
 /**
  * ***The non-modal popover*** — built at
@@ -56,7 +66,57 @@ import { useEffect, useId, useRef, useState, type JSX, type ReactNode } from 're
  *
  * *It sets its own face and size*, `font-ui text-sm`, because a paragraph of
  * story is set in the story's, and a card about the story is tooling.
+ *
+ * ***Two placements, and the second is the HUD strip's*** (2026-10-13,
+ * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.4). The
+ * paragraph above promised *an element prop when it arrives*; the strip is
+ * where it arrived, and it needed two things at once, so the prop is a
+ * placement rather than a tag. **`beside`** is the mention's card: phrasing
+ * content, a `w-64` card anchored at its trigger, as before. **`under`** is a
+ * strip item's: flow content — a strip item opens the cast panel, the goal
+ * panel's form, the hook panel's rows — in a `<div>`, drawn **under whatever
+ * positioned box holds it, at that box's full width**. The wrapper is left
+ * unpositioned on purpose, so the panel's containing block is the strip: every
+ * item opens to the same place, the column's width, however far along the line
+ * its trigger sits — where a card anchored at a trigger near the end of the
+ * line would run off the column on a phone, the fault P12A.3 left for P12A.8 on
+ * the mention's card. It scrolls itself past most of a screen's height, since
+ * the hook panel's rows have no bound.
+ *
+ * ***And `under` is hidden when closed rather than unmade.*** What a strip item
+ * opens is a panel that stood in the column until this stage — the cast, the
+ * goal, the hooks — and each was always on the page, a `<details>` keeping its
+ * contents while shut. Unmade on every close, the add-a-hook form would drop
+ * the title half typed into it when a press landed outside, *You play* would
+ * forget a choice not yet pressed, and every open would mount the panel's own
+ * read of the session afresh — a stale cache read on mount is a refetch, once
+ * per open. So the panel stays, `hidden`, which takes it out of the
+ * accessibility tree and the tab order exactly as unmaking it did. *The
+ * mention's card is still unmade*: a transcript has a card per mark, and a
+ * hidden copy of each would be a second transcript's worth of nodes for
+ * nothing anyone typed.
+ *
+ * ***Held from outside, when the holder needs to be told how it closed***
+ * (2026-10-13, P12A.4). `open` and `onOpenChange` make it controlled — the
+ * player's face opens the strip's cast item from a line of the transcript, and
+ * a strip entry holding a typed value commits it on every close **but
+ * Escape**, which is the one that means *never mind*: the paragraph on focus
+ * leaving above said a widget holding an unsaved value would have to, and
+ * `onOpenChange` is told which of the four ways it was. Uncontrolled, as the
+ * mention uses it, nothing changes.
+ *
+ * ***A close that strands the keyboard hands it to the trigger*** (2026-10-13,
+ * P12A.4). A holder may close it itself — a strip entry closes on its own
+ * Save — and the control that held the keyboard goes with the panel, leaving
+ * focus on nothing or on a control nobody can see, from which the next Tab
+ * starts again at the top of the page. So a close the holder made, or the
+ * trigger, that leaves focus inside the panel or nowhere gives it to the
+ * trigger, as Escape always did. **A press outside and focus leaving are not
+ * this**: each put the keyboard somewhere already, which is the paragraph
+ * above's rule, and pulling it back would undo what the person did.
  */
+export type PopoverChange = 'trigger' | 'escape' | 'outside' | 'focus';
+
 export function Popover(props: {
   /** What the trigger shows. Its text is the trigger's accessible name. */
   trigger: ReactNode;
@@ -64,16 +124,64 @@ export function Popover(props: {
   triggerClassName: string;
   /** The panel's name for a screen reader, as a dialog's heading would be. */
   label: string;
-  /** Drawn only while open. Phrasing content — see above. */
+  /**
+   * What it opens. Phrasing content for `beside`, drawn only while open; for
+   * `under`, drawn always and hidden while closed — see above.
+   */
   children: ReactNode;
+  /** `beside` its trigger (the default), or `under` the box that holds it. */
+  place?: 'beside' | 'under';
+  /** Controlled: whether it is open. Absent, it holds its own state. */
+  open?: boolean;
+  /** Told of every change, and how a close came about. */
+  onOpenChange?: (open: boolean, how: PopoverChange) => void;
 }): JSX.Element {
-  const [open, setOpen] = useState(false);
+  const [own, setOwn] = useState(false);
+  const open = props.open ?? own;
   const trigger = useRef<HTMLButtonElement>(null);
-  const panel = useRef<HTMLSpanElement>(null);
+  const panel = useRef<HTMLElement | null>(null);
+  const holdPanel = useCallback((node: HTMLElement | null) => {
+    panel.current = node;
+  }, []);
   const id = useId();
 
+  /**
+   * How the last close came about, or `null` for one the holder made — read
+   * by the effect below, which hands a stranded keyboard back (see above).
+   */
+  const closedBy = useRef<PopoverChange | null>(null);
+  /**
+   * ***The latest holder, read when a change happens rather than when the
+   * listener was added.*** The outside-press listener lives as long as the
+   * panel is open, and a holder's handler closes over what was typed — a
+   * listener holding the handler from the render that opened it would commit
+   * the empty value the panel opened with.
+   */
+  const holder = useRef({ controlled: false, tell: props.onOpenChange });
   useEffect(() => {
-    if (!open) return;
+    holder.current = { controlled: props.open !== undefined, tell: props.onOpenChange };
+  });
+  const change = useCallback((next: boolean, how: PopoverChange) => {
+    closedBy.current = next ? null : how;
+    if (!holder.current.controlled) setOwn(next);
+    holder.current.tell?.(next, how);
+  }, []);
+
+  const wasOpen = useRef(false);
+  useEffect(() => {
+    if (!open) {
+      const by = closedBy.current;
+      if (wasOpen.current && by !== 'outside' && by !== 'focus') {
+        const at = document.activeElement;
+        const stranded =
+          at === null || at === document.body || panel.current?.contains(at) === true;
+        if (stranded) trigger.current?.focus();
+      }
+      wasOpen.current = false;
+      closedBy.current = null;
+      return;
+    }
+    wasOpen.current = true;
     const inside = panel.current?.querySelector<HTMLElement>(
       'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled])',
     );
@@ -84,56 +192,79 @@ export function Popover(props: {
       if (panel.current?.contains(target) === true || trigger.current?.contains(target) === true) {
         return;
       }
-      setOpen(false);
+      change(false, 'outside');
     }
     document.addEventListener('pointerdown', onPointerDown);
     return () => {
       document.removeEventListener('pointerdown', onPointerDown);
     };
-  }, [open]);
+  }, [open, change]);
 
-  return (
-    <span
-      className="relative"
-      onKeyDown={(event) => {
-        if (event.key !== 'Escape' || !open) return;
-        event.preventDefault();
-        event.stopPropagation();
-        setOpen(false);
-        trigger.current?.focus();
-      }}
-      onBlur={(event) => {
-        // React's blur bubbles — it is `focusout` underneath — so this hears
-        // focus leaving anything inside. Only a real element outside counts as
-        // the keyboard's press outside. A `null` `relatedTarget` is left alone:
-        // the window losing focus, or Safari's button press that focuses
-        // nothing, would otherwise close the card — and a press on the trigger
-        // would then open it again. The `pointerdown` listener above already
-        // covers presses outside.
-        const into = event.relatedTarget;
-        if (open && into !== null && !event.currentTarget.contains(into)) setOpen(false);
+  const under = props.place === 'under';
+  const wrapper = {
+    onKeyDown: (event: ReactKeyboardEvent<HTMLElement>) => {
+      if (event.key !== 'Escape' || !open) return;
+      event.preventDefault();
+      event.stopPropagation();
+      change(false, 'escape');
+      trigger.current?.focus();
+    },
+    onBlur: (event: ReactFocusEvent<HTMLElement>) => {
+      // React's blur bubbles — it is `focusout` underneath — so this hears
+      // focus leaving anything inside. Only a real element outside counts as
+      // the keyboard's press outside. A `null` `relatedTarget` is left alone:
+      // the window losing focus, or Safari's button press that focuses
+      // nothing, would otherwise close the card — and a press on the trigger
+      // would then open it again. The `pointerdown` listener above already
+      // covers presses outside.
+      const into = event.relatedTarget;
+      if (open && into !== null && !event.currentTarget.contains(into)) change(false, 'focus');
+    },
+  };
+  const button = (
+    <button
+      ref={trigger}
+      type="button"
+      aria-haspopup="dialog"
+      aria-expanded={open}
+      {...(open ? { 'aria-controls': id } : {})}
+      className={props.triggerClassName}
+      onClick={() => {
+        change(!open, 'trigger');
       }}
     >
-      <button
-        ref={trigger}
-        type="button"
-        aria-haspopup="dialog"
-        aria-expanded={open}
-        {...(open ? { 'aria-controls': id } : {})}
-        className={props.triggerClassName}
-        onClick={() => {
-          setOpen((was) => !was);
-        }}
-      >
-        {props.trigger}
-      </button>
+      {props.trigger}
+    </button>
+  );
+  const dialog = {
+    ref: holdPanel,
+    id,
+    role: 'dialog',
+    'aria-label': props.label,
+    tabIndex: -1,
+  };
+
+  if (under) {
+    return (
+      <div {...wrapper}>
+        {button}
+        {/* Hidden rather than unmade — see the docstring's `under` paragraphs. */}
+        <div
+          {...dialog}
+          hidden={!open}
+          className="absolute inset-x-0 top-full z-10 mt-1 flex max-h-[70dvh] flex-col gap-2 overflow-y-auto rounded-panel border border-line bg-surface p-3 font-ui text-sm text-ink shadow-overlay"
+        >
+          {props.children}
+        </div>
+      </div>
+    );
+  }
+  return (
+    <span className="relative" {...wrapper}>
+      {button}
       {open ? (
         <span
-          ref={panel}
-          id={id}
-          role="dialog"
-          aria-label={props.label}
-          tabIndex={-1}
+          {...dialog}
           className="absolute start-0 top-full z-10 mt-1 flex w-64 flex-col gap-2 rounded-panel border border-line bg-surface p-3 font-ui text-sm text-ink shadow-overlay"
         >
           {props.children}

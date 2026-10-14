@@ -4,6 +4,8 @@
 import type { JSX } from 'react';
 
 import { useSession } from '../queries.js';
+import { HudEntry } from './HudEntry.js';
+import { ModeRegion } from './ModeRegion.js';
 
 /**
  * What a session's channels say, above the story —
@@ -31,26 +33,48 @@ import { useSession } from '../queries.js';
  * *Nothing when there is nothing — a strip of empty labels above the transcript
  * would be worse than no strip, and a mode with no `surface` on any channel is
  * the ordinary case rather than a misconfiguration.*
+ *
+ * ***Each entry opens in place, and writes*** (2026-10-13,
+ * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.4, under
+ * its §0.4). It was a description list of labels and strings, a strip that
+ * showed and could not correct — [P12A §1.4](../../../../docs/design/workplan/35-p12a-the-look.md)'s
+ * *"an uneditable HUD is not a smaller version of this stage, it is the stage
+ * not done"*. Each entry is now an item of the strip (`HudEntry`) that opens to
+ * the value and a way to change it, from an edit the server derived from the
+ * channel's schema — so the rule above holds with the strip writing: what
+ * crosses is still declared data, and the client still knows no channel.
+ * *The value an edit starts from crosses beside it* (`ChannelSurface.value`),
+ * since a rendered sentence is not the value it was rendered from. *And it is
+ * not a description list any more*: a `<dl>` was chosen so a screen reader could
+ * walk label and value as pairs, and each pair is now one button whose name is
+ * the label and the value together — *Place the harbour* — which is the same
+ * pair, walked as one stop.
+ *
+ * ***And a mode's own placements in the strip are drawn here*** (2026-10-13,
+ * P12A.4). A contribution naming the `hud` region was promised *"appends to the
+ * strip"* by the session route since [P7.11] and drawn nowhere. They come after
+ * the channels' own entries, the order the route lists them in, and a `text`
+ * placed there is the same entry as a channel's `surface` —
+ * [10 §8.0](../../../../docs/design/10-ui-surfaces.md)'s *"defined in terms of
+ * the first"* — so `ModeRegion` draws it with `HudEntry` too.
  */
 export function ChannelHud(props: { sessionId: string }): JSX.Element | null {
   const session = useSession(props.sessionId);
   const widgets = (session.data?.hud ?? []).filter((widget) => widget.kind === 'text');
+  const placed = (session.data?.surfaces ?? []).filter((surface) => surface.region === 'hud');
 
-  if (widgets.length === 0) return null;
+  if (widgets.length === 0 && placed.length === 0) return null;
 
   return (
-    <dl
-      className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-ink-muted"
+    <div
+      role="group"
       aria-label="Session state"
+      className="flex flex-wrap items-center gap-x-3 gap-y-1"
     >
       {widgets.map((widget) => (
-        // A description list because that is what this is — a label and the
-        // value it names — and it is what a screen reader can walk as pairs.
-        <div key={widget.key} className="flex gap-1">
-          <dt className="text-ink-faint">{widget.label}</dt>
-          <dd className="text-ink">{widget.text}</dd>
-        </div>
+        <HudEntry key={widget.key} sessionId={props.sessionId} entry={widget} />
       ))}
-    </dl>
+      <ModeRegion sessionId={props.sessionId} surfaces={placed} region="hud" className="contents" />
+    </div>
   );
 }

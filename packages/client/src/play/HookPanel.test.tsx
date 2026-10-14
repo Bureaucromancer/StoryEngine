@@ -109,6 +109,13 @@ beforeEach(() => {
  * Rendered **open**, because a disclosure's contents are what every test below
  * is about and `<details>` is closed by default. Opening it in each test would
  * be six lines of the same click asserting nothing.
+ *
+ * *(2026-10-13, [P12A](../../../../docs/design/workplan/35-p12a-the-look.md)
+ * P12A.4: the panel is an item of the HUD strip, so it is opened by a press on
+ * its trigger — the line the summary was — rather than by an attribute, and
+ * every control below is then found by its role and name as it was. A press
+ * is the honest open now: the panel is `hidden` until it, and a hidden
+ * control is no control to a query by role.)*
  */
 async function renderPanel(): Promise<void> {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -118,7 +125,9 @@ async function renderPanel(): Promise<void> {
     </QueryClientProvider>,
   );
   const summary = await screen.findByText(/^Plot hooks/);
-  summary.closest('details')?.setAttribute('open', '');
+  const trigger = summary.closest('button');
+  if (trigger === null) throw new Error('the hooks line is not the strip item’s trigger');
+  await userEvent.click(trigger);
 }
 
 describe('the hook panel', () => {
