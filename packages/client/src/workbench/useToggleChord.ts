@@ -3,6 +3,8 @@
 
 import { useEffect } from 'react';
 
+import { isEditable } from './editable.js';
+
 /**
  * The workbench toggle: Ctrl+` on a document listener —
  * [P3.1](../../../../docs/design/workplan/15-p3-implementation.md).
@@ -30,7 +32,9 @@ import { useEffect } from 'react';
  * out of one would trade a keystroke of typing for a panel jump. The chord is
  * simply inert while an editable element has focus; there is no second, wider
  * chord for that case, because the visible opener in the header is the
- * always-available path.
+ * always-available path. *(2026-10-14, [P12A](../../../../docs/design/workplan/35-p12a-the-look.md)
+ * P12A.5, after review: `isEditable` lives in `editable.ts` now, beside the
+ * dock's Escape guard, which asks a narrower form of the same question.)*
  *
  * The caller owes a stable callback (`useCallback`), because the effect
  * re-subscribes when it changes ~~— the same contract `useFocusTrap` states for
@@ -54,28 +58,4 @@ export function useToggleChord(onToggle: () => void): void {
       document.removeEventListener('keydown', onKeyDown);
     };
   }, [onToggle]);
-}
-
-/**
- * The three form controls, plus contenteditable both ways: the property is
- * the browser's answer and carries the inheritance rules (a child of an
- * editable region is editable), and the attribute walk beside it is not
- * test-only decoration — it is also correct in a browser for every region an
- * author marks — but it is *load-bearing* in jsdom, which has never
- * implemented `isContentEditable` and would otherwise report every editable
- * region as fair game, making the guard's contenteditable arm untestable.
- */
-function isEditable(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false;
-  if (
-    target instanceof HTMLInputElement ||
-    target instanceof HTMLTextAreaElement ||
-    target instanceof HTMLSelectElement
-  ) {
-    return true;
-  }
-  return (
-    target.isContentEditable ||
-    target.closest('[contenteditable]:not([contenteditable="false"])') !== null
-  );
 }

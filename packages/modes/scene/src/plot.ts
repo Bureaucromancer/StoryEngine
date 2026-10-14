@@ -68,7 +68,9 @@ export const PLOT_ON: ChannelDefinition = {
  * drawn in the panel for the player to read. **Off by default**, since a plot
  * the player can read is not secret; and its own toggle is drawn only while
  * the plot is switched on (`enabledBy`), because revealing a plot nobody keeps
- * is a control with nothing behind it.
+ * is a control with nothing behind it. *(2026-10-14,
+ * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.5: "in the
+ * panel" is two places in this client now — `PLOT_SURFACES` says which.)*
  */
 export const REVEAL: ChannelDefinition = {
   ...PLOT_ON,
@@ -178,6 +180,17 @@ const DIRECTOR = 'Director';
  * plot is reading the story rather than configuring it. The arc's card is
  * drawn only while it is revealed and the plot is on (the host reads
  * `reveal` and `enabledBy`); the reveal toggle only while the plot is on.
+ * *(2026-10-14, [P12A](../../../../docs/design/workplan/35-p12a-the-look.md)
+ * P12A.5: this client splits the `panel` region by the widget's arm, so the
+ * reveal, a `toggle`, is drawn with the session's settings in the workbench's
+ * Session section under *Director*, and the revealed card is an item of the
+ * strip on Play — the two halves of one affordance are no longer side by side.
+ * The host's reason is that a switch changes what is shown from now on, which
+ * is configuration; this declaration's reason, above, argued the other way for
+ * this one switch, and the host's rule won without naming it until review.
+ * This declaration is unchanged; a reveal meant for the story surface would go
+ * in `hud`. [10 §8.0](../../../../docs/design/10-ui-surfaces.md) has the
+ * rule.)*
  */
 export const PLOT_SURFACES: readonly SurfaceContribution[] = [
   {

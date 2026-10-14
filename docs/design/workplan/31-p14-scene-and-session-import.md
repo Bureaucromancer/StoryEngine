@@ -2012,7 +2012,14 @@ carries `agent_memory` rows and a director that keeps a plot
   naturally / with a surprise), one-shot like *who speaks next*, a chat's
   alone. The plot's switch and cadence are under *Agents* in settings; the
   reveal and the revealed card are in the panel under *Director*, both drawn by
-  `ModeRegion` knowing no plot. **The entry bundle is 319.85 kB gzip against
+  `ModeRegion` knowing no plot. *(2026-10-14, [P12A](35-p12a-the-look.md)
+  P12A.5: no longer side by side. The client splits the `panel` region by the
+  widget's arm, so the reveal, a `toggle`, is drawn with the session's settings
+  in the workbench's Session section under *Director*, and the revealed card is
+  an item of Play's strip — a switch changes what is shown from now on, which
+  is configuration. `plot.ts` argued the reveal was reading, not configuring;
+  the split overruled it, and P12A §2 records that and its cost.)*
+  **The entry bundle is 319.85 kB gzip against
   the 320 kB ceiling** (319.65 before): 0.15 kB left.
 - **The import** (`import/marinara/plot.ts`): the root chat's latest
   `overarchingArc` is `se.plot.secret` on the **head** turn — Marinara keeps

@@ -34,21 +34,27 @@ import { workbenchOpenFromPrefs } from './prefs.js';
  * first. `at` is one of `jump.ts`'s section anchors; the press opens the dock
  * if it is shut and then takes the reader there, and a second press takes them
  * there again — the one thing a second press does, since by then the reader
- * may have scrolled to the record. `keyshortcuts` names the chord that opens
+ * may have scrolled to the record. ~~`keyshortcuts` names the chord that opens
  * the dock at the same place, for the control's `aria-keyshortcuts`, so the
  * keystroke is as discoverable from the control as the shell's own button
- * makes it.
+ * makes it.~~ *(2026-10-14, P12A.5, after review: withdrawn, with its one
+ * caller. `aria-keyshortcuts` names a chord that activates or focuses **this**
+ * control, and Ctrl+` is the shell's toggle: from shut it opens the dock
+ * without moving the keyboard, and with the dock open it closes it, where this
+ * button only opens and jumps — so a screen reader told a person with the dock
+ * open that the chord would take them to the settings, and it took the
+ * settings away. The shell's own *Workbench* button keeps the attribute,
+ * because that button is the toggle. Play still shows the chord beside the
+ * name, out of it, where a sighted reader can see whether the dock is open.)*
  */
 export function OpenDockButton({
   children,
   variant,
   at,
-  keyshortcuts,
 }: {
   children: ReactNode;
   variant?: 'quiet';
   at?: string;
-  keyshortcuts?: string;
 }): JSX.Element {
   const prefs = usePrefs();
   const open = workbenchOpenFromPrefs(prefs.data?.prefs);
@@ -59,7 +65,6 @@ export function OpenDockButton({
       type="button"
       size="compact"
       {...(variant === undefined ? {} : { variant })}
-      {...(keyshortcuts === undefined ? {} : { 'aria-keyshortcuts': keyshortcuts })}
       aria-expanded={open}
       aria-controls={open ? 'workbench' : undefined}
       onClick={() => {

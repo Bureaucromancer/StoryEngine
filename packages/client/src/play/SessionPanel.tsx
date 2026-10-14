@@ -29,6 +29,7 @@ import { Button } from '../ui/Button.js';
 import { NumberField, SelectField } from '../ui/Field.js';
 import { Field } from '../ui/Field.js';
 import { Fine, Note } from '../ui/Text.js';
+import { landOnce } from '../workbench/jump.js';
 import { MemorySection } from './MemoryPanel.js';
 import { RenditionSection } from './Rendition.js';
 
@@ -689,10 +690,22 @@ function BlockEditor(props: {
    * keyboard should be where the editing is. Whatever the editor says instead
    * — a block the pack does not have, one with no text — is brought into view
    * too, since that sentence is the answer to the press.
+   *
+   * *(2026-10-14, P12A.5, after review: **once per arrival**, not on every
+   * mount. The dock unmounts when it closes, and `?block=` stays in the
+   * address until the person leaves the session, so the editor mounted again
+   * on every reopen and took the keyboard each time — a Ctrl+` or a press of
+   * *Workbench* opened the dock at the pack instead of at the top of Session,
+   * with the keyboard in a text box where the chord cannot close it again.
+   * The arrival that opened the dock hands over one landing (`landOnce`, in
+   * `workbench/jump.ts`), and a reopen over the same address has none. Mount
+   * is still when it is taken, for the reason above.)*
    */
   useEffect(() => {
+    if (!landOnce(props.blockId)) return;
     held.current?.scrollIntoView({ block: 'start' });
     held.current?.querySelector('textarea')?.focus({ preventScroll: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per mount: the editor is keyed by its block
   }, []);
 
   if (block === undefined) {

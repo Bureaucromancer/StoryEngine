@@ -215,6 +215,14 @@ const ACTION_WORDS = labels('play.mode-actions', {
  * and its declared words, sent by the server only while the step has something
  * to do. What it writes is an engine turn under the head, which the cards
  * above it show once the session is read again.
+ * *(2026-10-14, [P12A](../../../../docs/design/workplan/35-p12a-the-look.md)
+ * P12A.5, after review: there are no cards beside it now, above or below — the
+ * column drew them under the button, not over it. Since this stage the button
+ * is the workbench's Session section's, beside the tracker cadence switch that
+ * makes it necessary, and the cards are items of Play's strip (`isSwitch`
+ * split them). So what a press writes shows in the strip behind the dock, not
+ * under the button; P12A §2 names that separation as the cost T3's walker is
+ * asked to judge.)*
  */
 export function ModeActions(props: {
   sessionId: string;

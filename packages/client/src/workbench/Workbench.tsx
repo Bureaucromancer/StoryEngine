@@ -35,6 +35,7 @@ import {
   workbenchSizeFromPrefs,
   workbenchSizePatch,
 } from './prefs.js';
+import { isTextEntry } from './editable.js';
 import { ForceFire } from './ForceFire.js';
 import { DOCK_SECTIONS, jumpInDock } from './jump.js';
 import { ImportSubject } from './import/ImportSubject.js';
@@ -81,6 +82,17 @@ import { Note, SubsectionTitle } from '../ui/Text.js';
  * dock under an open modal (a state the trap's Tab-gated recovery makes
  * transient) lets one Escape close both, and `defaultPrevented` cannot
  * distinguish it because this handler runs earlier on the bubble path.
+ * *(2026-10-14, [P12A](../../../../docs/design/workplan/35-p12a-the-look.md)
+ * P12A.5, after review: **and not while text is being typed in it.** The rule
+ * was written for a reader, where an Escape inside the dock had nothing to
+ * lose. Since this stage the Session section writes — the block editor *Edit
+ * in the pack* opens with the keyboard in it, the author's note, a sampler
+ * setting — and closing unmounts the dock, so an Escape pressed in one to
+ * dismiss an input method's candidates, or out of habit, closed the dock and
+ * threw the draft away. So an Escape whose target is somewhere text is typed
+ * (`isTextEntry`, in `editable.ts`) is the text's, and one something inside
+ * already answered with `preventDefault` is that thing's; a check box, a radio
+ * or a select keep no draft, and Escape on one still closes the dock.)*
  *
  * **The subject follows the route, not a stored selection.** §3 says the
  * panel is a reader with no state of its own; deriving the subject from the
@@ -129,7 +141,16 @@ export function Workbench({ onClose }: { onClose: () => void }): JSX.Element {
       id="workbench"
       aria-labelledby="workbench-title"
       onKeyDown={(event) => {
-        if (event.key === 'Escape') onClose();
+        if (event.key !== 'Escape') return;
+        // A keystroke something inside already answered: `Popover`,
+        // `TokenField` and the splitter stop theirs, and this catches one
+        // that only prevents the default.
+        if (event.defaultPrevented) return;
+        // Escape while typing is the text's (2026-10-14, P12A.5, after
+        // review): the Session section holds editors with unsaved drafts, and
+        // closing unmounts them with what was typed — the header says why.
+        if (isTextEntry(event.target)) return;
+        onClose();
       }}
       // The width is a custom property the stylesheet consumes ([P3.1a]):
       // committed renders land here from the preference, and the drag writes
@@ -655,6 +676,16 @@ function EmptySubject(): JSX.Element {
  * reaches back for are the recent ones. The blank option is not *no turn* — it
  * is P3.4's subject, *the turn about to be taken, falling back to the head*,
  * which is a live answer rather than an absence and is why it is worded as one.
+ *
+ * ***It keeps `?block=`*** (2026-10-14,
+ * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.5, after
+ * review), the way the block table's *Edit in the pack* keeps `?turn=`. Both
+ * ends of that link are in the dock now, the block's editor in the Session
+ * section right above this record, and the stage's case for keeping the turn
+ * was that the editor and the record are read together. That held one way
+ * only: choosing another turn here to compare against wrote an address with
+ * the turn alone, the editor unmounted with it, and the draft typed into it
+ * went too. So the choice changes the turn and nothing else the address says.
  */
 function TurnPicker({
   turns,
@@ -682,7 +713,13 @@ function TurnPicker({
         void navigate({
           to: '/play/$sessionId',
           params: { sessionId },
-          search: turn === '' ? {} : { turn },
+          // Keeps `block`: the editor sits just above this record in the same
+          // dock, and changing which turn the record shows must not throw
+          // away a draft.
+          search: (previous: { block?: string }) => ({
+            ...(previous.block === undefined ? {} : { block: previous.block }),
+            ...(turn === '' ? {} : { turn }),
+          }),
         });
       }}
     />

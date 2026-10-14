@@ -105,18 +105,75 @@ export function useOpenDockAt(): (anchor?: string) => void {
  * again on the close and reopen what was just shut. A different block opens it
  * again, and so does loading the address afresh.
  *
- * *Where it lands is the editor's own business* — `SessionPanel`'s block
+ * ~~*Where it lands is the editor's own business* — `SessionPanel`'s block
  * editor brings itself into view and takes the keyboard when it is drawn, which
  * is the one moment that is certain to come after the dock, the session's read
- * and the pack have all arrived.
+ * and the pack have all arrived.~~ *(2026-10-14,
+ * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.5, after
+ * review: when it is drawn **for an arrival**. The dock unmounts when it
+ * closes, so the editor was drawn afresh on every reopen while the address
+ * still named the block — and every Ctrl+` or press of *Workbench* opened the
+ * dock scrolled to the pack with the keyboard in its text, where the chord no
+ * longer works, rather than at the top of Session as the chord promises. So
+ * the arrival that opens the dock also hands the editor **one landing**
+ * (`landing`, below), and the editor takes it when it is drawn — still the
+ * moment certain to come after the dock, the read and the pack. A dock closed
+ * and reopened over the same address is the same arrival, and starts at its
+ * top.)*
+ *
+ * ***It waits for the preference to be read*** (2026-10-14, after review). An
+ * opener called before the read answers takes *unknown* for *shut*: its patch
+ * is sent although the dock may be open already, it cancels the read in
+ * flight, and until the write answers the cache holds the open key alone, so
+ * the theme reads as `system` and the dock's width as the default — with
+ * nothing to put back if the write fails, since there was nothing before it.
+ * `loaded` only ever goes from false to true, so keying the effect on it as
+ * well still opens once per arrival; closing the dock changes neither key; and
+ * the layout effect that keeps `latest` runs before the passive one in the
+ * same commit, so the opener it calls already knows whether the dock is open.
  */
 export function useOpenDockFor(wanted: string | undefined): void {
+  const loaded = usePrefs().data !== undefined;
   const openDock = useOpenDockAt();
   const latest = useRef(openDock);
   useLayoutEffect(() => {
     latest.current = openDock;
   });
-  useEffect(() => {
-    if (wanted !== undefined) latest.current();
+  /**
+   * The arrival, recorded for the editor. *A layout effect* so it is in place
+   * before any passive effect of the same commit, where an editor drawn with
+   * it would ask; *checked against the last value handed*, so StrictMode's
+   * second run of a first mount is not a second arrival. A value that leaves
+   * the address withdraws it, so the same block asked for again lands again,
+   * and `null` — nothing handed yet — makes a fresh mount always say what its
+   * address asks, withdrawing one an earlier page left unanswered.
+   */
+  const handed = useRef<string | undefined | null>(null);
+  useLayoutEffect(() => {
+    if (handed.current === wanted) return;
+    handed.current = wanted;
+    landing = wanted;
   }, [wanted]);
+  useEffect(() => {
+    if (wanted !== undefined && loaded) latest.current();
+  }, [wanted, loaded]);
+}
+
+/**
+ * ***The block an arrival asked for and no editor has landed on yet.*** Module
+ * state, because what it outlives is the editor: the dock unmounts on close,
+ * so nothing inside it can remember having landed, and the address, which
+ * outlives both, cannot tell an arrival from a reopen.
+ */
+let landing: string | undefined;
+
+/**
+ * True once for each arrival at an address naming `block` — the first time an
+ * editor for it is drawn — and false on every later draw while the address
+ * still names it. The editor's scroll and focus hang on it.
+ */
+export function landOnce(block: string): boolean {
+  if (landing !== block) return false;
+  landing = undefined;
+  return true;
 }

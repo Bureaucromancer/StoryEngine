@@ -328,7 +328,11 @@ export interface PlaySearch {
    * block table that offers it and the editor that answers it. Arriving at an
    * address with a block opens the dock (`useOpenDockFor`), and the editor
    * brings itself into view. The link keeps `turn`, so the record below still
-   * shows the turn the block was found in.)*
+   * shows the turn the block was found in.)* *(2026-10-14, after review: and
+   * the record's turn picker keeps `block`, so looking at another turn does
+   * not unmount the editor above it with a draft in it. The editor brings
+   * itself into view once per arrival, not on every mount — `jump.ts`'s
+   * `useOpenDockFor` says how.)*
    */
   block?: string;
 }

@@ -1173,12 +1173,15 @@ export function PlayPage({
             session as a whole — its name, its Worlds — and none about the
             story now, which is the strip's. *The chord is shown*, beside the
             name and out of it: Ctrl+` opens the dock at its top, which over
-            Play is this section, so the keystroke and the press arrive at the
-            same place, and a person who learns one from the other has
+            Play is this section, ~~so the keystroke and the press arrive at the
+            same place,~~ and a person who learns one from the other has
             learned the faster. Hidden on a phone, which has no Ctrl key to
-            press; the press is the way there. */}
+            press; the press is the way there. *(2026-10-14, after review:
+            only from shut. The chord toggles and the button never closes, so
+            the chord is shown, not declared as the control's
+            `aria-keyshortcuts` — `OpenDockButton` says why.)* */}
         {session.data === undefined || settings === 'here' ? null : (
-          <OpenDockButton at={DOCK_SECTIONS.session} keyshortcuts="Control+`">
+          <OpenDockButton at={DOCK_SECTIONS.session}>
             {SETTINGS_WORDS.open}{' '}
             <kbd aria-hidden="true" className="text-xs text-ink-subtle max-sm:hidden">
               {SETTINGS_WORDS.keys}
@@ -1190,9 +1193,18 @@ export function PlayPage({
       {/* ***The settings, here***, when this page is not the main view and so
           the dock is not about this session — the `settings` prop says why.
           Folded, since the panel it is drawn in is the assistant's, and the
-          conversation is what that panel is for. */}
-      {settings === 'here' && session.data !== undefined ? (
-        <details className="rounded-control border border-line bg-surface px-3 py-2">
+          conversation is what that panel is for. *(2026-10-14, after review:
+          and **hidden while the session loads, not left out**, for the
+          reason `HudStrip`'s docstring gives under those words. Mounted only
+          once the session had arrived, the section's panels mounted their
+          reads against a cache entry already stale, and the session and the
+          transcript were each fetched twice on every opening of the
+          assistant, where before this stage they were fetched once.)* */}
+      {settings === 'here' ? (
+        <details
+          hidden={session.data === undefined}
+          className="rounded-control border border-line bg-surface px-3 py-2"
+        >
           <summary className={`${disclosure.quiet} text-sm`}>{SETTINGS_WORDS.open}</summary>
           <div className="mt-3">
             <SessionSection sessionId={sessionId} block={undefined} />
@@ -1559,6 +1571,7 @@ export function PlayPage({
           preview={preview.data?.preview}
           busy={running || refresh.isPending}
           locale={locale}
+          opensDock={settings === 'workbench'}
         />
         {/* **Above the box, and the order is the sentence.** A player picks
             what kind of thing they are about to do and then writes it; a

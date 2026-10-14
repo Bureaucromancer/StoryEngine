@@ -16,12 +16,26 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  */
 
 const createSession = vi.fn();
+const listSessions = vi.fn();
+/** What the panel hands the play page — the page itself is not drawn here. */
+const playPage = vi.fn();
 
 vi.mock('../api.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api.js')>()),
-  listSessions: () => Promise.resolve({ sessions: [] }),
+  listSessions: (...a: unknown[]) => listSessions(...a) as unknown,
   createSession: (...a: unknown[]) => createSession(...a) as unknown,
+  // Once there is a session the panel discloses what it can see, a write.
+  writeSessionChannel: () => Promise.resolve(),
 }));
+
+vi.mock('../play/PlayPage.js', () => ({
+  PlayPage: (props: unknown) => {
+    playPage(props);
+    return null;
+  },
+}));
+
+vi.mock('./Proposal.js', () => ({ Proposal: () => null }));
 
 vi.mock('@tanstack/react-router', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@tanstack/react-router')>()),
@@ -34,9 +48,11 @@ vi.mock('@tanstack/react-router', async (importOriginal) => ({
 
 const { ApiError } = await import('../api.js');
 const { AssistantPanel } = await import('./AssistantPanel.js');
+const { ASSISTANT_MODE_ID } = await import('./session.js');
 
 beforeEach(() => {
   vi.clearAllMocks();
+  listSessions.mockResolvedValue({ sessions: [] });
 });
 
 function renderPanel(): void {
@@ -78,5 +94,32 @@ describe('starting a conversation with the assistant', () => {
         cast: { persona: null, actors: ['0199c000-0000-7000-8000-00000000a552'] },
       }),
     );
+  });
+});
+
+/**
+ * ***Its settings are drawn in the panel*** (2026-10-14,
+ * [P12A](../../../../docs/design/workplan/35-p12a-the-look.md) P12A.5, after
+ * review). The workbench follows the main view, not this panel: over the
+ * assistant's Play its *Session settings* would open the dock on whatever the
+ * main view is — a library object, another session — and *Archive this
+ * session*, the assistant's way to start afresh, would be reachable nowhere.
+ * So the panel asks the play page for its settings `here`, and the page's own
+ * test holds what `here` draws. The page is not drawn: this is the wiring, and
+ * what it is handed is the whole of it. Mutation: `settings="here"` dropped
+ * from `AssistantPanel.tsx`'s `<PlayPage …/>`, which every other test passes.
+ */
+describe('the assistant’s session', () => {
+  it('asks the play page for its settings in place, since the dock is not about it', async () => {
+    listSessions.mockResolvedValue({
+      sessions: [{ id: 'assistant-1', name: 'Assistant', mode: { id: ASSISTANT_MODE_ID } }],
+    });
+    renderPanel();
+
+    await vi.waitFor(() => {
+      expect(playPage).toHaveBeenCalledWith(
+        expect.objectContaining({ sessionId: 'assistant-1', settings: 'here' }),
+      );
+    });
   });
 });

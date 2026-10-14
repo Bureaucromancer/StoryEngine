@@ -263,11 +263,14 @@ const LIBRARY: Record<string, unknown[]> = {
 let prefsStore: Record<string, unknown> = {};
 const patchPrefs = vi.fn();
 let turns: TurnRecord[] = [TURN];
+/** What the prefs read waits on before it answers — open unless a test holds it. */
+let prefsRead: Promise<unknown> = Promise.resolve();
 
 beforeEach(() => {
   prefsStore = {};
   patchPrefs.mockClear();
   turns = [TURN];
+  prefsRead = Promise.resolve();
 });
 
 vi.mock('../api.js', async (importOriginal) => {
@@ -278,7 +281,10 @@ vi.mock('../api.js', async (importOriginal) => {
       ...actual.api,
       authState: () => Promise.resolve({ setupRequired: false, account: ACCOUNT }),
       listLibrary: (kind?: string) => Promise.resolve({ objects: LIBRARY[kind ?? ''] ?? [] }),
-      readPrefs: () => Promise.resolve({ prefs: { ...prefsStore } }),
+      readPrefs: async () => {
+        await prefsRead;
+        return { prefs: { ...prefsStore } };
+      },
       patchPrefs: (patch: Record<string, unknown>) => {
         patchPrefs(patch);
         prefsStore = Object.fromEntries(
@@ -664,7 +670,12 @@ describe('opening the dock at a section', () => {
     await overPlay();
 
     const control = within(column()).getByRole('button', { name: 'Session settings' });
-    expect(control.getAttribute('aria-keyshortcuts')).toBe('Control+`');
+    // *Shown, not declared* (2026-10-14, after review): the chord is the
+    // shell's toggle, which closes an open dock where this only opens and
+    // jumps, so it is not this control's `aria-keyshortcuts`. The hint beside
+    // the name stays, out of it. Mutation: the attribute put back.
+    expect(control.hasAttribute('aria-keyshortcuts')).toBe(false);
+    expect(control.textContent).toContain('Ctrl+`');
     expect(control.getAttribute('aria-expanded')).toBe('false');
     await userEvent.click(control);
 
@@ -746,6 +757,94 @@ describe('the ?block= deep link', () => {
     expect(router.state.location.search).toEqual({ block: 'se.instruction' });
   });
 
+  /**
+   * ***And reopened, it starts at its top, not at the editor*** (2026-10-14,
+   * after review). The dock unmounts on close and the block stays in the
+   * address, so the editor is drawn again on every reopen; the landing is the
+   * arrival's, and a reopen is not one. Both ways of reopening are tried — the
+   * header's *Workbench* and the chord — and the chord, which is inert in a
+   * text box, must still close what it opened. Mutation: the editor's
+   * `landOnce` guard removed, so every draw takes the keyboard.
+   */
+  it('opens at its top when it is reopened with the block still in the address', async () => {
+    renderApp();
+    await overPlay({ block: 'se.instruction' });
+    const first = await screen.findByRole('complementary');
+    const box = await within(first).findByRole('textbox', { name: 'Block: se.instruction' });
+    await waitFor(() => {
+      expect(document.activeElement).toBe(box);
+    });
+
+    async function reopened(how: () => Promise<void>): Promise<HTMLElement> {
+      await userEvent.click(
+        within(screen.getByRole('complementary')).getByRole('button', { name: 'Close' }),
+      );
+      await waitFor(() => {
+        expect(screen.queryByRole('complementary')).toBeNull();
+      });
+      (document.activeElement as HTMLElement | null)?.blur();
+      await how();
+      const dock = await screen.findByRole('complementary');
+      // Drawn, as the address asks — and not handed the keyboard.
+      const again = await within(dock).findByRole('textbox', { name: 'Block: se.instruction' });
+      await new Promise((settle) => setTimeout(settle, 50));
+      expect(document.activeElement).not.toBe(again);
+      return dock;
+    }
+
+    await reopened(async () => {
+      await userEvent.click(screen.getByRole('button', { name: 'Workbench' }));
+    });
+    await reopened(async () => {
+      await userEvent.keyboard('{Control>}`{/Control}');
+    });
+    // The keyboard is not in a text box, so the chord closes what it opened.
+    await userEvent.keyboard('{Control>}`{/Control}');
+    await waitFor(() => {
+      expect(screen.queryByRole('complementary')).toBeNull();
+    });
+  });
+
+  /**
+   * ***An address loaded with the dock already open writes nothing***
+   * (2026-10-14, after review). The route's opener waits for the preference
+   * to be read: called before, it took *unknown* for *shut*, sent a patch
+   * that cancelled the read, and left the cache holding the open key alone.
+   * The router is at the address before anything is drawn, as a reload would
+   * have it, and the read is held so the first draws happen without it.
+   * Mutation: `loaded` dropped from the opener's guard.
+   */
+  it('writes nothing when the address is loaded with the dock already open', async () => {
+    prefsStore = { 'ui.workbench-open': true };
+    let answer: () => void = () => undefined;
+    prefsRead = new Promise<void>((resolve) => {
+      answer = resolve;
+    });
+    // Started before anything is drawn, and settled by the router's first
+    // load once it is: the route mounts at the address, as on a reload.
+    const arriving = router.navigate({
+      to: '/play/$sessionId',
+      params: { sessionId: SESSION_ID },
+      search: { block: 'se.instruction' },
+    });
+    renderApp();
+    await act(async () => {
+      await arriving;
+    });
+    await screen.findByRole('heading', { name: 'The Ashfall Road', level: 1 });
+    await act(async () => {
+      answer();
+      await prefsRead;
+    });
+
+    const dock = await screen.findByRole('complementary');
+    const box = await within(dock).findByRole('textbox', { name: 'Block: se.instruction' });
+    await waitFor(() => {
+      expect(document.activeElement).toBe(box);
+    });
+    expect(patchPrefs).not.toHaveBeenCalled();
+  });
+
   it('is what Edit in the pack opens, from a turn the head has passed, keeping that turn', async () => {
     turns = [richTurn(), cancelledTurn()];
     prefsStore = { 'ui.workbench-open': true };
@@ -771,5 +870,80 @@ describe('the ?block= deep link', () => {
     expect(
       within(record).getByText('A turn the head has passed. Nothing here is live.'),
     ).toBeTruthy();
+  });
+
+  /**
+   * ***The record's turn picker keeps the block, and the draft*** (2026-10-14,
+   * after review). The editor and the record are read together, so choosing
+   * another turn to compare against must not unmount the editor above it.
+   * Mutation: the picker's search back to `{ turn }` alone.
+   */
+  it('keeps the block and what was typed in it when the record shows another turn', async () => {
+    turns = [richTurn(), cancelledTurn()];
+    prefsStore = { 'ui.workbench-open': true };
+    renderApp();
+    await overPlay({ turn: 't-10', block: 'se.instruction' });
+
+    const dock = await screen.findByRole('complementary');
+    const session = within(dock).getByRole('region', { name: 'Session' });
+    const box = await within(session).findByRole('textbox', { name: 'Block: se.instruction' });
+    await userEvent.clear(box);
+    await userEvent.type(box, 'Write better.');
+
+    const record = within(dock).getByRole('region', { name: 'Turn record' });
+    await userEvent.selectOptions(
+      within(record).getByRole('combobox', { name: 'Showing' }),
+      't-11',
+    );
+
+    await waitFor(() => {
+      expect(router.state.location.search).toEqual({ turn: 't-11', block: 'se.instruction' });
+    });
+    const still = within(session).getByRole('textbox', { name: 'Block: se.instruction' });
+    expect(still).toBe(box);
+    expect((still as HTMLTextAreaElement).value).toBe('Write better.');
+  });
+});
+
+/**
+ * ***Escape in a Session field is the field's*** (2026-10-14, after review).
+ * The dock closes on Escape while the keyboard is in it, a rule written for a
+ * reader; since P12A.5 its Session section holds drafts, and closing unmounts
+ * them. Escape in a text box no longer closes the dock; on a check box, which
+ * keeps no draft, it still does. `dock.test.tsx`'s *closes on Escape only when
+ * focus is inside it* still holds it for the Close button. Mutations: the
+ * guard removed; the guard keyed only on `defaultPrevented`, which nothing in
+ * a text box sets; the guard widened to `isEditable`, which takes the check
+ * box too.
+ */
+describe('Escape in the Session section', () => {
+  it('leaves the dock open, and the draft in it, when it is pressed while typing', async () => {
+    renderApp();
+    await overPlay({ block: 'se.instruction' });
+    const dock = await screen.findByRole('complementary');
+    const box = await within(dock).findByRole('textbox', { name: 'Block: se.instruction' });
+    await userEvent.clear(box);
+    await userEvent.type(box, 'Write better.');
+
+    await userEvent.keyboard('{Escape}');
+
+    expect(screen.getByRole('complementary')).toBe(dock);
+    expect(within(dock).getByRole('textbox', { name: 'Block: se.instruction' })).toBe(box);
+    expect((box as HTMLTextAreaElement).value).toBe('Write better.');
+  });
+
+  it('still closes the dock from a control that keeps no draft', async () => {
+    renderApp();
+    await overPlay();
+    await userEvent.click(within(column()).getByRole('button', { name: 'Session settings' }));
+    const dock = await screen.findByRole('complementary');
+    const session = within(dock).getByRole('region', { name: 'Session' });
+    (await within(session).findByRole('checkbox', { name: 'Show the scene' })).focus();
+
+    await userEvent.keyboard('{Escape}');
+
+    await waitFor(() => {
+      expect(screen.queryByRole('complementary')).toBeNull();
+    });
   });
 });

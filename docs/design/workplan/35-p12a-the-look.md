@@ -2136,7 +2136,9 @@ moves to the workbench. The column as it stood at `5d01529d`, top to bottom:
 - **Play's heading row gains *Session settings***, `OpenDockButton` with an `at`
   and `aria-keyshortcuts="Control+\`"`, the chord shown beside the name and out of
   it, hidden on a phone. A second press with the dock open goes back to the
-  section and writes nothing.
+  section and writes nothing. *(2026-10-14, after review: the attribute is
+  withdrawn — the chord is the shell's toggle and closes an open dock, so it is
+  shown and not declared; see* After review *below.)*
 - **The context meter opens at the record** — opening the dock first if shut —
   because a dock that merely opened would now open on the settings, and the
   block table the meter's name promises would be a screen further down.
@@ -2147,7 +2149,10 @@ moves to the workbench. The column as it stood at `5d01529d`, top to bottom:
   mounting is the one moment certain to come after the dock, the session's read
   and the pack have all arrived. *Edit in the pack* **keeps `turn`** in the
   address, since the record is now directly under the editor and should still
-  show the turn the block was found in.
+  show the turn the block was found in. *(2026-10-14, after review: on the mount
+  that answers an arrival, not on every mount; the opener waits for the
+  preference to be read; and the record's turn picker keeps `block` — see*
+  After review *below.)*
 - **The strip draws the `panel` region's readings** after the hooks, through
   `ModeRegion`'s new `drawn="line"`; **`isSwitch`** — a `toggle` is a setting,
   every other arm a reading — is the rule that split the region, and the file
@@ -2159,7 +2164,9 @@ moves to the workbench. The column as it stood at `5d01529d`, top to bottom:
   *Session settings* would have opened the dock on the wrong subject — and
   *Archive this session*, the assistant's documented way to start afresh, would
   have been unreachable. `PlayPage` takes `settings="here"` from it and draws
-  the same section in one fold under its heading row instead.
+  the same section in one fold under its heading row instead. *(2026-10-14,
+  after review: and its context meter is a reading there, not a button, and the
+  fold is mounted from the first render — see* After review *below.)*
 - **Words.** *Choose a backdrop*'s sentence names where *Stage a backdrop* is
   now (*That switch is in Session settings.*). `ChatSettingsPanel`'s fold for a
   mode with settings and no chat was called *Session settings*, which is now the
@@ -2190,6 +2197,17 @@ moves to the workbench. The column as it stood at `5d01529d`, top to bottom:
   `ModeActions` to Session, Session above the record, the meter to the record,
   `?block=` opening the dock once per arrival, the link keeping `turn` — each
   argued above or in the table.
+- *Decided, and not said until review* (added 2026-10-14): **Scene's reveal of
+  its secret plot went to the dock against its mode's own placement.** Scene's
+  `plot.ts` and [P14](31-p14-scene-and-session-import.md)'s P14.5b record put
+  the reveal toggle beside the revealed card, under *Director*, because reading
+  the plot is reading the story rather than configuring it. The split by arm
+  overrode that: the reveal is a `toggle`, a switch changes what is shown from
+  now on, which is configuration, so it is in the Session section and the card
+  is an item of the strip. *The cost*: [06 §7.3](../06-modes-and-turn-pipeline.md)'s
+  *reveal affordance* is in two places — open the dock, tick the box, close it,
+  find the new item — which T3's walker should weigh. The declaration is
+  unchanged; a reveal meant for the story surface would go in `hud`.
 - *Not done, and said*: the Session section is still several panels stacked, not
   the one panel [P7B §1.4](24-p7b-presets-and-prompts.md) wanted
   (`SessionPanel`'s docstring answers its own debt note with that); **the dials
@@ -2262,6 +2280,169 @@ fold the figure was 319.25, and adding it took the entry down — gzip's window
 over a reordered module graph, not code removed — so the number is the build's,
 not a sum. **Under the 320 ceiling with 1.28 kB left** for P12A.6 onward, so no
 raise; CSS is 0.01 kB larger.
+
+***After review, 2026-10-14*** — a review of the stage's diff, each finding
+verified before it was acted on, found twelve things, two pairs of them one
+fault each: that the dock's Escape threw away what was being typed in it, that
+the record's turn picker unmounted the block editor with its draft, that the
+block editor took the keyboard on every reopen and not once per arrival, that an
+address loaded with the dock already open wrote the preference anyway, that
+*Session settings* declared a shortcut that closes what it opens, that the
+assistant's fold read the session and the transcript twice, that the
+assistant's context meter opened the dock on another session, that nothing held
+the assistant's `settings="here"`, and that two comments and a placement said
+less than was so.
+
+**Escape in a Session field closed the dock, and the draft with it.** The
+dock's Escape was written for a reader, where an Escape inside the dock had
+nothing to lose; since this stage the Session section writes, and the dock
+unmounts when it closes. Pressed in the block editor *Edit in the pack* opens
+— to dismiss an input method's candidates, or out of habit — it closed the dock,
+and reopening showed the template again; the author's note and a sampler
+setting went the same way. The aside's handler now leaves an Escape alone when
+something inside already prevented its default, and when its target is
+somewhere text is typed: a text area, a contenteditable region, or an input of a
+type that takes text (`isTextEntry`). *Narrower than the chord's guard, on
+purpose*: a check box, a radio or a select keep no draft, so Escape on one
+still closes the dock — the chord is already inert on them, and a keyboard user
+who has just ticked a switch is not left without the one key out. `isEditable`
+moved out of `useToggleChord.ts` into a new `workbench/editable.ts` beside
+`isTextEntry`, so the two questions are spelled in one place. `Workbench.tsx`'s
+header has a dated note after its Escape paragraph; the guide's *The
+workbench* and *Keyboard* say Escape does not close it while you are typing in
+one of its boxes, edited in place as the guide's user prose always is — it
+carries no dated notes anywhere, and this stage edited it the same way.
+
+**The record's turn picker dropped `?block=`.** *Edit in the pack* keeps
+`turn` because the editor and the record are read together, and that held one
+way only: choosing another turn under *Showing* to compare against wrote an
+address with the turn alone, the editor unmounted, the session panel folded and
+the draft went. `TurnPicker` carries `block` forward now, the way the link
+carries `turn`, with a dated paragraph in its docstring and a sentence in
+`PlaySearch.block`'s note.
+
+**The block editor took the keyboard on every reopen** (two findings, one
+fault). `?block=` stays in the address until the person leaves the session, the
+dock unmounts on close, and the editor scrolled to itself and focused its text
+on every mount — so every later Ctrl+` or press of *Workbench* opened the dock
+at the pack with the keyboard in a text box where the chord no longer works,
+not at the top of Session as 10 §3.1, the guide and T3's sentence all say; a
+press of *Session settings* also raced the editor's focus against its own jump.
+The two findings proposed two keys, and neither is taken whole. The router's
+per-navigation history key would make the turn picker's navigation — a new key
+with the same block, now that the picker keeps it — an arrival, and a reopen
+after looking at another turn would land in the editor again. A module key
+cleared only by an address without a block makes a route mounted afresh at a
+block address (Back to it, say) open the dock and not land: two notions of
+arrival for one press. So there is one, decided where the dock's opening is:
+`useOpenDockFor` hands the block over as **a landing** in a layout effect —
+in place before any passive effect of the same commit, where an editor drawn
+with it would ask — checked against the last value handed, so StrictMode's
+second run of a first mount is not a second arrival; the editor takes it once,
+on mount (`landOnce`), still the moment certain to come after the dock, the
+read and the pack. A dock closed and reopened over the same address is the
+same arrival and starts at its top, which makes 10 §3.1's *a dock opened from
+shut starts at its top* and *once per arrival* true as written. `jump.ts`'s
+*Where it lands* paragraph is struck with a dated note, and the editor's comment
+has one.
+
+**An address loaded with the dock already open wrote the preference anyway.**
+The route's opener ran on mount, before the preference had been read, and took
+*unknown* for *shut*: its patch cancelled the read in flight, and until the
+write answered the cache held the open key alone — the theme read as `system`
+and the dock's width as the default, with nothing to restore if the write
+failed. `useOpenDockFor` waits on the read now (`loaded`, which only ever goes
+from false to true, so the effect still fires once per arrival, and closing the
+dock changes neither of its keys).
+
+***Session settings* declared a shortcut that closes what it opens** (two
+findings, one fault). `aria-keyshortcuts` names a chord that activates or
+focuses *the element*, and Ctrl+` is the shell's toggle: with the dock open a
+screen reader said the chord would take a person to the settings, and it took
+them away. One finding withdrew the attribute; the other kept it and the
+visible hint while the dock is shut. **Withdrawn**, because the attribute was
+not true from shut either — there the chord opens the dock at its top without
+pressing this button or moving the keyboard — and because a hint that vanished
+the moment the dock opened would change the button's width under the pointer
+whose press had just opened it. The hint stays as it was, `aria-hidden`, beside
+the name and out of it, where a sighted reader can see whether the dock is
+open. `OpenDockButton` loses the `keyshortcuts` prop, struck in its docstring
+with a dated note; the shell's *Workbench* keeps its attribute, since that
+button is the toggle. 10 §1.1's note gains *from shut*, dated; §3.1's sentence
+already said so.
+
+**The assistant's fold read the session and the transcript twice.** It was
+mounted only once the session had arrived, so the section's panels mounted their
+reads against a cache entry already stale, and every opening of the assistant
+fetched each twice where before this stage it fetched each once. The fold is
+there from the first render now and hidden until the session arrives —
+`HudStrip`'s *hidden while the session loads, not left out*, cited in the
+fold's comment.
+
+**The assistant's context meter opened the dock on another session.** 10 §3.1
+said no control on the assistant's Play opens the dock, and the meter did: it
+opened the dock on the main view's subject and, since this stage, jumped to and
+focused that view's record — another session's turn, not the one it measured.
+The code was made to match the sentence rather than the sentence weakened,
+since in that mount there is no right dock to open: `ContextMeter` takes
+`opensDock`, which `PlayPage` passes as `settings === 'workbench'`, and without
+it draws the same bar and figure in a plain element, its sentence as text,
+without the trailing *Open the workbench to see the block table* (`meterLabel`
+leaves it out). §3.1 has a dated note saying the meter was such a control
+until review; the guide's meter paragraph says it is only a reading in the
+assistant's panel.
+
+**Nothing held the assistant's `settings="here"`**, and dropping it passed
+every test while the assistant's Play showed a *Session settings* that opened
+the dock on the main view and left *Archive this session* nowhere.
+`AssistantPanel.test.tsx` records what the panel hands `PlayPage` — the
+finding's minimal version, since what `here` draws is already
+`PlayPage.test.tsx`'s.
+
+**Two comments and a placement said less than was so.** `ModeActions`'
+docstring still put the cards it updates *above it*; they are items of the
+strip on the page behind the dock now, and a dated note says so and names the
+separation as the cost T3's walker judges. And **Scene's reveal of its secret
+plot was moved against its mode's own placement without a word**: the
+*Decided, and not said until review* bullet above records it, `plot.ts`'s
+`REVEAL` and `PLOT_SURFACES` have dated notes, [P14](31-p14-scene-and-session-import.md)'s
+P14.5b sentence has a dated parenthesis, and 10 §8.0's note names the reveal as
+the one placement whose mode argued the other way. The reveal stays where the
+split put it; moving it to `hud` is a design change for the owner or T3.
+
+**Tests after review, each checked against a mutation and restored.** In
+`play/reachability.test.tsx`: the new *Escape in the Session section*, *leaves
+the dock open, and the draft in it, when it is pressed while typing*, fails
+with both guards removed and with the guard keyed only on `defaultPrevented`;
+*still closes the dock from a control that keeps no draft* fails with
+`isTextEntry` widened to `isEditable`. *Keeps the block and what was typed in
+it when the record shows another turn* fails with the picker's search back to
+`{ turn }`. *Opens at its top when it is reopened with the block still in the
+address* reopens by the header's *Workbench* and by the chord, and asks that a
+second chord closes it; it fails with the editor's `landOnce` guard removed.
+*Writes nothing when the address is loaded with the dock already open* puts the
+router at the address before anything is drawn, as a reload would, and holds
+the preference read; it fails with `loaded` dropped from the opener's guard.
+*Opens at Session from Session settings* asks that the control carries no
+`aria-keyshortcuts` and still shows *Ctrl+\`*, and fails with the stage's
+`PlayPage.tsx` and `OpenDockButton.tsx` put back. In `PlayPage.test.tsx`, *draws
+its settings in place, folded, when it is not the main view* counts the reads —
+one session and one transcript, which the fold mounted on `session.data` again
+makes 2 and 2 — and asks that the meter is no button, its sentence promises no
+workbench, and a press on it writes nothing: it fails with `opensDock` ignored,
+with the reading given the press, and with the name's last sentence kept. In
+`assistant/AssistantPanel.test.tsx`, the new *asks the play page for its
+settings in place, since the dock is not about it* fails with
+`settings="here"` dropped. `dock.test.tsx`'s *closes on Escape only when focus
+is inside it* still holds Escape on *Close*, unchanged. *Not looked at in a
+browser*, still.
+
+**Entry after: 318.93 kB, CSS 8.43** — **318.72 and 8.43 before**, at
+`76fce95a`, gzip level 9 over the files `index.html` pulls, the budget test's
+method. **+0.21 kB**: `editable.ts` and the Escape guard, the landing, the
+meter's reading, the picker's search function. CSS is unchanged: every class the
+fixes spend was already emitted. **1.07 kB is left** for
+[P12A.6](#p12a6--motion-five-of-them) onward.
 
 ### P12A.6 — Motion, five of them
 

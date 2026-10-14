@@ -444,6 +444,14 @@ describe('the column', () => {
    * folded, and no control offers a dock that would open on something else.
    * Mutations: the `here` arm ignored (the dock's control drawn, the settings
    * nowhere), and the section drawn without the session panel's verbs.
+   *
+   * *(2026-10-14, after review: **the context meter is one of those
+   * controls**, and was a button here that opened the dock on the main view's
+   * subject and jumped to that session's record — so here it is a reading,
+   * and pressing it writes nothing; mutation, `opensDock` ignored. **And the
+   * fold reads nothing twice**: mounted only once the session had arrived, it
+   * fetched the session and the transcript a second time; mutation, the fold
+   * mounted on `session.data` again, which these counts see as 2 and 2.)*
    */
   it('draws its settings in place, folded, when it is not the main view', async () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -453,8 +461,18 @@ describe('the column', () => {
       </QueryClientProvider>,
     );
     await screen.findByText('I knock twice.');
+    await act(async () => {
+      await new Promise((settle) => setTimeout(settle, 50));
+    });
+    expect(readSession).toHaveBeenCalledTimes(1);
+    expect(readTranscript).toHaveBeenCalledTimes(1);
 
     expect(screen.queryByRole('button', { name: 'Session settings' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Context fill/ })).toBeNull();
+    const meter = screen.getByText(/^Context fill/);
+    expect(meter.textContent).not.toMatch(/workbench/);
+    await userEvent.click(meter);
+    expect(patchPrefs).not.toHaveBeenCalled();
     const fold = await screen.findByText('Session settings', { selector: 'summary' });
     await userEvent.click(fold);
     expect(screen.getByText(/^Retrieving from/, { selector: 'summary' })).toBeTruthy();

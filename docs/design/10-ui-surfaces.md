@@ -156,7 +156,10 @@ its parameters with the session's verbs, the dials, a mode's actions and
 switches. Play keeps its heading row, the two lines a session can say about
 itself, the backdrop's two controls, the strip, the prose and the composer.
 **Nothing became harder to reach than one press**: *Session settings* in the
-heading row opens the dock at that section, and Ctrl+` opens it there too. The
+heading row opens the dock at that section, and Ctrl+` opens it there too
+*(2026-10-14, after review: from shut — with the dock open the chord closes it,
+which is why Play shows it beside* Session settings *and does not declare it as
+that control's shortcut)*. The
 risk [P12A §1.3](workplan/35-p12a-the-look.md) named — that moving a control
 into a panel someone must open is the disclosure reflex this section rejects —
 is answered by argument rather than measurement, and its sitting T3 is where a
@@ -1050,7 +1053,10 @@ the story is hidden while the settings are open, as it is while the record is.
 **One mount is not the main view**: the assistant draws Play in a panel of its
 own (§7) beside whatever the main view is, and the dock there is about that
 view, not the assistant's session — so the assistant's Play draws the same
-Session section in place, folded, and no control on it opens the dock. *What is
+Session section in place, folded, and no control on it opens the dock
+*(2026-10-14, after review: the context meter was one, and opened the dock on
+the main view's subject and jumped to its record — another session's turn, not
+the one it measured; there it is a reading now, not a button)*. *What is
 not done*: the Session section is still several panels stacked rather than the
 one panel [P7B §1.4](workplan/24-p7b-presets-and-prompts.md) once asked for, which
 the move made cheaper and did not make necessary.
@@ -2026,7 +2032,12 @@ arm and never the channel, so the host still knows no channel; a mode that
 wants a switch on the story surface puts it in the `hud` region, which is what
 that region is for. *The vocabulary did not change*: the region's name and
 every arm are as they were, and an older client still draws the region as a
-stack.
+stack. *(2026-10-14, after review: one placement argued the other way and was
+overruled without being named — Scene's reveal of its secret plot, a `toggle`
+its `plot.ts` put in the panel beside the revealed card because reading the
+plot is reading the story. By arm it is a switch and went to the dock, and the
+card to the strip, so [06 §7.3](06-modes-and-turn-pipeline.md)'s reveal
+affordance is in two places; P12A §2 records it, and T3's walker weighs it.)*
 
 ***Two of the six slots still have no consumer at all*** — **input-bar actions**
 and **library columns** — and naming them here is cheaper than discovering later

@@ -253,7 +253,8 @@ The **context meter** above the box shows how much of the room the prompt may us
 next turn would take — the room being the model's window, less the share the pack holds
 back and the space kept for the reply. It is re-measured as you type and changes colour
 at 85% of that room. Click it to open the workbench at the turn record; with something
-typed, it shows what would be sent.
+typed, it shows what would be sent. In the assistant's panel it is only a reading, since
+the workbench there is about the page behind the panel.
 
 A turn runs **on the server**, not in your browser. Closing the tab mid-turn is safe:
 the turn finishes, and when you come back the page picks up where it was — or a
@@ -485,7 +486,9 @@ copies: edit a lorebook and the session uses the new text at the next turn. See
 
 **Edit in the pack**, beside a block in a turn's block table further down the workbench,
 opens that block's text here to edit, and leaves the turn record on the turn you found it
-in. See [Presets and prompts](presets.md#a-sessions-own-copy).
+in; choosing another turn under **Showing** keeps the block open. Closing and reopening
+the workbench opens it at the top again. See
+[Presets and prompts](presets.md#a-sessions-own-copy).
 
 ### Dials
 
@@ -500,9 +503,10 @@ keeps pushing, look at all three.
 The workbench is a panel beside the page that shows what a turn was made of. Open it
 from **Workbench** in the header, with **Ctrl+`** (when the keyboard is not in a text
 box), by clicking the context meter, or with **Session settings**; **Close** shuts it,
-and so does **Escape** while the keyboard is inside it. Its width can be dragged, and
-whether it is open is remembered for your account. On a phone-sized screen it takes over
-the page.
+and so does **Escape** while the keyboard is inside it — but not while you are typing in
+one of its boxes, so a block or a note you are writing is not lost. Its width can be
+dragged, and whether it is open is remembered for your account. On a phone-sized screen
+it takes over the page.
 
 Over a session it has two sections, one under the other, with a button for each at the
 top: **Session**, the [session settings](#session-settings), and **Turn record**. The
@@ -623,7 +627,7 @@ is reloaded or refocused.
   the arrow keys move between them, **Home** and **End** jump to the ends.
 - **Ctrl+`** opens and closes the workbench when the keyboard is not in a text box —
   over a session it opens at the session settings; **Escape** closes it while the
-  keyboard is inside it.
+  keyboard is inside it and not in a text box.
 - **Skip to the page**, the first Tab stop on every page, jumps past the header.
 - The plot-hook questions put the focus on **Cancel**; **Delete this session** does
   not.
