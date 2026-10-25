@@ -587,6 +587,18 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
     '“{story}”, an Aventuras story file (format {version}): {entries} entries across {branches} branches besides the main line. Importing it makes it a session, with its characters, lorebook and pictures.',
   'import.aventuras.avtOlderFormat':
     'The file for “{story}” was written by an older Aventuras (format {version}). What that format did not carry yet — branches, pictures or portraits, depending on its age — is not in it, so it is not here either.',
+  /**
+   * ***Aventuras' exchange envelope*** — [P13.16]: every vault export since
+   * v0.7.12. A marked file is read or refused, never guessed at as a card.
+   */
+  'import.aventuras.exchangeNewerFormat':
+    '{file} comes from a newer Aventuras (format {version}; this build knows {known}). Everything this build reads was there, so it was read; anything newer was left alone.',
+  'import.aventuras.exchangeUnknownFormat':
+    '{file} is an Aventuras export in a format this build cannot read (format {version}; this build reads 1.x, up to {known}). Nothing was imported from it.',
+  'import.aventuras.exchangeUnknownEntity':
+    '{file} is an Aventuras export of a kind this build does not know (“{entity}”). Nothing was imported from it.',
+  'import.aventuras.exchangeUnreadable':
+    '{file} says it is an Aventuras {entity} export, but holds no {entity} to read. Nothing was imported from it.',
   'import.aventuras.avtNewerFormat':
     'The file for “{story}” comes from a newer Aventuras (format {version}; this build knows {known}). Everything this build reads was there, so it was read; anything newer was left alone.',
   'import.aventuras.avtUnknownFormat':

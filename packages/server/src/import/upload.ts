@@ -11,6 +11,7 @@ import {
 import { codecFor, type CardContents } from '../storage/card/index.js';
 
 import { AVT_FORMAT, readAvt } from './aventuras/avt.js';
+import { hasExchangeMarker, readExchange } from './aventuras/exchange.js';
 import { isAventurasLorebook, isVaultCharacter, isVaultScenario } from './aventuras/shapes.js';
 import { SILLYTAVERN_CHAT_FORMAT } from './sillytavern/chat.js';
 import type { ImportCandidate, SourceItem } from './source.js';
@@ -242,6 +243,19 @@ export function readUpload(
       { key: 'import.file.unrecognised', params: { file: filename }, level: 'warn' },
     ]);
   }
+
+  /**
+   * ***Aventuras' exchange envelope*** — [P13.16](../../../../docs/design/workplan/30-p13-aventuras-import.md).
+   * Every vault export since Aventuras v0.7.12 is one: a character, scenario
+   * or lorebook under `data`, marked `format: "aventuras-exchange"`. Answered
+   * here rather than in `probe()` because a marked file is answered whole —
+   * read, or refused with the reason — and never handed on to the card probe,
+   * which unwraps `data` and would otherwise get the last word on it; and
+   * because a character carries its portrait beside the payload, which a
+   * format string cannot. Not gated on `confidence`: the marker is a claim
+   * nothing else writes (`aventuras/exchange.ts`).
+   */
+  if (hasExchangeMarker(parsed)) return readExchange(filename, parsed);
 
   /**
    * *A chat that is only its header* — one line, so one JSON document. It

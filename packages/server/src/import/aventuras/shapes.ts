@@ -6,12 +6,18 @@ import type { ImportNote } from '@storyengine/shared';
 /**
  * What an Aventuras file looks like, and the guards that recognise one.
  *
- * **Structural, because there is nothing else to go on.** Aventuras' vault
- * export is `JSON.stringify(entity, null, 2)` and nothing more
+ * **Structural, because there was nothing else to go on.** Aventuras' vault
+ * export was `JSON.stringify(entity, null, 2)` and nothing more
  * (`lorebookImportExport/export/vault.ts`) — no envelope, no `spec`, no version
  * field, not even a wrapper object. SillyTavern hands us `spec:
- * "chara_card_v2"` and Marinara hands us a typed envelope; this hands us the
- * record, so the shape *is* the identification.
+ * "chara_card_v2"` and Marinara hands us a typed envelope; this handed us the
+ * record, so the shape *was* the identification.
+ *
+ * ***Until v0.7.12***, which wraps every vault export in a marked envelope —
+ * `format: "aventuras-exchange"` — read by `exchange.ts`, by the marker and
+ * not by these guards ([P13.16]). These stay for the files people exported
+ * before that, and for the database reader's mapped rows, which are the same
+ * records.
  *
  * **The guards live here rather than in `upload.ts` because two callers need
  * them and they must not drift.** The probe decides what a file is and the
