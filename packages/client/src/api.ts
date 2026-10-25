@@ -882,7 +882,7 @@ export const api = {
   deleteMyConnection: (id: string): Promise<undefined> =>
     request('DELETE', `/api/me/connections/${encodeURIComponent(id)}`),
 
-  fetchMyModels: (body: { baseUrl?: string; apiKey?: string }): Promise<{ models: string[] }> =>
+  fetchMyModels: (body: { baseUrl?: string; apiKey?: string }): Promise<OfferedModels> =>
     request('POST', '/api/me/connections/models', body),
 
   /** Tries one of your own saved connections — the admin route's twin ([polish §25]). */
@@ -3246,6 +3246,27 @@ export interface ConnectionTestInput {
 }
 
 /**
+ * What an endpoint's `/models` answered — the ids, and what each one takes in
+ * and gives back where the endpoint said so (2026-10-25).
+ *
+ * `modalities` is **sparse by design**: OpenAI's own answer carries nothing but
+ * ids, so a model absent from it is *unknown* rather than *text only*, and the
+ * picker's filters say so instead of guessing. Optional on the wire because a
+ * server from before it answers without the field.
+ */
+export interface OfferedModels {
+  models: string[];
+  modalities?: ModelModalities[];
+}
+
+/** One model's modalities, in the endpoint's own lower-case words. */
+export interface ModelModalities {
+  id: string;
+  input: string[];
+  output: string[];
+}
+
+/**
  * What a connection test answered with.
  *
  * `modelId` is what the endpoint says answered, which may not be what was
@@ -3436,7 +3457,7 @@ export const adminApi = {
    * in practice, and the model field stays free text so the admin types what
    * they were going to type anyway.
    */
-  fetchModels: (input: { baseUrl?: string; apiKey?: string }): Promise<{ models: string[] }> =>
+  fetchModels: (input: { baseUrl?: string; apiKey?: string }): Promise<OfferedModels> =>
     request('POST', '/api/admin/connections/models', input),
 
   /**

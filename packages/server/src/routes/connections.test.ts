@@ -562,6 +562,86 @@ describe('fetching a model list', () => {
     expect(response.status).toBe(200);
     expect(response.body.models).toEqual([]);
   });
+
+  /**
+   * ***What each model takes and gives, where the endpoint says*** — the
+   * picker's modality filters. One fixture per shape the server reads, because
+   * each is a different aggregator's spelling of the same fact and a refactor
+   * that dropped one would leave that provider's list unfilterable with every
+   * other test still green.
+   */
+  it('passes on what each model takes in and gives back, in every shape it reads', async () => {
+    fetchResult = Response.json({
+      data: [
+        {
+          id: 'openai/gpt-4o',
+          architecture: {
+            input_modalities: ['text', 'image', 'file'],
+            output_modalities: ['text'],
+          },
+        },
+        { id: 'old/arrow', architecture: { modality: 'text+image->text' } },
+        { id: 'flat/one', input_modalities: ['Audio'], output_modalities: ['text'] },
+        { id: 'pixtral', capabilities: { completion_chat: true, vision: true } },
+        { id: 'llava', capabilities: ['completion', 'vision'] },
+        { id: 'flux', type: 'image' },
+        { id: 'bge', type: 'embedding' },
+        { id: 'gpt-hi', owned_by: 'openai' },
+      ],
+    });
+
+    const response = await server.request({
+      method: 'POST',
+      url: '/api/admin/connections/models',
+      payload: { baseUrl: 'https://openrouter.example/api/v1' },
+    });
+
+    expect(response.body.models).toHaveLength(8);
+    expect(response.body.modalities).toEqual([
+      { id: 'openai/gpt-4o', input: ['text', 'image', 'file'], output: ['text'] },
+      { id: 'old/arrow', input: ['text', 'image'], output: ['text'] },
+      { id: 'flat/one', input: ['audio'], output: ['text'] },
+      { id: 'pixtral', input: ['text', 'image'], output: [] },
+      { id: 'llava', input: ['text', 'image'], output: [] },
+      { id: 'flux', input: ['text'], output: ['image'] },
+      { id: 'bge', input: ['text'], output: ['embedding'] },
+      // `gpt-hi` said nothing, so it is absent — *unknown*, never *text only*.
+    ]);
+  });
+
+  /**
+   * **Bounded, because the host is unvetted.** A word list is the one part of
+   * this answer whose size the endpoint chooses, so it is cut to short words
+   * and a handful of them rather than passed on whole.
+   */
+  it('keeps only a few short words of what an endpoint says about a model', async () => {
+    fetchResult = Response.json({
+      data: [
+        {
+          id: 'noisy',
+          architecture: {
+            input_modalities: [
+              'text',
+              'x'.repeat(500),
+              7,
+              ...Array.from({ length: 20 }, (_, i) => `m${String(i)}`),
+            ],
+          },
+        },
+      ],
+    });
+
+    const response = await server.request({
+      method: 'POST',
+      url: '/api/admin/connections/models',
+      payload: {},
+    });
+
+    const [noisy] = response.body.modalities as { input: string[] }[];
+    expect(noisy?.input).toHaveLength(8);
+    expect(noisy?.input[0]).toBe('text');
+    expect(noisy?.input.every((word) => word.length <= 24)).toBe(true);
+  });
 });
 
 /**

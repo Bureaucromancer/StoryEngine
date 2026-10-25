@@ -1633,6 +1633,108 @@ describe('what the endpoint offers', () => {
     });
     expect(createConnection.mock.calls[0]?.[0]).toMatchObject({ models: [] });
   });
+
+  /**
+   * ***A list you can find things in*** (2026-10-25) — an aggregator answers
+   * with hundreds of ids, and the one column R2 built is unusable at that size.
+   * The search narrows as it is typed, and once it has, the all-or-none pair
+   * acts on what is shown: *Use all of them* under a filtered list would read
+   * as *all of these* and take everything.
+   */
+  it('narrows by search, and ticks only what the search shows', async () => {
+    fetchModels.mockResolvedValue({
+      models: [
+        'meta-llama/llama-3.3-70b-instruct',
+        'meta-llama/llama-3.1-8b-instruct',
+        'openai/gpt-4o',
+        'mistralai/mixtral-8x22b',
+      ],
+    });
+    renderSurface();
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Add a connection' }));
+    await userEvent.type(screen.getByLabelText('Name'), 'The aggregator');
+    await userEvent.type(screen.getByRole('textbox', { name: /Models/ }), 'typed/by-hand');
+    await userEvent.click(screen.getByRole('button', { name: 'Ask the endpoint what it offers' }));
+
+    // Enter in the search box searches; it must not be the form's Save.
+    await userEvent.type(await screen.findByLabelText('Find a model'), 'llama{Enter}');
+    expect(createConnection).not.toHaveBeenCalled();
+    expect(screen.getByText('Showing 2 of 4.')).toBeTruthy();
+    expect(screen.queryByRole('checkbox', { name: 'openai/gpt-4o' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Use all of them' })).toBeNull();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Tick the 2 shown' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(createConnection).toHaveBeenCalled();
+    });
+    // The hand-typed one stays: a filtered tick only adds what it showed.
+    expect(createConnection.mock.calls[0]?.[0]).toMatchObject({
+      models: [
+        'typed/by-hand',
+        'meta-llama/llama-3.3-70b-instruct',
+        'meta-llama/llama-3.1-8b-instruct',
+      ],
+    });
+  });
+
+  /**
+   * **Modality filters, only where the endpoint said anything.** OpenAI's own
+   * `/models` carries ids alone, and a row of boxes that could only ever empty
+   * the list would be a control claiming knowledge it does not have — so the
+   * first half asserts they are absent, and the second that a model nothing
+   * was said about is hidden *and said to be*, never silently dropped.
+   */
+  it('filters by what a model takes and gives, when the endpoint says', async () => {
+    fetchModels.mockResolvedValueOnce({ models: ['gpt-hi', 'gpt-lo'] });
+    renderSurface();
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Add a connection' }));
+    await userEvent.type(screen.getByLabelText('Name'), 'The aggregator');
+    await userEvent.click(screen.getByRole('button', { name: 'Ask the endpoint what it offers' }));
+    await screen.findByRole('checkbox', { name: 'gpt-hi' });
+    expect(screen.queryByRole('group', { name: 'Takes in' })).toBeNull();
+
+    fetchModels.mockResolvedValueOnce({
+      models: ['vision/one', 'text/two', 'draws/three', 'silent/four'],
+      modalities: [
+        { id: 'vision/one', input: ['text', 'image'], output: ['text'] },
+        { id: 'text/two', input: ['text'], output: ['text'] },
+        { id: 'draws/three', input: ['text'], output: ['image'] },
+      ],
+    });
+    await userEvent.click(screen.getByRole('button', { name: 'Ask the endpoint what it offers' }));
+    await userEvent.click(await screen.findByRole('checkbox', { name: 'Pictures in' }));
+
+    expect(screen.getByRole('checkbox', { name: 'vision/one' })).toBeTruthy();
+    expect(screen.queryByRole('checkbox', { name: 'text/two' })).toBeNull();
+    expect(screen.queryByRole('checkbox', { name: 'silent/four' })).toBeNull();
+    expect(screen.getByText(/1 more says nothing about what it takes or gives/)).toBeTruthy();
+
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Pictures in' }));
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Pictures out' }));
+    expect(screen.getByRole('checkbox', { name: 'draws/three' })).toBeTruthy();
+    expect(screen.queryByRole('checkbox', { name: 'vision/one' })).toBeNull();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Clear the filters' }));
+    expect(screen.getByRole('checkbox', { name: 'silent/four' })).toBeTruthy();
+  });
+
+  it('shows only the ticked ones, for reviewing a selection', async () => {
+    fetchModels.mockResolvedValue({ models: ['gpt-hi', 'gpt-lo', 'gpt-vision'] });
+    renderSurface();
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Add a connection' }));
+    await userEvent.type(screen.getByLabelText('Name'), 'The house key');
+    await userEvent.click(screen.getByRole('button', { name: 'Ask the endpoint what it offers' }));
+    await userEvent.click(await screen.findByRole('checkbox', { name: 'gpt-lo' }));
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Only the ticked ones (1)' }));
+
+    expect(screen.getByRole('checkbox', { name: 'gpt-lo' })).toBeTruthy();
+    expect(screen.queryByRole('checkbox', { name: 'gpt-hi' })).toBeNull();
+  });
 });
 
 /**

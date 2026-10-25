@@ -1246,3 +1246,78 @@ ignoring the gate, and the row not asking to stay.
 - **Delete from the library list** — every object of your own has a Delete on
   its row, which asks first and moves it to the trash without leaving the
   shelf.
+## 28. A provider with four hundred models can be provisioned
+
+*Filed and built 2026-10-25, on the owner's request: "the likes of nanogpt or
+openrouter are just impossible to use in that single alphabetic list."*
+
+**The condition it fixes.** [R2](22-walkthrough-refinements.md) turned the
+connection form's *ask the endpoint what it offers* from one-at-a-time buttons
+into a checkbox per model with an all-or-none pair. That is right for a local
+runtime serving nine models and hopeless for an aggregator serving several
+hundred: the model somebody wants is a long scroll down one alphabetical
+column, the column pushes the capabilities and the Save strip far below it,
+and *Use all of them* provisions a list no role picker can be used with
+either.
+
+**What shipped.**
+
+- **A search box over the offered list** (`ModelPicker.tsx`), matching every
+  word anywhere in the id, in any order — an aggregator's ids are
+  `vendor/family-size-variant`, and what a person remembers is two of the
+  pieces. Enter in it does not submit the form.
+- **Modality filters, *Takes in* and *Gives back*, only when the endpoint said
+  anything.** `POST …/connections/models` now answers `modalities` beside
+  `models`: per id, what the entry says it takes and gives, read from
+  OpenRouter's `architecture.input_modalities` / `output_modalities` (and the
+  aggregators that copy it), the older `architecture.modality` arrow string,
+  `capabilities.vision` or a `capabilities` word list, and Together's `type`.
+  OpenAI's own `/models` carries ids alone, so for it — and for every local
+  runtime — no filter row appears rather than a row that could only empty the
+  list. Within a row the filter is *all*, not *any*. **A model nothing was said
+  about fails a modality filter and is counted aloud** (*N more say nothing
+  about what they take or give*), because passing it would put a possibly
+  text-only model in front of somebody who asked for vision. The words are
+  bounded server-side (eight per list, 24 characters each): the host is
+  unvetted.
+- ***Only the ticked ones***, for reviewing thirty out of four hundred.
+- **The all-or-none pair acts on what is shown once anything narrows the
+  list** — *Tick the 12 shown*, *Untick the 12 shown*, *Clear the filters* —
+  and never touches a model typed by hand that the endpoint does not list.
+  Unfiltered it is *Use all of them* / *Use none of them* as before.
+- **The list is held to a height and scrolls inside itself.**
+
+**The text field stays the value** ([P2B §2.6](10-p2b-provider-configuration.md)),
+so nothing here keeps a second list; filter state is the picker's own and is
+not saved.
+
+**What it cost the entry bundle**: **+1.15 kB** gzip, 315.04 to 316.19 against
+the 317 ceiling — under it, with 0.81 kB left. The remedy
+`tools/entry-budget.test.ts` already names (the admin half of Settings behind
+one `lazy()`, measured at −1.85 kB) would also take this off the entry, since
+the picker is only reached from Connections.
+
+**Proved against** `modelFilter.test.ts` (the search's any-order words; *all*
+within a row; unknown hidden and counted; *ticked only* combined with the
+rest; the familiar words first), `Connections.test.tsx` (*what the endpoint
+offers*: search narrows and Enter does not save, a filtered tick keeps a typed
+model and adds only what was shown, the modality rows absent for an ids-only
+answer and present for one with modalities, *ticked only*) and
+`routes/connections.test.ts` (one fixture per shape the server reads, an entry
+that says nothing left absent, the bound on a noisy word list).
+
+**Not walked.** ***Which shapes NanoGPT's plain `/models` actually carries is
+unconfirmed*** — its documentation describes a detailed listing, and whether
+the default answer includes `architecture` was not checked against the live
+endpoint. If it answers ids only, search still works and the modality rows
+simply do not appear; the fix would be asking for the detailed listing, which
+is a request this route does not send today. That and an OpenRouter key are
+the walk: *ask the endpoint, search for two words, tick Pictures in, tick the
+shown, save.*
+
+**What the changelog will say**, parked here for §25's reason:
+
+- **Finding a model on a large provider** — when a connection's endpoint
+  offers a long list (OpenRouter, NanoGPT), the list can be searched, filtered
+  by what a model takes in and gives back where the endpoint says, narrowed to
+  the ones already ticked, and ticked or unticked a search at a time.

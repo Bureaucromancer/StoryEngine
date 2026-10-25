@@ -567,16 +567,126 @@ async function countBindings(services: AppServices, connectionId: string): Promi
  * going to type anyway.
  */
 function modelIdsFrom(payload: unknown): string[] {
+  return entriesOf(payload)
+    .map((entry) => entry['id'])
+    .filter((id): id is string => typeof id === 'string');
+}
+
+/** The `data` array of a `/models` answer, as the objects in it. */
+function entriesOf(payload: unknown): Record<string, unknown>[] {
   if (typeof payload !== 'object' || payload === null) return [];
   const data = (payload as Record<string, unknown>)['data'];
   if (!Array.isArray(data)) return [];
-  return data
-    .map((entry) =>
-      typeof entry === 'object' && entry !== null
-        ? (entry as Record<string, unknown>)['id']
-        : undefined,
-    )
-    .filter((id): id is string => typeof id === 'string');
+  return data.filter(
+    (entry): entry is Record<string, unknown> => typeof entry === 'object' && entry !== null,
+  );
+}
+
+/**
+ * What a model takes in and gives back, as the endpoint's answer says.
+ *
+ * Lower-case words — `text`, `image`, `audio`, `file`, `video`, `embedding` —
+ * because that is the vocabulary the endpoints that say anything already use,
+ * and the picker builds its filters from whichever words actually arrived
+ * rather than from a list this build would have to keep current.
+ */
+interface ModelModalities {
+  id: string;
+  input: string[];
+  output: string[];
+}
+
+/**
+ * ***What each model takes and gives, where the endpoint says*** — the half of
+ * the picker's filters that needs the server (2026-10-25).
+ *
+ * `/models` is an OpenAI shape and OpenAI's own answer carries nothing but ids,
+ * so this is **best-effort by construction**: an entry nothing could be read
+ * from is simply absent, and the picker treats an absent entry as *unknown*
+ * rather than as *text only*. The shapes read are the ones the large
+ * aggregators — the providers that made the flat list unusable in the first
+ * place — actually send:
+ *
+ * - **`architecture.input_modalities` / `output_modalities`**, OpenRouter's and
+ *   the aggregators that copy it (NanoGPT among them), and the same two arrays
+ *   at the top level of the entry, where a few proxies flatten them.
+ * - **`architecture.modality`**, the older `text+image->text` string, read only
+ *   when the arrays are missing because it says strictly less.
+ * - **`capabilities`**, as an object with `vision: true` (Mistral's, and
+ *   NanoGPT's detailed answer) or as a list of words containing `vision`
+ *   (Ollama's own spelling, which some bridges pass through).
+ * - **`type`**, Together's one-word answer — `chat`, `language` and `code` are
+ *   text to text, `image` draws, `embedding` embeds.
+ *
+ * ***Bounded, because the host is unvetted.*** Only short strings are kept and
+ * only a handful of them, so a hostile or broken answer cannot turn a model
+ * list into an arbitrarily large response; ids are not reshaped here, since
+ * {@link modelIdsFrom} already sends them as they came.
+ */
+function modalitiesFrom(payload: unknown): ModelModalities[] {
+  const found: ModelModalities[] = [];
+  for (const entry of entriesOf(payload)) {
+    const id = entry['id'];
+    if (typeof id !== 'string') continue;
+    const input = new Set<string>();
+    const output = new Set<string>();
+
+    const architecture = objectOf(entry['architecture']);
+    const arrays = [architecture, entry];
+    for (const holder of arrays) {
+      if (holder === null) continue;
+      for (const word of wordsOf(holder['input_modalities'])) input.add(word);
+      for (const word of wordsOf(holder['output_modalities'])) output.add(word);
+    }
+    const arrow = architecture?.['modality'];
+    if (input.size === 0 && output.size === 0 && typeof arrow === 'string') {
+      const [takes, gives] = arrow.split('->');
+      for (const word of wordsOf(takes?.split('+'))) input.add(word);
+      for (const word of wordsOf(gives?.split('+'))) output.add(word);
+    }
+
+    const capabilities = entry['capabilities'];
+    const sees = Array.isArray(capabilities)
+      ? capabilities.includes('vision')
+      : objectOf(capabilities)?.['vision'] === true;
+    if (sees) {
+      input.add('text');
+      input.add('image');
+    }
+
+    const type = entry['type'];
+    if (type === 'chat' || type === 'language' || type === 'code') {
+      input.add('text');
+      output.add('text');
+    } else if (type === 'image') {
+      input.add('text');
+      output.add('image');
+    } else if (type === 'embedding') {
+      input.add('text');
+      output.add('embedding');
+    }
+
+    if (input.size > 0 || output.size > 0) {
+      found.push({ id, input: [...input], output: [...output] });
+    }
+  }
+  return found;
+}
+
+function objectOf(value: unknown): Record<string, unknown> | null {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+/** At most eight short words, lower-cased — see {@link modalitiesFrom}'s bound. */
+function wordsOf(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((word): word is string => typeof word === 'string')
+    .map((word) => word.trim().toLowerCase())
+    .filter((word) => word.length > 0 && word.length <= 24)
+    .slice(0, 8);
 }
 
 function bodyToInput(body: unknown): {
@@ -661,7 +771,10 @@ async function fetchModels(
       });
     }
     const payload: unknown = await response.json();
-    return await reply.send({ models: modelIdsFrom(payload) });
+    return await reply.send({
+      models: modelIdsFrom(payload),
+      modalities: modalitiesFrom(payload),
+    });
   } catch {
     /**
      * ***Nothing answered, and [P11.6] splits that in two.***
