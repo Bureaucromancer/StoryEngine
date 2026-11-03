@@ -39,6 +39,7 @@ import { produceStory, STORY_FORMAT } from './aventuras/story.js';
 import type { AventurasStoryRows } from './aventuras/story-rows.js';
 import { produceWorld, type WorldProduction } from './aventuras/world.js';
 import { isRecord, linkedLorebookId } from './aventuras/shapes.js';
+import { EXCHANGE_LOREBOOK_FORMAT } from './aventuras/exchange.js';
 import { VAULT_CHARACTER_FORMAT } from './aventuras/vault-character.js';
 import {
   convertVaultLorebook,
@@ -688,6 +689,10 @@ class Writer {
       // and tags, and its entries in the vault's flat shape.
       case VAULT_LOREBOOK_FORMAT:
         return this.#aventurasVaultLorebook(candidate);
+      // An exchange file's lorebook (P13.16): the vault row's shape, so the
+      // row's converter — but no row id, so nothing for a link to resolve to.
+      case EXCHANGE_LOREBOOK_FORMAT:
+        return this.#storeAventurasLorebook(candidate, convertVaultLorebook(candidate.payload));
       // A `character_vault` and a `scenario_vault` row (P13.5): the file's own
       // converters, and a link to a vault book resolved beside them, which is
       // what a row can do and a file cannot (§1.7).

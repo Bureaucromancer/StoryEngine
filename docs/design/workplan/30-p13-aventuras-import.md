@@ -62,7 +62,7 @@ four things leave the app:
 
 | Exit | Carries | Read here |
 |---|---|---|
-| Vault JSON, one record per file | one character, scenario or lorebook | **yes** — [P4 §1.5](16-p4-implementation.md) |
+| Vault JSON, one record per file | one character, scenario or lorebook | **yes** — [P4 §1.5](16-p4-implementation.md); since Aventuras v0.7.12 inside an exchange envelope, read from [P13.16](#p1316--the-exchange-envelope-after-the-pin) |
 | `.avt`, one story per file, versioned (1.10.0) | one story, all branches, images inline | no — Part 2, [P13.15](#p1315--avt-through-the-same-producer-done) |
 | Full backup: a zip of a `VACUUM INTO` snapshot plus `metadata.json` | everything | **this phase** |
 | LAN sync | selected stories as `.avt`, one request each, from a running app | no — it is a phone-to-desktop feature, not an export |
@@ -1225,6 +1225,129 @@ pass. ~~A `.avt` is `gatherStoryData()` — every row for one story — serialis
 producer that reads a story from the database reads it from JSON with a
 different row source. Optional; worth it only if people arrive with `.avt`
 files and no database, which the LAN-sync and Android cases make plausible.~~
+
+### P13.16 — The exchange envelope, after the pin
+
+*Built 2026-10-25 on `claude/wonderful-cannon-g88u7r`, from a survey of
+Aventuras at `b07fbc2b` (v0.7.12+28, 2026-10-24); a follow-up to Part 1,
+reported by the person — "the import doesn't recognise the JSON format
+Aventuras exports single characters in".*
+
+**What moved.** Aventuras #539 (`3eab16c3`, 2026-09-27, released in v0.7.12)
+landed two days after [§5](#5--the-survey-this-rests-on)'s pin. It wraps all
+three vault exports (character, scenario and lorebook) in a marked, versioned
+document. Aventuras did this because its own importer was taking its own bare
+character for a V1 card and losing the portrait, the descriptors and the tags:
+
+```json
+{ "format": "aventuras-exchange", "formatVersion": "1.0.0",
+  "entity": "character", "exportedAt": 1730000000000, "data": { } }
+```
+
+Every probe walked past it. `isVaultCharacter` reads the top level, and
+`looksLikeCard` unwraps `data` and finds no card field there, so a character
+fresh from the vault came back *nothing here recognised this file*. The same
+happened to a scenario and to both kinds of lorebook export. The story-side
+export also writes this envelope now, and the bare `Entry[]` is gone. Aventuras
+itself no longer reads the bare `Entry[]` at all (its
+`docs/architecture/exchange-format.md`, *What happened to the old formats*).
+[§0.2](#02-the-database-is-the-only-artefact-that-carries-everything)'s first
+row was true at the pin and has been false since v0.7.12.
+
+**The design: an envelope reader, not a fourth conversion.** Each `data` is, by
+Aventuras' own construction, the vault record minus its identity, provenance
+and derived counters. So `aventuras/exchange.ts` reads the envelope and hands
+each payload to the converter that already takes that record:
+
+| `entity` | Candidate format | Converter |
+|---|---|---|
+| `character` | `aventuras.character` | `convertCharacter`, **portrait carried** |
+| `scenario` | `aventuras.scenario` | `convertScenario` (the preview's summary included) |
+| `lorebook` | `aventuras.exchange-lorebook` | `convertVaultLorebook`, without a row id |
+
+- **It is identified by the marker alone**, which is Aventuras' own rule. The
+  marker is answered at both confidences, before the chat checks and before
+  `probe()`. A marked file is read or refused, and **never falls through to
+  the card probe**. Three things refuse it, each as `unrecognised` with a
+  note: a version other than 1.x, an unknown `entity`, and a `data` that is
+  not an object (`import.aventuras.exchange{UnknownFormat,UnknownEntity,Unreadable}`).
+  A newer 1.x minor reads, with `exchangeNewerFormat` at `warn`. This is the
+  `.avt` gate's bargain from P13.15.
+- **Aventuras' schema defaults are applied**, but only to the fields our
+  guards and `vaultEntryToEntryLike` read: `traits`, `visualDescriptors`
+  (through `repairVisualDescriptors`), `npcs`, `settingSeed`, and each
+  entry's `keywords`, `aliases`, `description`, `injectionMode`
+  (`'keyword'`) and `priority` (`100`). A hand-trimmed file that Aventuras
+  accepts therefore reads here too. One exception: a scenario with an empty
+  `settingSeed` is valid there and is still refused here as `missing-field`,
+  the same as from a `scenario_vault` row.
+- **The portrait is carried**, which a bare vault file's never was. It is the
+  same data URL a `character_vault` row holds, so it goes through
+  [§1.6](#16-portraits-are-carried)'s road: `decodePortrait`, the same
+  ceiling with its length checked before decoding, and then the Writer
+  through `ImportCandidate.inline`. A link is never fetched; it gets
+  `import.card.portraitUnreadable` instead.
+- **Story-side lorebook fields are kept.** `hiddenInfo` lands in an entry's
+  `metadata`, as it does from a `.avt`, and so does
+  `loreManagementBlacklisted`. Aventuras' own vault drops both.
+- **Identity is the file**, as it was for the bare export. The envelope has no
+  id by design, so a re-upload is `unchanged`. The same character from the
+  database is keyed by its row and becomes a second actor.
+- **The bare pre-envelope shapes still read.** People hold files from before
+  v0.7.12, and recognising them costs nothing.
+
+*Ended at:* `aventuras/exchange.test.ts` covers the read at each refusal and
+default, the door at both confidences, and the probe it must not fall through
+to. It also sweeps three exchange files into a real library and reads the
+result back off disk. In that sweep the PNG portrait becomes the card's own
+pixels, `hiddenInfo` survives, `startingTime` rides in the treatment's
+`metadata`, and a second sweep is `unchanged`. With the one routing line
+removed, the door and sweep tests fail.
+
+**Owed, and not done here: the writers.** `export/writers.ts` still writes the
+three pre-envelope shapes. Against v0.7.12 they do worse than lose fields.
+Aventuras now reads a bare character or scenario as a card, through its AI
+sanitizer, and drops its portrait, descriptors and tags. It refuses the bare
+`Entry[]` lorebook as *"unknown lorebook format"*. So `EXPORT_FORMATS`'
+`roundTrips: true` on `aventuras.lorebook` is wrong today. For the other two,
+`false` is still correct, but the reason given for it is not. Emitting the
+envelope would make all three round-trip. That changes what an export writes,
+so it is the person's call.
+
+#### Found by the same survey, and not fixed here
+
+Read 2026-10-25 against each source's current head. Only Aventuras moved under
+its pin. Everything else below was a gap at the pin too.
+
+- **Aventuras, beyond the envelope.** `.avt` is 1.11.0, which adds
+  `worldStateRecords` and `worldStateMarks`. It reads with `avtNewerFormat`,
+  and both fields are derived state that would be `recorded`. Migrations
+  040–043 add one table, `world_state_changes`, which carries a `story_id`.
+  The reader reports it as an `unrecognised` table with its count, so the
+  registry's snapshot is owed a retake to 043. 041 drops
+  `story_entries.world_state_delta`, which the reader never selected, so the
+  column gate still passes. The backup zip's layout is unchanged.
+- **SillyTavern, misrecognised.** SillyTavern's own world importer accepts
+  NovelAI lorebooks (`lorebookVersion`; `text`, `displayName`) and Agnai
+  memory books (`kind: "memory"`; `entry`, `keywords`). Both carry `entries`,
+  so `probe()` hands them to the SillyTavern converter, and every entry
+  imports **with an empty body** and no note. SillyTavern's
+  `world-info.js:5875` tells them apart before importing.
+- **SillyTavern, unrecognised but convertible.** The Advanced Formatting
+  master export (`{instruct, context, sysprompt, reasoning}`, whose
+  `sysprompt` converts) and the prompt manager's export
+  (`{version, type, data: {prompts, prompt_order}}`).
+- **Marinara, misrecognised.** A *compatible* persona export (`name` plus
+  `personality`) passes `looksLikeCard` and imports as a character rather
+  than a persona.
+- **Marinara, imports nothing.** These are `marinara-profile.zip` (a
+  fileStorage v2 manifest and `profile-tables/*.jsonl`, which `envelope.ts`
+  already calls unreadable), the full-backup download (a data root inside a
+  `marinara-backup-<ts>/` folder, which `classifyRoot` does not look into),
+  and the bulk `marinara-{characters,…}.zip` (one native envelope per member,
+  which is recognised only at the single-file door, never in a sweep).
+  [01 §1](../01-source-survey.md) and [§1.1](#11-one-source-kind-four-transports)
+  describe the profile zip as *"the same tree zipped"*, and it is not.
 
 ### What is deliberately not in this phase
 

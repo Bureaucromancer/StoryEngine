@@ -14,9 +14,11 @@
  * where every field came from**, and these were read off
  * `src/lib/types/index.ts` at `master` rather than remembered.
  *
- * The shapes are exactly what `lorebookImportExport/export/vault.ts` writes:
- * `JSON.stringify(entity, null, 2)` and nothing else — no envelope, no `spec`,
- * no version. Every oddity below is one the real export has, and each says so.
+ * The first three are exactly what `lorebookImportExport/export/vault.ts`
+ * wrote before Aventuras v0.7.12: `JSON.stringify(entity, null, 2)` and
+ * nothing else — no envelope, no `spec`, no version. Every oddity below is one
+ * the real export had, and each says so. What it writes since is the exchange
+ * envelope, at the end of this file.
  */
 
 /**
@@ -163,4 +165,103 @@ export function aventurasLorebook(): Record<string, unknown>[] {
       createdBy: 'ai',
     },
   ];
+}
+
+/**
+ * ***The exchange envelope*** — [P13.16](../../../../../docs/design/workplan/30-p13-aventuras-import.md).
+ * What every vault export has been since Aventuras v0.7.12: `wrapExchange`
+ * around the record minus its identity, provenance and derived counters
+ * (`services/exchange/convert.ts` at `b07fbc2b`). `data` is given whole, so a
+ * test can hand in a payload with a field left out — which Aventuras' schema
+ * defaults — or one that is not an object at all.
+ */
+export function aventurasExchange(
+  entity: string,
+  data: unknown,
+  formatVersion = '1.0.0',
+): Record<string, unknown> {
+  return {
+    format: 'aventuras-exchange',
+    formatVersion,
+    entity,
+    exportedAt: 1_761_000_000_000,
+    data,
+  };
+}
+
+/**
+ * `characterToExchange`'s payload: the eight portable fields and nothing else.
+ * `metadata` is filtered by Aventuras' allowlist, whose only character key is
+ * `cardVersion`; `portrait` is whatever data URL the vault held.
+ */
+export function exchangeCharacter(portrait: string | null): Record<string, unknown> {
+  return {
+    name: 'Ines Vaur',
+    description: 'A dock inspector who notices what the manifests leave out.',
+    traits: ['patient', 'unbribable', 'tired'],
+    visualDescriptors: {
+      hair: 'grey, cropped, wet',
+      eyes: 'pale grey',
+      distinguishing: 'a burn scar across the left hand',
+    },
+    portrait,
+    tags: ['npc', 'harbour'],
+    favorite: true,
+    metadata: { cardVersion: '2.0' },
+  };
+}
+
+/**
+ * `storyEntriesToExchange`'s payload — a lorebook exported from inside a
+ * story, which is the one that carries the two story-side entry fields; a
+ * vault book's export is the same minus those.
+ */
+export function exchangeLorebook(): Record<string, unknown> {
+  return {
+    name: 'Harbour lore',
+    description: 'What the port knows about itself.',
+    tags: ['noir'],
+    favorite: false,
+    metadata: {},
+    entries: [
+      {
+        name: 'The Customs House',
+        type: 'location',
+        description: 'Where the manifests go to be ignored.',
+        keywords: ['customs', 'manifest'],
+        aliases: ['the House'],
+        injectionMode: 'always',
+        priority: 400,
+        hiddenInfo: 'The ledgers in the cellar are the real ones.',
+        loreManagementBlacklisted: true,
+      },
+      // Left to Aventuras' schema defaults: keyword mode, priority 100.
+      { name: 'The Night Shift', type: 'concept', description: 'Nothing after ten has a name.' },
+    ],
+  };
+}
+
+/** `scenarioToExchange`'s payload, `startingTime` included — authored content that travels. */
+export function exchangeScenario(): Record<string, unknown> {
+  return {
+    name: 'Ash Harbour',
+    description: 'A working port under permanent rain.',
+    settingSeed: 'Ash Harbour has been wet for eleven days, and the customs house is flooding.',
+    npcs: [
+      {
+        name: 'The Dockmaster',
+        role: 'Signs everything',
+        description: 'Has read none of it.',
+        relationship: 'Indifferent',
+        traits: ['affable'],
+      },
+    ],
+    primaryCharacterName: 'Ines Vaur',
+    firstMessage: 'The rain has not stopped since Tuesday.',
+    alternateGreetings: ['The manifest is wrong again.'],
+    startingTime: { years: 0, days: 3, hours: 22, minutes: 15 },
+    tags: ['noir'],
+    favorite: false,
+    metadata: { cardVersion: '2.0' },
+  };
 }
