@@ -58,6 +58,7 @@ import {
   type ConnectionInput,
   type ConnectionTestInput,
   type ConnectionTestResult,
+  type OfferedModels,
   type RoleRow,
   type ConfigView,
   type AuthState,
@@ -1666,7 +1667,7 @@ export function useConnectionBindings(
  */
 export function useFetchModels(
   scope: ConnectionScope = 'system',
-): UseMutationResult<{ models: string[] }, Error, { baseUrl?: string; apiKey?: string }> {
+): UseMutationResult<OfferedModels, Error, { baseUrl?: string; apiKey?: string }> {
   return useMutation({
     mutationFn: scope === 'system' ? adminApi.fetchModels : api.fetchMyModels,
   });

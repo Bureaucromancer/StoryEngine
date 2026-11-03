@@ -14,6 +14,7 @@ import { formatCount, formatDuration } from '../format.js';
 import { roleLabel, roleModel, roleSource } from './roleWords.js';
 import { CheckboxField, Field, SelectField } from '../ui/Field.js';
 import { SecretField } from '../ui/SecretField.js';
+import { ModelPicker } from './ModelPicker.js';
 import {
   useAuthState,
   useBindings,
@@ -649,44 +650,20 @@ function ConnectionForm({
          * regardless of what is loaded). So a model this list does not know can
          * still be typed, and unchecking one the admin typed by hand removes it
          * rather than being unable to see it.
+         *
+         * ***And searchable, since 2026-10-25*** — an aggregator's four hundred
+         * ids in one column was the list R2 fixed, back at a larger size.
+         * {@link ModelPicker} carries the reasoning.
          */}
         {offered.length === 0 ? null : (
-          <div className="flex flex-col gap-2">
-            <Fine>{offeredCount(offered.length)}</Fine>
-            <ul className="flex flex-col gap-1">
-              {offered.map((model) => (
-                <li key={model}>
-                  <CheckboxField
-                    label={model}
-                    checked={chosen.includes(model)}
-                    onChange={(on) => {
-                      setModelText((text) => withModel(text, model, on));
-                    }}
-                  />
-                </li>
-              ))}
-            </ul>
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                size="compact"
-                onClick={() => {
-                  setModelText(toModelText(offered));
-                }}
-              >
-                Use all of them
-              </Button>
-              <Button
-                type="button"
-                size="compact"
-                onClick={() => {
-                  setModelText('');
-                }}
-              >
-                Use none of them
-              </Button>
-            </div>
-          </div>
+          <ModelPicker
+            offered={offered}
+            modalities={models.data?.modalities}
+            chosen={chosen}
+            onChoose={(next) => {
+              setModelText(toModelText(next));
+            }}
+          />
         )}
       </div>
 
@@ -1539,13 +1516,6 @@ function toModelText(models: readonly string[]): string {
   return models.join(', ');
 }
 
-/** Adds or removes one model, keeping the order the field is already in. */
-function withModel(text: string, model: string, on: boolean): string {
-  const models = modelsFrom(text);
-  if (on) return models.includes(model) ? text : toModelText([...models, model]);
-  return toModelText(models.filter((each) => each !== model));
-}
-
 function keyState(connection: AdminConnection): string {
   return connection.hasKey
     ? 'A key is stored for this connection.'
@@ -1612,12 +1582,6 @@ function bindingCount(count: number): string {
   return count === 1
     ? '1 role points at this connection. It will fall back to the install default, or stop working if there is none.'
     : `${String(count)} roles point at this connection. They will fall back to the install default, or stop working if there is none.`;
-}
-
-function offeredCount(count: number): string {
-  return count === 1
-    ? 'This endpoint offers 1 model. Tick the ones this install should use.'
-    : `This endpoint offers ${String(count)} models. Tick the ones this install should use.`;
 }
 
 /** An endpoint and a model, as the one thing a person is choosing. */
