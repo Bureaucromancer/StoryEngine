@@ -86,10 +86,6 @@ be edited by hand, but this is the first build that moves a folder of yours.
 - **A provider with hundreds of models can be set up.** The connection form's
   offered list is searchable, filterable by what a model takes in and gives
   back where the endpoint says, and can be narrowed to the ticked ones.
-- **Aventuras' vault exports read again.** A character, scenario or lorebook
-  exported from Aventuras 0.7.12 or later, in its `aventuras-exchange`
-  envelope, imports instead of reporting that nothing recognised the file, and
-  a character keeps its portrait.
 
 ### Changed
 
@@ -98,20 +94,27 @@ be edited by hand, but this is the first build that moves a folder of yours.
 - **A setup whose mode this install lacks is no longer refused with *No such
   mode***: starting it asks, and starts it in the default mode on a word.
   Choosing a mode that does not exist is still refused.
+- **A session export no longer names the connection each picture was made
+  through** — it keeps the model's name — and neither does a published World's
+  session. A session exported by alpha 5 or 6 still loads, as it was.
+- ***Used by* knows more**: a lorebook's lists the characters linked to it, a
+  treatment's the sessions played under it, and a character's the sessions
+  whose hooks or story brought them in.
+
+### Fixed
+
 - **A plot hook's *Involves* and *Blocked by* take only what they offer.** A
   typed name that matched nothing was saved as a reference to nobody, which
   retired the hook quietly; now only a character or hook the field offers can
   be chosen, and each is named rather than shown as an id.
-- **A session export no longer names the connection each picture was made
-  through** — it keeps the model's name — and neither does a published World's
-  session. A session exported by alpha 5 or 6 still loads, as it was.
 - **An entry's picture is kept as it was picked.** The lorebook entry strip
   used to redraw a picture that was not square into a square, losing its edges
   and anything the file carried; it now keeps the file and records the square
   as a crop. Pictures added before this build kept only their square.
-- ***Used by* knows more**: a lorebook's lists the characters linked to it, a
-  treatment's the sessions played under it, and a character's the sessions
-  whose hooks or story brought them in.
+- **Aventuras' vault exports read again.** A character, scenario or lorebook
+  exported from Aventuras 0.7.12 or later, in its `aventuras-exchange`
+  envelope, imports instead of reporting that nothing recognised the file, and
+  a character keeps its portrait.
 
 ### Known
 
