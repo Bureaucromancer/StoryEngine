@@ -1565,7 +1565,8 @@ italics. Each item says whose it is.
   one. They are on [work plan §8](01-work-plan.md)'s pre-beta list, under *What
   beta requires*, with the re-pin of the actor and preset artefacts in
   `world-release-check.test.ts` that opening either makes.
-- **The changelog's entry**, owed at the next tag, drafted here because
+- *(Taken into the alpha 7 entry of the [changelog](../../../CHANGELOG.md),
+  2026-11-07.)* **The changelog's entry**, owed at the next tag, drafted here because
   `CHANGELOG.md` refuses an unreleased heading — the convention
   [P12](29-p12-implementation.md), [P13](30-p13-aventuras-import.md) and
   [P15](33-p15-setup-from-a-turn.md) followed. *What the changelog will say*, in

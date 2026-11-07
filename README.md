@@ -60,7 +60,8 @@ to 4 followed on 2026-09-07, -08 and -09, under the same terms, and alpha 5 on
 2026-10-07, the first tag on a public repository: its image is as private as
 the others, and its tarball is not
 ([releases §0.1a](docs/design/workplan/04-repo-and-releases.md)). Alpha 6
-followed on 2026-10-08, under alpha 5's terms.
+followed on 2026-10-08, and alpha 7 — P16's Worlds — on 2026-11-07, both under
+alpha 5's terms.
 
 **The UI browses, plays, reads and configures.** Sign in and browse all six
 kinds of library object, or fill the library from a SillyTavern, Marinara or

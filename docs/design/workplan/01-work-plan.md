@@ -1175,6 +1175,7 @@ K0, because a finding recorded against a dirty tree is not attributable**.
 Alpha 5 followed on 2026-10-07, after four weeks of merges: the first tag on a
 public repository, and the first to run the tarball job P11.9 added. Alpha 6
 followed the next day, for the settings page's contents.
+Alpha 7 followed on 2026-11-07, for P16's Worlds, with sitting AA unwalked.
 **The phase closed on its merge — the precedent the project made a
 rule on 2026-09-09** — and steps 3 through 12 stand as
 [sitting I](05-manual-testing.md), where the first install has already turned

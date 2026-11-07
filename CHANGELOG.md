@@ -17,6 +17,119 @@ the string by the rule in [releases §7.1](docs/design/workplan/04-repo-and-rele
 and never written without it. A heading here opens with the string, because the
 release workflow reads it there, and carries the name and the date after it.
 
+## 1.0.0-alpha.7 — 1.0-alpha 7 — 2026-11-07
+
+A month after alpha 6, and the phase the work plan calls P16: **Packages are
+Worlds**, a set you fill and start a session in, and a file you can publish and
+hand to somebody else. Three smaller things merged after it — a picture's recipe
+that travels, a model list a large provider can be chosen from, and Aventuras'
+newer export files. **Read the first section before upgrading**: nothing has to
+be edited by hand, but this is the first build that moves a folder of yours.
+
+### Before you upgrade
+
+- **Packages are Worlds now.** Every Package is listed as a World at once and
+  keeps working. **Its folder moves** from `library/packages/` to
+  `library/worlds/` the first time it is saved — the first time StoryEngine
+  moves a folder of yours, which matters to anyone who edits or syncs those
+  folders by hand — under a new folder name if a World already has its name.
+  A Package in the trash is listed as a World and puts back as one.
+- **The search index rebuilds itself once** on the first start (its version
+  goes from 12 to 15).
+- **The HTTP API moved with the rename.** `/api/library/packages/…` and the old
+  World export route answer `404`; [the API reference](docs/api.md) has the
+  `/api/library/worlds/…` and `/api/publish` routes. `POST /api/sessions`
+  answers `422 unmet-requirements` for a start whose World or Setup asks for
+  something this install lacks, and takes `degraded: true` to start anyway.
+- **A new lorebook, and every standalone SillyTavern lorebook imported, is
+  linked to nobody** rather than `global` — which was read by nothing either
+  way. Books you already have keep the scope they were stored with.
+
+### Added
+
+- **Worlds you make and fill.** *New world*, an editor that picks members of
+  every kind and your sessions, *Add to a world* from a session, *In these
+  worlds* on its page, and the World's page listing its members by their
+  current names, a deleted one marked *Missing*. A World never stops a delete,
+  and deleting one deletes no member.
+- **Starting a session in a World**, from its page or the session form: its
+  lorebooks, the books scoped to it, and its treatment when it holds exactly
+  one, copied in once at the start — and **its setup, when it holds exactly
+  one**, which the session starts through as if you had chosen it. A World
+  changed afterwards does not change a session already started.
+- **A lorebook's scope can be set**, under *Scope* in its settings: not tied to
+  anything, for particular characters, or **for sessions started in particular
+  worlds**. The shelf filters by it.
+- **Publishing.** *Publish…* on an object's page, *Publish this world…* on a
+  World's, and *Select* on the shelves. The review is a page of its own: every
+  level of what would travel and why, sessions off until ticked, history
+  opt-in, what stays home named, and a `.seworld` file that carries pictures
+  and sessions. Publishing a selection keeps it as a World unless *Just make
+  the file* is chosen. **Publishing again** opens on what changed since the
+  last file, and *Choose as last time* repeats its choices.
+- **Importing a World file** — and a `.sepack.json` from alpha 5 or 6 — through
+  the ordinary import, looked at before it is taken, arriving as a World that
+  names exactly what landed. Its sessions open as they were played; importing
+  the same file again doubles nothing, and a newer one brings only new turns.
+  A World arriving on a second account on the same install never touches the
+  first account's copies.
+- **What a world needs, said, and started anyway.** Importing a World file
+  says each thing it needs that this install lacks — a mode, a model for a job,
+  an extension — and starting a session from a World or a Setup that needs one
+  asks first, listing each with what starting without it means. *Start
+  anyway* starts it, and the session says above its story what it started
+  without.
+- **A picture's recipe travels with it.** Library pictures can carry what made
+  them — the generator, the model as answered, the seed and the prompt — and
+  never the connection they were made through. Nothing in this build writes
+  one yet; a file from another tool that does is kept.
+- **A provider with hundreds of models can be set up.** The connection form's
+  offered list is searchable, filterable by what a model takes in and gives
+  back where the endpoint says, and can be narrowed to the ticked ones.
+- **Aventuras' vault exports read again.** A character, scenario or lorebook
+  exported from Aventuras 0.7.12 or later, in its `aventuras-exchange`
+  envelope, imports instead of reporting that nothing recognised the file, and
+  a character keeps its portrait.
+
+### Changed
+
+- ***Export this package* is gone**, replaced by *Publish this world…*. The
+  file it wrote is still read.
+- **A setup whose mode this install lacks is no longer refused with *No such
+  mode***: starting it asks, and starts it in the default mode on a word.
+  Choosing a mode that does not exist is still refused.
+- **A plot hook's *Involves* and *Blocked by* take only what they offer.** A
+  typed name that matched nothing was saved as a reference to nobody, which
+  retired the hook quietly; now only a character or hook the field offers can
+  be chosen, and each is named rather than shown as an id.
+- **A session export no longer names the connection each picture was made
+  through** — it keeps the model's name — and neither does a published World's
+  session. A session exported by alpha 5 or 6 still loads, as it was.
+- **An entry's picture is kept as it was picked.** The lorebook entry strip
+  used to redraw a picture that was not square into a square, losing its edges
+  and anything the file carried; it now keeps the file and records the square
+  as a crop. Pictures added before this build kept only their square.
+- ***Used by* knows more**: a lorebook's lists the characters linked to it, a
+  treatment's the sessions played under it, and a character's the sessions
+  whose hooks or story brought them in.
+
+### Known
+
+- **Alphas 5 and 6 cannot read a World file as a World** — given one, they bring
+  in its objects alone — and **refuse, whole, a lorebook scoped to a World**.
+  Alpha 5's Known line — *World will rename them and go on reading the old
+  name* — gets its sequel: it did.
+- **A link inside a published object keeps the name it was linked under**, not
+  its target's current name.
+- **The P16 rows of the manual-test list have not been walked by a person** —
+  the rename on an install that had Packages, membership, a session started in
+  a World, and a World published and arriving
+  ([manual testing](docs/design/workplan/05-manual-testing.md), sitting AA).
+  The suite holds each, and a person has not.
+- **Alpha 5's Known section otherwise stands**: no compatibility promise
+  between alpha builds; the image is private and each tag's tarball a public
+  download for ninety days.
+
 ## 1.0.0-alpha.6 — 1.0-alpha 6 — 2026-10-08
 
 A day after alpha 5, for one thing asked of it: the settings page had become a
