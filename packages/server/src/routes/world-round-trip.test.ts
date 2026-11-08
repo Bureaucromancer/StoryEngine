@@ -4,7 +4,7 @@
 import { createHash } from 'node:crypto';
 import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, sep } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -172,6 +172,15 @@ async function publish(worldId: string, sessionId: string): Promise<Buffer> {
   expect(response.statusCode, response.body).toBe(200);
   expect(response.headers['content-type']).toBe('application/zip');
   return response.rawPayload;
+}
+
+/**
+ * The folder and file a stored path ends in, split on the platform's own
+ * separator — the shape every folder-name assertion here wants, and the one a
+ * `/`-spelled regex gets wrong on Windows.
+ */
+function lastSegments(path: string): string[] {
+  return path.split(sep).slice(-2);
 }
 
 /** `POST /api/import/file` with those bytes, as the panel's word sends them. */
@@ -645,7 +654,14 @@ describe('a World published with one session ticked, imported on a second accoun
       { ...(book.body as object), name: 'Docks' },
       book.contentHash,
     );
-    expect(read(library, 'ned', ned.harbour.id).path).toMatch(/\/harbour\/lorebook\.json$/);
+    // The folder on disk keeps the name it was made under. Compared by
+    // segment, not by a regex with `/` in it: a stored path is the platform's
+    // own spelling, and on Windows that regex matched nothing (CI run 202,
+    // 2026-11-08).
+    expect(lastSegments(read(library, 'ned', ned.harbour.id).path)).toEqual([
+      'harbour',
+      'lorebook.json',
+    ]);
     const renamed = await server.request({
       method: 'PATCH',
       url: `/api/sessions/${ned.sessionId}`,
@@ -661,7 +677,7 @@ describe('a World published with one session ticked, imported on a second accoun
       before.contentHash,
     );
     const stored = read(library, 'ned', ned.world.id);
-    expect(stored.path).toMatch(/\/rain-city\/world\.json$/);
+    expect(lastSegments(stored.path)).toEqual(['rain-city', 'world.json']);
     expect((stored.body as World).contents).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ id: ned.harbour.id, name: 'Harbour' }),

@@ -580,6 +580,34 @@ async function exists(path: string): Promise<boolean> {
   );
 }
 
+/**
+ * A rename by hand, as a person with a file manager makes one — **retried on
+ * Windows' `EPERM`, and never skipped.**
+ *
+ * The fixture's server is watching the library, and on Windows chokidar opens
+ * a handle per watched directory; a folder the library made a moment ago is
+ * still having its handle opened when the test renames it, and the rename
+ * loses with `EPERM`. That is not a product defect — a person renames long
+ * after the watcher has settled, which succeeds first time — but the test does
+ * it within milliseconds, and was red on the Windows runner in CI runs 202
+ * to 204 (2026-11-08). `rebuild-property.test.ts` met the same
+ * race and retries the same way; it may treat a rename that never lands as an
+ * operation that did not happen, and this test may not, because the rename is
+ * the premise of the case. So it waits a little longer and then throws.
+ */
+async function renameByHand(from: string, to: string): Promise<void> {
+  for (const wait of [50, 100, 250, 500, 1000]) {
+    try {
+      await rename(from, to);
+      return;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'EPERM') throw error;
+      await new Promise((tick) => setTimeout(tick, wait));
+    }
+  }
+  await rename(from, to);
+}
+
 describe('a World published from a real walk', () => {
   let fixture: Fixture;
   let stage: ScratchSpace;
@@ -1719,7 +1747,7 @@ describe('what a plan decides, case by case', () => {
     const second = newLorebook('Harbour, the second');
     await create(library, 'ned', second, LOREBOOK_SCHEMA);
     const folder = dirname(read(library, 'ned', second.id).path);
-    await rename(folder, join(dirname(folder), 'Harbour'));
+    await renameByHand(folder, join(dirname(folder), 'Harbour'));
     const third = newLorebook('HARBOUR');
     await create(library, 'ned', third, LOREBOOK_SCHEMA);
     await rebuild(fixture.server.services.index.db, fixture.server.services.layout);

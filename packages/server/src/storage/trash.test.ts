@@ -303,7 +303,15 @@ describe('a Package trashed before the kind was renamed World', () => {
     return `packages/${name}-${suffix}`;
   }
 
-  const worlds = (): string => join(dataDir, 'users', 'ned', 'library', 'worlds');
+  /**
+   * Against the layout's own root, which it resolves (F26), not `mkdtemp`'s
+   * spelling: on a Windows runner `tmpdir()` is the 8.3 short name —
+   * `C:\Users\RUNNER~1\…` — and the restore answers with the long one. The same
+   * directory, two strings, so the restore's `path` compared unequal there and
+   * nowhere else (2026-11-08; `usage/log.test.ts` and `instance-lock.test.ts`
+   * met the same thing on 2026-10-01).
+   */
+  const worlds = (): string => join(layout.dataRoot, 'users', 'ned', 'library', 'worlds');
 
   it('is listed, under the folder it is in', async () => {
     const id = await trashedPackage('rain-city', Date.now());
